@@ -60,6 +60,14 @@ export function migrate(db: DB){
     FOREIGN KEY(user_id) REFERENCES users(id)
   );`);
 
+  // AI memory: persistent compressed context per user (to keep context under 100KB)
+  db.run(`CREATE TABLE IF NOT EXISTS ai_memory (
+    user_id INTEGER PRIMARY KEY,
+    compressed TEXT,
+    updated_at TEXT,
+    FOREIGN KEY(user_id) REFERENCES users(id)
+  );`);
+
   // indices
   // Allow multiple entries per day: remove legacy UNIQUE(user_id, date) constraint if present.
   db.run('DROP INDEX IF EXISTS idx_entries_user_date_unique;');

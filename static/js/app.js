@@ -91,12 +91,18 @@ function ensureEntryModal(){
 
         <div class="grid" style="margin-top: 12px;">
           <div class="soft" style="padding: 12px; background: var(--victory)">
-            <div style="font-size: 12px; font-weight: 900; letter-spacing:.16em">⚔️ VICTORIA</div>
+            <div class="rowBetween" style="align-items:center">
+              <div style="font-size: 12px; font-weight: 900; letter-spacing:.16em">⚔️ VICTORIA</div>
+              <button type="button" class="ai-btn" style="position: static; width: 34px; height: 34px" data-action="ai-rewrite" data-target="entryModalVictory" data-field="victory" title="Переписать с ИИ" aria-label="Переписать с ИИ">✦</button>
+            </div>
             <textarea class="textarea" style="margin-top: 10px" id="entryModalVictory" placeholder="Текст победы"></textarea>
           </div>
 
           <div class="soft" style="padding: 12px; background: var(--lesson)">
-            <div style="font-size: 12px; font-weight: 900; letter-spacing:.16em">🦉 LECTIO</div>
+            <div class="rowBetween" style="align-items:center">
+              <div style="font-size: 12px; font-weight: 900; letter-spacing:.16em">🦉 LECTIO</div>
+              <button type="button" class="ai-btn" style="position: static; width: 34px; height: 34px" data-action="ai-rewrite" data-target="entryModalLesson" data-field="lesson" title="Переписать с ИИ" aria-label="Переписать с ИИ">✦</button>
+            </div>
             <textarea class="textarea" style="margin-top: 10px" id="entryModalLesson" placeholder="Текст урока"></textarea>
           </div>
 
@@ -309,6 +315,7 @@ const api = {
   export: ()=> apiFetch('/api/export'),
   import: ({data, defaultPassword})=> apiFetch('/api/import', { method:'POST', body: { data, defaultPassword } }),
   stats: ()=> apiFetch('/api/stats'),
+  aiRewrite: ({field, text})=> apiFetch('/api/ai/rewrite', { method:'POST', body: { field, text } }),
 };
 
 // server returns base64(Bun.gzipSync(text)) in entry.victory / entry.lesson
@@ -771,13 +778,23 @@ function pagePath(){
 
         <form id="todayForm" class="grid" style="margin-top: 14px">
           <div class="soft" style="padding: 12px; background: var(--victory)">
-            <div style="font-size: 12px; font-weight: 900; letter-spacing:.16em">⚔️ VICTORIA</div>
-            <textarea class="textarea" style="margin-top: 10px" name="victory" placeholder="Что ты ${me.role === 'amazon' ? 'сделала' : 'сделал'} сейчас, несмотря на страх?"></textarea>
+            <div class="rowBetween" style="align-items:center">
+              <div style="font-size: 12px; font-weight: 900; letter-spacing:.16em">⚔️ VICTORIA</div>
+              <button type="button" class="ai-btn" data-action="ai-rewrite" data-target="todayVictory" data-field="victory" title="Переписать с ИИ" aria-label="Переписать с ИИ">✦</button>
+            </div>
+            <div class="ai-wrap" style="margin-top: 10px;">
+              <textarea id="todayVictory" class="textarea ai-textarea" name="victory" placeholder="Что ты ${me.role === 'amazon' ? 'сделала' : 'сделал'} сейчас, несмотря на страх?"></textarea>
+            </div>
           </div>
 
           <div class="soft" style="padding: 12px; background: var(--lesson)">
-            <div style="font-size: 12px; font-weight: 900; letter-spacing:.16em">🦉 LECTIO</div>
-            <textarea class="textarea" style="margin-top: 10px" name="lesson" placeholder="Какой урок ты забираешь прямо сейчас?"></textarea>
+            <div class="rowBetween" style="align-items:center">
+              <div style="font-size: 12px; font-weight: 900; letter-spacing:.16em">🦉 LECTIO</div>
+              <button type="button" class="ai-btn" data-action="ai-rewrite" data-target="todayLesson" data-field="lesson" title="Переписать с ИИ" aria-label="Переписать с ИИ">✦</button>
+            </div>
+            <div class="ai-wrap" style="margin-top: 10px;">
+              <textarea id="todayLesson" class="textarea ai-textarea" name="lesson" placeholder="Какой урок ты забираешь прямо сейчас?"></textarea>
+            </div>
           </div>
 
           <div class="rowBetween">
@@ -1378,6 +1395,39 @@ function bindHandlers(){
           const shown = next === 'text';
           btn.setAttribute('aria-label', shown ? 'Скрыть пароль' : 'Показать пароль');
           btn.textContent = shown ? '🙈' : '👁';
+        }
+        return;
+      }
+
+      // AI rewrite for textareas
+      if (action === 'ai-rewrite') {
+        const field = actionEl.getAttribute('data-field');
+        const targetId = actionEl.getAttribute('data-target');
+        const target = targetId ? document.getElementById(targetId) : null;
+        if (!target || !('value' in target)) return;
+
+        const text = String(target.value || '').trim();
+        if (!text) return toast('Сначала напиши текст.');
+
+        // lock button
+        const btn = actionEl;
+        const prev = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = '…';
+
+        try {
+          const r = await api.aiRewrite({ field, text });
+          const out = String(r?.text || '').trim();
+          if (!out) throw new Error('Пустой ответ ИИ.');
+          target.value = out;
+          // trigger draft autosave if present
+          try { target.dispatchEvent(new Event('input', { bubbles: true })); } catch {}
+          toast('Готово.');
+        } catch (err) {
+          toast(err.message || 'Ошибка ИИ.');
+        } finally {
+          btn.disabled = false;
+          btn.textContent = prev || '✦';
         }
         return;
       }

@@ -31,6 +31,49 @@ function gunzipText(blob: Uint8Array | null | undefined){
   return new TextDecoder().decode(out);
 }
 
+function clampUTF8(text: string, maxBytes: number){
+  const enc = new TextEncoder();
+  const bytes = enc.encode(text);
+  if (bytes.length <= maxBytes) return text;
+  // truncate by bytes
+  const sliced = bytes.slice(0, maxBytes);
+  return new TextDecoder().decode(sliced);
+}
+
+function dropFirstUTF8Bytes(text: string, dropBytes: number){
+  const enc = new TextEncoder();
+  const bytes = enc.encode(text);
+  if (bytes.length <= dropBytes) return '';
+  return new TextDecoder().decode(bytes.slice(dropBytes));
+}
+
+async function callPariterAI({ apiKey, messages, temperature=1, model='qwen3-coder-plus' }:{
+  apiKey: string;
+  messages: Array<{ role: 'system'|'user'|'assistant'; content: string }>;
+  temperature?: number;
+  model?: string;
+}){
+  const res = await fetch('https://l00m.ru/pariterai/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'authorization': `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({ model, temperature, messages }),
+  });
+  const data = await res.json().catch(()=> ({}));
+  if (!res.ok) {
+    const msg = (data && typeof data === 'object' && 'error' in data)
+      ? String((data as any).error || 'AI error')
+      : (data && typeof data === 'object' && 'message' in data)
+        ? String((data as any).message || 'AI error')
+        : 'AI error';
+    throw new Error(msg);
+  }
+  const out = data?.choices?.[0]?.message?.content;
+  return String(out || '').trim();
+}
+
 export async function handleApi(db: DB, req: Request): Promise<Response> {
   const url = new URL(req.url);
   const path = url.pathname;
@@ -237,6 +280,131 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
 
       const updated = db.query('SELECT * FROM users WHERE id = ?').get(user.id) as any;
       return json({ ok: true, user: safeUser(updated) });
+    }
+
+    // --- AI rewrite
+    if (req.method === 'POST' && path === '/api/ai/rewrite') {
+      const { user } = requireAuth(db, req);
+      const apiKey = String(process.env.PARITER_AI_KEY || '').trim();
+      if (!apiKey) return error('AI не настроен на сервере.', 503);
+
+      const body = await readJson(req);
+      const field = String(body.field || '').trim();
+      const text = String(body.text || '').trim();
+      if (!text) return error('Пустой текст.');
+      if (!(field === 'victory' || field === 'lesson')) return error('Неверное поле.');
+
+      const enc = new TextEncoder();
+      const byteLen = (s: string)=> enc.encode(s).length;
+      const MAX = 100 * 1024;
+
+      // Load compressed memory
+      const mem = db.query('SELECT compressed FROM ai_memory WHERE user_id = ?').get(user.id) as any;
+      let compressed = mem?.compressed ? String(mem.compressed) : '';
+
+      // Load recent raw history from DB (latest N). Older context should live in compressed memory.
+      const recent = db.query(
+        'SELECT id, date, victory, lesson, created_at FROM entries WHERE user_id = ? ORDER BY date DESC, id DESC LIMIT 220'
+      ).all(user.id) as any[];
+
+      const lines: string[] = [];
+      for (const e of recent.slice().reverse()) {
+        const dt = String(e.created_at || '');
+        const when = dt ? dt : String(e.date || '');
+        const v = gunzipText(e.victory);
+        const l = gunzipText(e.lesson);
+        const parts: string[] = [];
+        if (v && v.trim()) parts.push(`VICTORIA: ${v.trim()}`);
+        if (l && l.trim()) parts.push(`LECTIO: ${l.trim()}`);
+        if (!parts.length) continue;
+        lines.push(`[${when}]\n${parts.join('\n')}`);
+      }
+
+      const buildHistory = (comp: string, tailLines: string[])=> {
+        const blocks: string[] = [];
+        if (comp && comp.trim()) blocks.push(`СЖАТАЯ ИСТОРИЯ (для контекста, не переписывай):\n${comp.trim()}`);
+        if (tailLines.length) blocks.push(`ПОСЛЕДНИЕ ШАГИ (для контекста, не переписывай):\n${tailLines.join('\n\n')}`);
+        return blocks.join('\n\n');
+      };
+
+      let history = buildHistory(compressed, lines);
+
+      // If history too large, compress via LLM and store.
+      if (byteLen(history) > MAX) {
+        const sys = [
+          'Ты — инструмент сжатия контекста дневника Pariter.',
+          'Сожми текст истории максимально компактно, но сохрани факты, имена, важные детали и формулировки.',
+          'Не добавляй новых фактов. Не выдумывай.',
+          'Пиши по-русски. Формат: короткие пункты и правила.',
+          'Цель: итог должен быть короче, чтобы поместиться в лимит 100KB вместе с новыми шагами.'
+        ].join('\n');
+
+        const userMsg = `Сожми следующую историю. Это ТОЛЬКО история, её не нужно переписывать как новый текст.\n\n${history}`;
+        const out = await callPariterAI({ apiKey, temperature: 0.3, messages: [
+          { role: 'system', content: sys },
+          { role: 'user', content: userMsg },
+        ]});
+
+        compressed = out;
+        // Upsert memory
+        db.run(
+          'INSERT INTO ai_memory (user_id, compressed, updated_at) VALUES (?,?,?) ON CONFLICT(user_id) DO UPDATE SET compressed = excluded.compressed, updated_at = excluded.updated_at',
+          [user.id, compressed, nowISO()]
+        );
+
+        // Use compressed + only last 60 steps as tail
+        history = buildHistory(compressed, lines.slice(-60));
+
+        // If still too large, drop first 10KB from compressed (as per spec)
+        if (byteLen(history) > MAX) {
+          compressed = dropFirstUTF8Bytes(compressed, 10 * 1024);
+          db.run('UPDATE ai_memory SET compressed = ?, updated_at = ? WHERE user_id = ?', [compressed, nowISO(), user.id]);
+          history = buildHistory(compressed, lines.slice(-40));
+        }
+
+        // Final clamp to be safe
+        if (byteLen(history) > MAX) {
+          history = clampUTF8(history, MAX);
+        }
+      }
+
+      const systemPrompt = (field === 'victory')
+        ? [
+            'Ты — редактор дневника Pariter.',
+            'Задача: переписать текущий текст VICTORIA (победа) более ясно и красиво на русском.',
+            'Сохраняй смысл и факты, не добавляй новых деталей.',
+            'Тон: спокойная сила, конкретика, без пафоса.',
+            'Можно чуть сократить. Можно исправить стиль и орфографию.',
+            'Не упоминай, что ты ИИ. Не добавляй заголовков.'
+          ].join('\n')
+        : [
+            'Ты — редактор дневника Pariter.',
+            'Задача: переписать текущий текст LECTIO (урок) на русском более структурно и полезно.',
+            'Сохраняй смысл и факты, не добавляй новых деталей.',
+            'Тон: доброжелательно, без самообвинения.',
+            'Желательно: 1 короткий вывод + 1 практическое правило/шаг.',
+            'Не упоминай, что ты ИИ. Не добавляй заголовков.'
+          ].join('\n');
+
+      const userPrompt = [
+        'Ниже дан контекст (история). Это только для понимания стиля и контекста, НЕ переписывай его.',
+        'После контекста будет текущий текст, который нужно переписать.',
+        '',
+        '=== ИСТОРИЯ (НЕ ПЕРЕПИСЫВАТЬ) ===',
+        history || '(нет)',
+        '',
+        '=== ТЕКСТ ДЛЯ ПЕРЕПИСЫВАНИЯ ===',
+        text,
+        '',
+        'Перепиши только текст для переписывания. Ответ: только переписанный текст, без пояснений.'
+      ].join('\n');
+
+      const rewritten = await callPariterAI({ apiKey, temperature: 1, messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt },
+      ]});
+
+      return json({ ok: true, text: rewritten });
     }
 
     // --- Stats

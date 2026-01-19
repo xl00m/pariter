@@ -1,0 +1,7 @@
+[Unit]
+Description=Pariter update (git pull + restart)
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/pariter-update.sh

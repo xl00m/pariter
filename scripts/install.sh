@@ -227,6 +227,93 @@ issue_cert_dns_manual(){
   return 1
 }
 
+# --- Early update mode (do not ask install questions)
+APP_DIR_DEFAULT="/opt/pariter"
+if [[ -d "$APP_DIR_DEFAULT" && -f "$APP_DIR_DEFAULT/config.json" && -f /etc/systemd/system/pariter.service ]]; then
+  log "\n[INFO] Найдена установленная версия Pariter в ${APP_DIR_DEFAULT}."
+  UPD="$(prompt "Обновить до последней версии? (Y/n): ")"
+  if [[ "${UPD,,}" != "n" ]]; then
+    log "\n[UPDATE] Обновляю код, сохраняя текущие config.json и БД…"
+
+    # Requirements (should already exist, but keep safe)
+    apt-get update -y >/dev/null 2>&1 || true
+    apt-get install -y curl ca-certificates unzip >/dev/null 2>&1 || true
+
+    BUN_BIN="$(command -v bun || true)"
+    if [[ -z "$BUN_BIN" ]]; then
+      die "bun не найден. Для обновления нужен bun в PATH."
+    fi
+
+    # Ensure system user exists (for chown consistency)
+    ensure_user pariter
+
+    # Download repo (non-interactive). For private repo, use env token.
+    TMP_ZIP="/tmp/pariter-update.zip"
+    EXTRACT_DIR="$(mktemp -d)"
+
+    if ! curl -fsSL "https://github.com/xl00m/pariter/archive/refs/heads/main.zip" -o "$TMP_ZIP"; then
+      TOKEN_ENV="${PARITER_GITHUB_TOKEN:-${GITHUB_TOKEN:-}}"
+      if [[ -z "$TOKEN_ENV" ]]; then
+        die "Не удалось скачать обновление (возможно private repo). Задай PARITER_GITHUB_TOKEN или GITHUB_TOKEN и повтори."
+      fi
+      if ! curl -fsSL \
+            -H "Authorization: token $TOKEN_ENV" \
+            -H "User-Agent: pariter-installer" \
+            "https://api.github.com/repos/xl00m/pariter/zipball/main" \
+            -o "$TMP_ZIP"; then
+        die "Не удалось скачать обновление даже с token."
+      fi
+    fi
+
+    unzip -q -o "$TMP_ZIP" -d "$EXTRACT_DIR"
+    SRC_DIR="$(find "$EXTRACT_DIR" -mindepth 1 -maxdepth 1 -type d | head -n 1)"
+    [[ -z "$SRC_DIR" ]] && die "Не удалось найти распакованный каталог обновления."
+
+    PRESERVE_DIR="$(mktemp -d)"
+    cp -f "$APP_DIR_DEFAULT/config.json" "$PRESERVE_DIR/" 2>/dev/null || true
+    cp -f "$APP_DIR_DEFAULT/pariter.db" "$PRESERVE_DIR/" 2>/dev/null || true
+    cp -f "$APP_DIR_DEFAULT/pariter.db-wal" "$PRESERVE_DIR/" 2>/dev/null || true
+    cp -f "$APP_DIR_DEFAULT/pariter.db-shm" "$PRESERVE_DIR/" 2>/dev/null || true
+    if [[ -d "$APP_DIR_DEFAULT/backups" ]]; then
+      mv "$APP_DIR_DEFAULT/backups" "$PRESERVE_DIR/backups" 2>/dev/null || true
+    fi
+
+    systemctl stop pariter 2>/dev/null || true
+
+    rm -rf "$APP_DIR_DEFAULT"/*
+    cp -R "$SRC_DIR"/* "$APP_DIR_DEFAULT"/
+
+    # restore preserved data
+    if [[ -f "$PRESERVE_DIR/config.json" ]]; then
+      cp -f "$PRESERVE_DIR/config.json" "$APP_DIR_DEFAULT/config.json"
+    fi
+    if [[ -f "$PRESERVE_DIR/pariter.db" ]]; then
+      cp -f "$PRESERVE_DIR/pariter.db" "$APP_DIR_DEFAULT/pariter.db"
+    fi
+    [[ -f "$PRESERVE_DIR/pariter.db-wal" ]] && cp -f "$PRESERVE_DIR/pariter.db-wal" "$APP_DIR_DEFAULT/pariter.db-wal" || true
+    [[ -f "$PRESERVE_DIR/pariter.db-shm" ]] && cp -f "$PRESERVE_DIR/pariter.db-shm" "$APP_DIR_DEFAULT/pariter.db-shm" || true
+
+    if [[ -d "$PRESERVE_DIR/backups" ]]; then
+      mv "$PRESERVE_DIR/backups" "$APP_DIR_DEFAULT/backups" 2>/dev/null || true
+    else
+      mkdir -p "$APP_DIR_DEFAULT/backups" 2>/dev/null || true
+    fi
+
+    rm -f "$TMP_ZIP"
+    rm -rf "$EXTRACT_DIR" "$PRESERVE_DIR"
+
+    chown -R pariter:pariter "$APP_DIR_DEFAULT" 2>/dev/null || true
+
+    systemctl daemon-reload
+    systemctl start pariter
+    systemctl restart pariter
+
+    log "\n[OK] Обновление завершено."
+    log "Логи: sudo journalctl -u pariter -n 120 --no-pager"
+    exit 0
+  fi
+fi
+
 # --- Inputs
 DOMAIN="$(prompt "Домен (например: pariter.ru): ")"
 ADMIN_EMAIL="$(prompt "Email администратора: ")"

@@ -13,6 +13,7 @@ const APP = {
     route: { path: '/', params: {} },
     feed: { cursor: null, loading: false, done: false, lastRenderedDate: null, renderedCount: 0 },
     cache: { entryText: new Map() },
+    live: { topKey: null, pending: false },
   }
 };
 
@@ -687,18 +688,22 @@ function pageJoin(){
     subtitle: 'Iunge te itineri',
     body: `
       <div class="soft" style="padding: 12px; margin-bottom: 14px" id="joinInfo">Проверяю приглашение…</div>
+      <div class="textMuted" style="margin: -6px 0 12px; font-size: 12px">Логин и пароль ты задаёшь сам(а).</div>
       <form id="joinForm" class="grid" style="gap: 14px" data-code="${escapeHTML(code)}">
         <div>
           <div class="label" style="margin-bottom: 6px">Имя</div>
-          <input class="input" name="name" required placeholder="Твоё имя" disabled />
+          <input class="input" name="name" required disabled />
         </div>
         <div>
           <div class="label" style="margin-bottom: 6px">Логин</div>
-          <input class="input" name="login" required autocomplete="username" placeholder="your_login" disabled />
+          <input class="input" name="login" required autocomplete="username" disabled />
         </div>
         <div>
           <div class="label" style="margin-bottom: 6px">Пароль</div>
-          <input class="input" name="password" type="password" required autocomplete="new-password" disabled />
+          <div class="pw-wrap">
+            <input class="input pw-input" name="password" type="password" required autocomplete="new-password" disabled />
+            <button type="button" class="pw-toggle" data-action="toggle-password" aria-label="Показать пароль" title="Показать/скрыть">👁</button>
+          </div>
         </div>
 
         <div class="divider"></div>
@@ -761,6 +766,16 @@ function pagePath(){
       </div>
 
       <div style="margin-top: 18px;">
+        <div id="liveBar" class="hidden" style="position: sticky; top: 62px; z-index: 30; margin-bottom: 10px;">
+          <div class="soft" style="padding: 10px 12px; display:flex; align-items:center; justify-content: space-between; gap: 10px; background: color-mix(in srgb, var(--accent) 10%, transparent); border-color: color-mix(in srgb, var(--accent) 40%, var(--border));">
+            <div style="font-weight: 800">Новые шаги</div>
+            <div class="row" style="gap: 8px">
+              <button type="button" class="btn-ghost" style="padding: 10px 12px" data-action="live-dismiss">Скрыть</button>
+              <button type="button" class="btn" style="padding: 10px 14px" data-action="live-refresh">Обновить</button>
+            </div>
+          </div>
+        </div>
+
         <div id="feed" class="grid" style="margin-top: 10px"></div>
         <div id="feedSentinel" style="height: 10px"></div>
         <div id="feedStatus" class="textMuted" style="text-align:center; font-size: 12px; padding: 12px 0"></div>
@@ -959,6 +974,10 @@ async function render(){
     try { hydrateFeed._io.disconnect(); } catch {}
     hydrateFeed._io = null;
   }
+
+  // Live updates: run only on /path and only when authed.
+  if (route === '/path' && APP.state.user) liveStart();
+  else liveStop();
 
   let html = '';
   if (route === '/') html = pageLanding();
@@ -1322,6 +1341,32 @@ function bindHandlers(){
         return;
       }
 
+      // Join/register: toggle password visibility
+      if (action === 'toggle-password') {
+        const wrap = actionEl.closest('.pw-wrap') || document;
+        const input = wrap.querySelector('input[name="password"]');
+        if (!input) return;
+        const next = (input.getAttribute('type') === 'password') ? 'text' : 'password';
+        input.setAttribute('type', next);
+        const btn = actionEl;
+        if (btn) {
+          const shown = next === 'text';
+          btn.setAttribute('aria-label', shown ? 'Скрыть пароль' : 'Показать пароль');
+          btn.textContent = shown ? '🙈' : '👁';
+        }
+        return;
+      }
+
+      // Live updates bar
+      if (action === 'live-refresh') {
+        await liveApplyIfNeeded({ force: true });
+        return;
+      }
+      if (action === 'live-dismiss') {
+        liveBarHide();
+        return;
+      }
+
       // Feed (fallback for browsers without IntersectionObserver)
       if (action === 'feed-more') {
         await loadMoreFeed();
@@ -1361,7 +1406,12 @@ function bindHandlers(){
       e.preventDefault();
       const fd = new FormData(loginForm);
       try {
-        await api.login({ login: fd.get('login'), password: fd.get('password') });
+        const r = await api.login({ login: fd.get('login'), password: fd.get('password') });
+        if (r?.user) {
+          APP.state.user = r.user;
+          APP.state.teamUsersFetchedAt = 0;
+          if (APP.state.user?.theme) setTheme(APP.state.user.theme);
+        }
         toast('Вход выполнен.');
         history.replaceState({}, '', '/path');
         render();
@@ -1378,7 +1428,7 @@ function bindHandlers(){
       e.preventDefault();
       const fd = new FormData(registerForm);
       try {
-        await api.register({
+        const r = await api.register({
           email: fd.get('email'),
           name: fd.get('name'),
           login: fd.get('login'),
@@ -1386,6 +1436,11 @@ function bindHandlers(){
           role: fd.get('role'),
           theme: fd.get('theme'),
         });
+        if (r?.user) {
+          APP.state.user = r.user;
+          APP.state.teamUsersFetchedAt = 0;
+          if (APP.state.user?.theme) setTheme(APP.state.user.theme);
+        }
         toast('Команда создана. Путь начался.');
         history.replaceState({}, '', '/path');
         render();
@@ -1403,13 +1458,18 @@ function bindHandlers(){
       const fd = new FormData(joinForm);
       const code = joinForm.getAttribute('data-code') || '';
       try {
-        await api.join(code, {
+        const r = await api.join(code, {
           name: fd.get('name'),
           login: fd.get('login'),
           password: fd.get('password'),
           role: fd.get('role'),
           theme: fd.get('theme'),
         });
+        if (r?.user) {
+          APP.state.user = r.user;
+          APP.state.teamUsersFetchedAt = 0;
+          if (APP.state.user?.theme) setTheme(APP.state.user.theme);
+        }
         toast('Добро пожаловать на путь.');
         history.replaceState({}, '', '/path');
         render();
@@ -1615,6 +1675,80 @@ function teamUserMap(){
   return m;
 }
 
+function liveKeyOf(entry){
+  if (!entry) return null;
+  return `${entry.date}#${entry.id}`;
+}
+
+function liveBarShow(){
+  const el = $('#liveBar');
+  if (!el) return;
+  el.classList.remove('hidden');
+}
+
+function liveBarHide(){
+  const el = $('#liveBar');
+  if (!el) return;
+  el.classList.add('hidden');
+}
+
+async function liveApplyIfNeeded({ force=false }={}){
+  if (!APP.state.user) return;
+  if (APP.state.feed.loading) return;
+
+  const nearTop = (window.scrollY || document.documentElement.scrollTop || 0) < 220;
+  if (!force && !nearTop) {
+    liveBarShow();
+    return;
+  }
+
+  liveBarHide();
+  // Full refresh to keep things simple and consistent.
+  await hydratePathStats();
+  await hydrateFeed(true);
+}
+
+async function liveTick(){
+  if (!APP.state.user) return;
+  if (APP.state.route?.path !== '/path') return;
+  if (APP.state.sidebarOpen) return;
+
+  try {
+    const r = await api.entriesGet({ limit: 1, before: null });
+    const top = (r?.entries && r.entries[0]) ? r.entries[0] : null;
+    const key = liveKeyOf(top);
+    if (!key) return;
+
+    if (!APP.state.live.topKey) {
+      APP.state.live.topKey = key;
+      return;
+    }
+
+    if (APP.state.live.topKey !== key) {
+      APP.state.live.topKey = key;
+      await liveApplyIfNeeded({ force:false });
+    }
+  } catch {
+    // ignore network errors in live mode
+  }
+}
+
+function liveStart(){
+  if (liveStart._timer) return;
+  // prime baseline in background
+  liveTick();
+  liveStart._timer = setInterval(liveTick, 7000);
+}
+
+function liveStop(){
+  if (liveStart._timer) {
+    clearInterval(liveStart._timer);
+    liveStart._timer = null;
+  }
+  APP.state.live.topKey = null;
+  liveBarHide();
+}
+
 async function hydrateFeed(reset=false){
   if (!APP.state.user) return;
   const feed = $('#feed');
@@ -1632,6 +1766,9 @@ async function hydrateFeed(reset=false){
     feed.innerHTML = '';
     status.textContent = '';
     if (moreBtn) moreBtn.classList.add('hidden');
+    // re-prime live top key on next load
+    APP.state.live.topKey = null;
+    liveBarHide();
   }
 
   // Infinite scroll when IntersectionObserver is available.
@@ -1671,6 +1808,11 @@ async function loadMoreFeed(){
       const moreBtn = $('#feedMore');
       if (moreBtn) moreBtn.classList.add('hidden');
       return;
+    }
+
+    // prime live baseline (latest entry in team feed)
+    if (!APP.state.live.topKey) {
+      APP.state.live.topKey = liveKeyOf(entries[0]);
     }
 
     const map = teamUserMap();

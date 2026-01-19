@@ -92,6 +92,26 @@ body{
 .textarea{ min-height: 110px; resize: vertical; }
 .input:focus, .textarea:focus{ box-shadow: var(--focus); border-color: color-mix(in srgb, var(--accent) 70%, var(--border)); background: rgba(255,255,255,.05); }
 
+/* Password input with toggle */
+.pw-wrap{ position: relative; }
+.pw-input{ padding-right: 46px; }
+.pw-toggle{
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: rgba(255,255,255,.03);
+  color: var(--text);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+.pw-toggle:hover{ background: rgba(255,255,255,.06); border-color: color-mix(in srgb, var(--border) 40%, var(--accent) 60%); }
+
 .label{ color: var(--textMuted); font-size: 12px; letter-spacing: .02em; }
 
 .link{ color: color-mix(in srgb, var(--accent) 80%, white); text-decoration: none; }

@@ -312,14 +312,32 @@ cp -R "$SRC_DIR"/* "$APP_DIR"/
 rm -f "$TMP_ZIP"
 rm -rf "$EXTRACT_DIR"
 
-# Config
+# Config (safe JSON)
+json_escape(){
+  # Minimal JSON string escaping (enough for our config fields)
+  local s="$1"
+  s=${s//\\/\\\\}
+  s=${s//\"/\\\"}
+  s=${s//$'\n'/\\n}
+  s=${s//$'\r'/\\r}
+  s=${s//$'\t'/\\t}
+  s=${s//$'\b'/\\b}
+  s=${s//$'\f'/\\f}
+  printf "%s" "$s"
+}
+
+DOMAIN_J="$(json_escape "$DOMAIN")"
+ADMIN_EMAIL_J="$(json_escape "$ADMIN_EMAIL")"
+ADMIN_LOGIN_J="$(json_escape "$ADMIN_LOGIN")"
+ADMIN_PASS_J="$(json_escape "$ADMIN_PASS")"
+
 cat > "$APP_DIR/config.json" <<EOF
 {
-  "domain": "${DOMAIN}",
-  "adminEmail": "${ADMIN_EMAIL}",
+  "domain": "${DOMAIN_J}",
+  "adminEmail": "${ADMIN_EMAIL_J}",
   "adminName": "Admin",
-  "adminLogin": "${ADMIN_LOGIN}",
-  "adminPassword": "${ADMIN_PASS}",
+  "adminLogin": "${ADMIN_LOGIN_J}",
+  "adminPassword": "${ADMIN_PASS_J}",
   "adminRole": "warrior",
   "adminTheme": "dark_warrior",
   "port": ${APP_PORT},
@@ -327,6 +345,11 @@ cat > "$APP_DIR/config.json" <<EOF
   "staticDir": "${APP_DIR}/static"
 }
 EOF
+
+# Validate JSON early to avoid confusing failures later.
+if ! "$BUN_BIN" -e "const fs=require('fs'); JSON.parse(fs.readFileSync(process.argv[1],'utf8'));" "$APP_DIR/config.json" >/dev/null 2>&1; then
+  die "config.json повреждён: невалидный JSON. Проверь введённые данные (кавычки/переводы строк) и повтори установку."
+fi
 
 chown -R pariter:pariter "$APP_DIR"
 
@@ -628,4 +651,3 @@ log "  sudo journalctl -u caddy -f"
 if [[ "$NGINX_MODE" -eq 1 ]]; then
   log "  sudo journalctl -u nginx -f"
 fi
-

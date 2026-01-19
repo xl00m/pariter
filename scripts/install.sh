@@ -29,6 +29,14 @@ prompt(){
   else
     IFS= read -r -p "$msg" out </dev/tty
   fi
+
+  # Trim leading/trailing whitespace
+  out="${out#"${out%%[![:space:]]*}"}"
+  out="${out%"${out##*[![:space:]]}"}"
+  # Remove any remaining newlines/carriage returns
+  out="${out//$'\n'/}"
+  out="${out//$'\r'/}"
+
   printf "%s" "$out"
 }
 
@@ -225,6 +233,15 @@ ADMIN_EMAIL="$(prompt "Email администратора: ")"
 ADMIN_LOGIN="$(prompt "Логин администратора: ")"
 ADMIN_PASS="$(prompt "Пароль администратора (мин. 6): " 1)"
 
+# Normalize domain: strip protocol/slashes/spaces and drop leading www.
+DOMAIN="${DOMAIN#http://}"
+DOMAIN="${DOMAIN#https://}"
+DOMAIN="${DOMAIN%%/*}"
+DOMAIN="${DOMAIN,,}"
+if [[ "$DOMAIN" == www.* ]]; then
+  DOMAIN="${DOMAIN#www.}"
+fi
+
 if [[ -z "$DOMAIN" || -z "$ADMIN_EMAIL" || -z "$ADMIN_LOGIN" || -z "$ADMIN_PASS" ]]; then
   die "Все поля обязательны."
 fi
@@ -247,11 +264,28 @@ log "\n[2/8] Устанавливаю зависимости…"
 # iproute2 -> ss
 apt-get install -y curl ca-certificates unzip gnupg iproute2
 
+# --- Firewall (UFW)
+# A very common reason for ACME timeouts on a clean VPS is UFW blocking 80/443.
+if have_cmd ufw; then
+  if ufw status 2>/dev/null | grep -q -i "Status: active"; then
+    log "\n[FW] UFW активен — открываю порты 80/tcp и 443/tcp…"
+    ufw allow 80/tcp >/dev/null 2>&1 || true
+    ufw allow 443/tcp >/dev/null 2>&1 || true
+  fi
+fi
+
 # --- DNS sanity check (prevents broken ACME / wrong IP situations)
 PUBLIC_IP="$(curl -fsS https://api.ipify.org || true)"
 DOMAIN_IP="$(getent ahostsv4 "$DOMAIN" 2>/dev/null | awk '{print $1; exit}' || true)"
 PUBLIC_IP6="$(curl -fsS https://api64.ipify.org || true)"
 DOMAIN_IP6="$(getent ahostsv6 "$DOMAIN" 2>/dev/null | awk '{print $1; exit}' || true)"
+
+# Detect if www.<domain> has DNS (only then we can safely add www->apex redirect without breaking ACME).
+WWW_DOMAIN="www.${DOMAIN}"
+WWW_HAS_DNS=0
+if getent ahostsv4 "$WWW_DOMAIN" >/dev/null 2>&1 || getent ahostsv6 "$WWW_DOMAIN" >/dev/null 2>&1; then
+  WWW_HAS_DNS=1
+fi
 
 if [[ -n "$PUBLIC_IP" && -n "$DOMAIN_IP" && "$PUBLIC_IP" != "$DOMAIN_IP" ]]; then
   warn "DNS A: ${DOMAIN} -> ${DOMAIN_IP}, но внешний IPv4 сервера: ${PUBLIC_IP}."
@@ -630,10 +664,26 @@ EOF
 else
   # Caddy owns 80/443 -> auto HTTPS
   cat > /etc/caddy/Caddyfile <<EOF
+{
+  email ${ADMIN_EMAIL}
+  acme_ca https://acme-v02.api.letsencrypt.org/directory
+}
+
 ${DOMAIN} {
   reverse_proxy 127.0.0.1:${APP_PORT}
 }
 EOF
+
+  # Canonicalize: www -> apex (only if www has DNS, otherwise ACME would fail trying to validate www)
+  if [[ "${WWW_HAS_DNS}" -eq 1 ]]; then
+    cat >> /etc/caddy/Caddyfile <<EOF
+
+www.${DOMAIN} {
+  redir https://${DOMAIN}{uri} 308
+}
+EOF
+  fi
+
   sed -i 's/^Environment=PARITER_SECURE_COOKIE=.*/Environment=PARITER_SECURE_COOKIE=1/' /etc/systemd/system/pariter.service
 fi
 
@@ -674,6 +724,20 @@ if [[ "$NGINX_MODE" -eq 1 ]]; then
     log "[OK] Nginx proxy отвечает локально (Host: ${DOMAIN})"
   else
     warn "Nginx proxy не отвечает локально. Проверь: nginx -t; journalctl -u nginx -n 120 --no-pager"
+  fi
+else
+  # Caddy owns 80/443: verify listener and HTTP->HTTPS redirect.
+  if ss -ltnpH 2>/dev/null | grep -qE '(:|\])80\b' && ss -ltnpH 2>/dev/null | grep -qE '(:|\])443\b'; then
+    log "[OK] Caddy слушает 80/443"
+  else
+    warn "Caddy не слушает 80/443. Проверь: ss -ltnp | egrep ':80|:443'; journalctl -u caddy -n 120 --no-pager"
+  fi
+
+  # HTTP should redirect to HTTPS
+  if curl -fsSI "http://${DOMAIN}/" 2>/dev/null | grep -qi '^location: https://'; then
+    log "[OK] HTTP -> HTTPS редирект работает"
+  else
+    warn "HTTP -> HTTPS редирект не обнаружен. Проверь Caddyfile и логи caddy."
   fi
 fi
 

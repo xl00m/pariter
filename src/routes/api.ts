@@ -1,6 +1,6 @@
-import { authErrorToResponse, clearSessionCookieHeaders, createSession, requireAuth, setSessionCookieHeaders } from '../auth';
 import type { DB } from '../db';
 import { ROLE_META, THEMES, defaultThemeForRole } from '../themes';
+import { authErrorToResponse, clearSessionCookieHeaders, createSession, requireAuth, setSessionCookieHeaders } from '../auth';
 import { error, json, nowISO, randomInviteCode, readJson, sanitizeLogin, todayYMD, validateEmail, validateLogin, validatePassword } from '../utils';
 
 function themeAllowed(role: string, theme: string){
@@ -56,7 +56,7 @@ function normalizeNoYoNoDash(text: string){
     .replaceAll('–', '-');
 }
 
-async function callPariterAI({ apiKey, messages, temperature=0.5, model='qwen3-coder-plus' }:{
+async function callPariterAI({ apiKey, messages, temperature=1, model='qwen3-coder-plus' }:{
   apiKey: string;
   messages: Array<{ role: 'system'|'user'|'assistant'; content: string }>;
   temperature?: number;

@@ -80,6 +80,7 @@ function withSecurityHeaders(res: Response){
 function contentTypeFor(pathname: string){
   if (pathname.endsWith('.css')) return 'text/css; charset=utf-8';
   if (pathname.endsWith('.js')) return 'text/javascript; charset=utf-8';
+  if (pathname.endsWith('.webmanifest')) return 'application/manifest+json; charset=utf-8';
   if (pathname.endsWith('.ico')) return 'image/x-icon';
   if (pathname.endsWith('.svg')) return 'image/svg+xml; charset=utf-8';
   if (pathname.endsWith('.png')) return 'image/png';

@@ -1,0 +1,24 @@
+{
+  "name": "PARITER",
+  "short_name": "PARITER",
+  "description": "Pariter — вместе, наравне, вперед. Совместный дневник личностного роста.",
+  "start_url": "/path",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0b1020",
+  "theme_color": "#7c5cff",
+  "icons": [
+    {
+      "src": "/static/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/static/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}

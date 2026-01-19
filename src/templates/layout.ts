@@ -43,6 +43,8 @@ export function layout({ title, description, body, themeId, bootstrap }: { title
 
   <link rel="stylesheet" href="/static/css/style.css?v=${ASSET_VER}" />
   <link rel="icon" href="/static/favicon.svg" type="image/svg+xml" />
+  <link rel="manifest" href="/static/manifest.webmanifest" />
+  <meta name="theme-color" content="#7c5cff" />
 </head>
 <body style="${bodyStyle}">
   <div id="app">${body}</div>
@@ -53,6 +55,18 @@ export function layout({ title, description, body, themeId, bootstrap }: { title
   </noscript>
 
   ${bootstrapScript}
+  <script>
+    // PWA: service worker (best-effort)
+    (function(){
+      try {
+        if ('serviceWorker' in navigator) {
+          window.addEventListener('load', function(){
+            navigator.serviceWorker.register('/static/sw.js').catch(function(){});
+          });
+        }
+      } catch {}
+    })();
+  </script>
   <script type="module" src="/static/js/app.js?v=${ASSET_VER}"></script>
 </body>
 </html>`;

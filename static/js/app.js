@@ -4,6 +4,7 @@ const APP = {
   _authRedirectScheduled: false,
   _rendering: false,
   _rerenderRequested: false,
+  pwa: { deferredPrompt: null, installed: false },
   state: {
     user: null,
     team: null,
@@ -882,6 +883,17 @@ function pageSettings(){
           <div class="textMuted" style="margin-top: 4px">Optiōnēs</div>
         </div>
 
+        <div class="soft" style="padding: 14px; margin-top: 14px">
+          <div style="font-weight: 900">Установить как приложение</div>
+          <div class="textMuted" style="margin-top: 6px; font-size: 12px; line-height: 1.45">
+            На Android/desktop появится кнопка установки. На iPhone/iPad: Safari → «Поделиться» → «На экран Домой».
+          </div>
+          <div class="row" style="margin-top: 10px; flex-wrap: wrap">
+            <button type="button" class="btn" data-action="pwa-install" id="pwaInstallBtn" disabled>Установить</button>
+            <span class="pill textMuted" id="pwaStatus" style="font-size: 12px">проверяю…</span>
+          </div>
+        </div>
+
         <form id="settingsForm" class="grid" style="margin-top: 16px; gap: 14px">
           <div>
             <div class="label" style="margin-bottom: 6px">Имя</div>
@@ -1030,6 +1042,11 @@ async function render(){
   $('#app').innerHTML = html;
   bindHandlers();
 
+  if (route === '/settings' && APP.state.user) {
+    // ensure PWA UI reflects current installability
+    setTimeout(()=>{ try { updatePwaUI(); } catch {} }, 0);
+  }
+
   if ((route === '/' || route === '/login' || route === '/register' || route === '/join') && !APP.state.user) {
     // fire and forget
     hydrateHealth();
@@ -1125,6 +1142,27 @@ function bindHandlers(){
         toast('До встречи на пути.');
         history.replaceState({}, '', '/');
         render();
+        return;
+      }
+
+      // PWA install
+      if (action === 'pwa-install') {
+        try {
+          const dp = APP.pwa.deferredPrompt;
+          if (!dp) {
+            toast('Установка недоступна. Открой в Chrome/Edge или используй "На экран Домой" в Safari.');
+            updatePwaUI();
+            return;
+          }
+          dp.prompt();
+          const choice = await dp.userChoice.catch(()=> null);
+          APP.pwa.deferredPrompt = null;
+          updatePwaUI();
+          if (choice && choice.outcome === 'accepted') toast('Установка началась.');
+          else toast('Отменено.');
+        } catch {
+          toast('Не удалось запустить установку.');
+        }
         return;
       }
 
@@ -2138,6 +2176,39 @@ async function hydrateInvite(){
 }
 
 window.addEventListener('popstate', render);
+
+// PWA install hooks (best-effort)
+window.addEventListener('beforeinstallprompt', (e)=>{
+  try {
+    e.preventDefault();
+    APP.pwa.deferredPrompt = e;
+    updatePwaUI();
+  } catch {}
+});
+window.addEventListener('appinstalled', ()=>{
+  APP.pwa.installed = true;
+  APP.pwa.deferredPrompt = null;
+  updatePwaUI();
+});
+
+function updatePwaUI(){
+  const btn = document.getElementById('pwaInstallBtn');
+  const st = document.getElementById('pwaStatus');
+  if (!btn || !st) return;
+  const isStandalone = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || (navigator.standalone === true);
+  if (APP.pwa.installed || isStandalone) {
+    btn.disabled = true;
+    st.textContent = 'установлено';
+    return;
+  }
+  if (APP.pwa.deferredPrompt) {
+    btn.disabled = false;
+    st.textContent = 'доступно';
+  } else {
+    btn.disabled = true;
+    st.textContent = 'недоступно';
+  }
+}
 
 document.addEventListener('click', (e)=>{
   // intercept plain <a href="/..."></a>

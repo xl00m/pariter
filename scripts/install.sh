@@ -90,6 +90,11 @@ server {
 
   client_max_body_size 25m;
 
+  # ACME HTTP-01 challenge (certbot --webroot)
+  location ^~ /.well-known/acme-challenge/ {
+    root /var/www/letsencrypt;
+  }
+
   location / {
     proxy_pass http://127.0.0.1:${caddy_port};
     proxy_http_version 1.1;
@@ -116,7 +121,15 @@ server {
   listen 80;
   listen [::]:80;
   server_name ${domain};
-  return 301 https://\$host\$request_uri;
+
+  # ACME HTTP-01 challenge (certbot --webroot)
+  location ^~ /.well-known/acme-challenge/ {
+    root /var/www/letsencrypt;
+  }
+
+  location / {
+    return 301 https://\$host\$request_uri;
+  }
 }
 
 server {
@@ -147,25 +160,54 @@ server {
 EOF
 }
 
+issue_cert_http_webroot(){
+  local domain="$1"
+  local email="$2"
+
+  log "\n[HTTPS] Пытаюсь выпустить сертификат автоматически через HTTP-01 (webroot)."
+  log "Если Let's Encrypt заблокирован или домен не указывает на сервер — попытка может не получиться."
+
+  apt-get install -y certbot
+  mkdir -p /var/www/letsencrypt
+
+  # certbot can be interactive (first run); ensure it reads from /dev/tty.
+  if certbot certonly \
+      --webroot \
+      -w /var/www/letsencrypt \
+      --agree-tos \
+      --no-eff-email \
+      -m "$email" \
+      -d "$domain" </dev/tty; then
+    return 0
+  fi
+  return 1
+}
+
 issue_cert_dns_manual(){
   local domain="$1"
   local email="$2"
 
   log "\n[HTTPS] Пытаюсь выпустить сертификат через DNS-01 (manual)."
   log "Тебе нужно будет добавить TXT запись _acme-challenge.${domain} в DNS панели домена."
+  log "Важно: после добавления TXT записи подожди обновления DNS (иногда 1–10 минут, зависит от TTL)."
+  log "Важно: сертификат через manual DNS-01 НЕ продляется автоматически — раз в ~90 дней потребуется повторить выпуск или настроить DNS-плагин."
   log "Если DNS-панель не у тебя — пропусти шаг и настрой HTTPS позже.\n"
+
+  # Extra pause so user clearly sees what will happen next.
+  prompt "Нажми Enter, чтобы запустить certbot (или Ctrl+C чтобы отменить выпуск сертификата и остаться на HTTP)… " >/dev/null
 
   apt-get install -y certbot
 
-  # Certbot will ask for DNS TXT record and wait. This is interactive.
+  # Certbot is interactive in manual DNS mode. When running via pipe (curl | bash),
+  # stdin is not a TTY, so certbot may immediately continue (EOF) and fail.
+  # Force stdin to /dev/tty so it truly waits for Enter.
   if certbot certonly \
       --manual \
       --preferred-challenges dns \
-      --manual-public-ip-logging-ok \
       --agree-tos \
       --no-eff-email \
       -m "$email" \
-      -d "$domain"; then
+      -d "$domain" </dev/tty; then
     return 0
   fi
   return 1
@@ -421,23 +463,78 @@ EOF
       write_nginx_vhost_https "$NGINX_VHOST" "$DOMAIN" "$CADDY_PORT" "$LE_DIR"
       sed -i 's/^Environment=PARITER_SECURE_COOKIE=.*/Environment=PARITER_SECURE_COOKIE=1/' /etc/systemd/system/pariter.service
     else
+      # Start with HTTP vhost (needed for HTTP-01 webroot).
       write_nginx_vhost_http "$NGINX_VHOST" "$DOMAIN" "$CADDY_PORT"
       sed -i 's/^Environment=PARITER_SECURE_COOKIE=.*/Environment=PARITER_SECURE_COOKIE=0/' /etc/systemd/system/pariter.service
 
-      CHOICE="$(prompt "\nHTTPS сертификата для ${DOMAIN} нет. Выпустить через DNS-01 сейчас? (y/N): ")"
-      if [[ "${CHOICE,,}" == "y" ]]; then
-        if issue_cert_dns_manual "$DOMAIN" "$ADMIN_EMAIL"; then
+      # Enable site early so certbot HTTP-01 can pass.
+      if [[ -d /etc/nginx/sites-available && -d /etc/nginx/sites-enabled ]]; then
+        ln -sf "$NGINX_VHOST" "/etc/nginx/sites-enabled/pariter-${DOMAIN}.conf"
+      fi
+      mkdir -p /var/www/letsencrypt
+
+      if ! nginx -t; then
+        warn "nginx -t не прошёл. Не могу попытаться выпустить сертификат через HTTP-01."
+      else
+        systemctl reload nginx || systemctl restart nginx
+
+        # 1) Try automatic HTTP-01 first
+        if issue_cert_http_webroot "$DOMAIN" "$ADMIN_EMAIL"; then
           HAS_LE_CERT=0
           [[ -f "$LE_DIR/fullchain.pem" && -f "$LE_DIR/privkey.pem" ]] && HAS_LE_CERT=1
           if [[ "$HAS_LE_CERT" -eq 1 ]]; then
             write_nginx_vhost_https "$NGINX_VHOST" "$DOMAIN" "$CADDY_PORT" "$LE_DIR"
             sed -i 's/^Environment=PARITER_SECURE_COOKIE=.*/Environment=PARITER_SECURE_COOKIE=1/' /etc/systemd/system/pariter.service
-            log "[HTTPS] Сертификат выпущен. Переключаю nginx на HTTPS."
+            log "[HTTPS] Сертификат выпущен через HTTP-01. Переключаю nginx на HTTPS."
+            if nginx -t; then
+              systemctl reload nginx || systemctl restart nginx
+            else
+              warn "nginx -t не прошёл после включения HTTPS. Оставляю конфиг, но nginx не перезагружаю."
+            fi
           else
-            warn "DNS-выпуск не дал сертификат (файлы не найдены). Оставляю HTTP."
+            warn "Certbot завершился успешно, но файлы сертификата не найдены. Оставляю HTTP."
           fi
         else
-          warn "Не удалось выпустить сертификат через DNS-01. Оставляю HTTP."
+          warn "Не удалось выпустить сертификат автоматически через HTTP-01."
+
+          # 2) Fallback to DNS-01 manual
+          CHOICE="$(prompt "\nПопробовать выпуск через DNS-01 (manual)? (y/N): ")"
+          if [[ "${CHOICE,,}" == "y" ]]; then
+            success=0
+            for attempt in 1 2; do
+              if issue_cert_dns_manual "$DOMAIN" "$ADMIN_EMAIL"; then
+                success=1
+                break
+              fi
+
+              warn "Не удалось выпустить сертификат через DNS-01 (попытка ${attempt}/2)."
+              if [[ "$attempt" -lt 2 ]]; then
+                AGAIN="$(prompt "Повторить попытку выпуска через DNS-01? (y/N): ")"
+                if [[ "${AGAIN,,}" != "y" ]]; then
+                  break
+                fi
+              fi
+            done
+
+            if [[ "$success" -eq 1 ]]; then
+              HAS_LE_CERT=0
+              [[ -f "$LE_DIR/fullchain.pem" && -f "$LE_DIR/privkey.pem" ]] && HAS_LE_CERT=1
+              if [[ "$HAS_LE_CERT" -eq 1 ]]; then
+                write_nginx_vhost_https "$NGINX_VHOST" "$DOMAIN" "$CADDY_PORT" "$LE_DIR"
+                sed -i 's/^Environment=PARITER_SECURE_COOKIE=.*/Environment=PARITER_SECURE_COOKIE=1/' /etc/systemd/system/pariter.service
+                log "[HTTPS] Сертификат выпущен через DNS-01. Переключаю nginx на HTTPS."
+                if nginx -t; then
+                  systemctl reload nginx || systemctl restart nginx
+                else
+                  warn "nginx -t не прошёл после включения HTTPS. Оставляю конфиг, но nginx не перезагружаю."
+                fi
+              else
+                warn "Certbot завершился успешно, но файлы сертификата не найдены. Оставляю HTTP."
+              fi
+            else
+              warn "Не удалось выпустить сертификат через DNS-01. Оставляю HTTP."
+            fi
+          fi
         fi
       fi
     fi

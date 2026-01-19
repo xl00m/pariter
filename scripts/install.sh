@@ -6,11 +6,31 @@ if [[ "${EUID:-$(id -u)}" -ne 0 ]]; then
   exit 1
 fi
 
-read -rp "Домен (например: pariter.ru): " DOMAIN
-read -rp "Email администратора: " ADMIN_EMAIL
-read -rp "Логин администратора: " ADMIN_LOGIN
-read -rsp "Пароль администратора (мин. 6): " ADMIN_PASS
-echo
+# When running via pipe (curl | sudo bash), stdin is not a TTY.
+# Read all interactive input from /dev/tty.
+if [[ ! -r /dev/tty ]]; then
+  echo "Не найден /dev/tty для интерактивного ввода. Запусти установщик в интерактивном терминале." >&2
+  exit 1
+fi
+
+prompt(){
+  local msg="$1"
+  local silent="${2:-0}"
+  local out=""
+  if [[ "$silent" == "1" ]]; then
+    IFS= read -r -s -p "$msg" out </dev/tty
+    # newline after silent input
+    echo </dev/tty
+  else
+    IFS= read -r -p "$msg" out </dev/tty
+  fi
+  printf "%s" "$out"
+}
+
+DOMAIN="$(prompt "Домен (например: pariter.ru): ")"
+ADMIN_EMAIL="$(prompt "Email администратора: ")"
+ADMIN_LOGIN="$(prompt "Логин администратора: ")"
+ADMIN_PASS="$(prompt "Пароль администратора (мин. 6): " 1)"
 
 if [[ -z "$DOMAIN" || -z "$ADMIN_EMAIL" || -z "$ADMIN_LOGIN" || -z "$ADMIN_PASS" ]]; then
   echo "Все поля обязательны."
@@ -22,7 +42,7 @@ echo "Будет выполнена установка Pariter:"
 echo "- Домен: $DOMAIN"
 echo "- Email:  $ADMIN_EMAIL"
 echo "- Логин:  $ADMIN_LOGIN"
-read -rp "Продолжить? (y/N): " OK
+OK="$(prompt "Продолжить? (y/N): ")"
 if [[ "${OK,,}" != "y" ]]; then
   echo "Отменено."
   exit 0

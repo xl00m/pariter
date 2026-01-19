@@ -421,7 +421,7 @@ function PageShell({title, subtitle, body, footer}={}){
 
 function AppHeader(){
   const me = APP.state.user;
-  const mates = (APP.state.teamUsers || []).filter(u => me && u.id !== me.id);
+  const mates = (APP.state.teamUsers || []).filter(u => me && Number(u.id) !== Number(me.id));
   const show = mates.slice(0, 6);
   const more = mates.length - show.length;
 
@@ -434,9 +434,10 @@ function AppHeader(){
           <div class="row">
             <div class="row" style="display:none" id="mateIcons"></div>
             <div class="row" style="gap:6px" aria-hidden="true">
-              ${show.map(u=>`<div title="${escapeHTML(u.name)}" style="width:32px;height:32px;border-radius:999px;border:1px solid var(--border);display:grid;place-items:center;background:rgba(255,255,255,.03)">${ROLE_META[u.role]?.emoji || '✦'}</div>`).join('')}
-              ${more>0 ? `<div style="width:32px;height:32px;border-radius:999px;border:1px solid var(--border);display:grid;place-items:center;background:rgba(255,255,255,.03);font-size:12px">+${more}</div>` : ''}
+              ${show.map(u=>`<div title="Спутник: ${escapeHTML(u.name)}" style="width:32px;height:32px;border-radius:999px;border:1px solid var(--border);display:grid;place-items:center;background:rgba(255,255,255,.03)">${ROLE_META[u.role]?.emoji || '✦'}</div>`).join('')}
+              ${more>0 ? `<div title="Ещё спутники" style="width:32px;height:32px;border-radius:999px;border:1px solid var(--border);display:grid;place-items:center;background:rgba(255,255,255,.03);font-size:12px">+${more}</div>` : ''}
             </div>
+            <div aria-hidden="true" style="width:1px; height: 22px; background: var(--border); margin: 0 8px;"></div>
             <button class="btn-ghost" style="padding: 10px 12px" data-action="go-settings" aria-label="Настройки">⚙️</button>
           </div>
         </div>

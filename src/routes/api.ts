@@ -285,8 +285,34 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
     // --- AI rewrite
     if (req.method === 'POST' && path === '/api/ai/rewrite') {
       const { user } = requireAuth(db, req);
+      // Best-effort: load PARITER_AI_KEY from .env at runtime.
+      // This is important in production where systemd may not export env vars.
+      if (!String(process.env.PARITER_AI_KEY || '').trim()) {
+        try {
+          const f = Bun.file('./.env');
+          if (await f.exists()) {
+            const txt = await f.text();
+            for (const line of txt.split(/\r?\n/)) {
+              const s = line.trim();
+              if (!s || s.startsWith('#')) continue;
+              const i = s.indexOf('=');
+              if (i === -1) continue;
+              const k = s.slice(0, i).trim();
+              let v = s.slice(i + 1).trim();
+              if (!k) continue;
+              if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) {
+                v = v.slice(1, -1);
+              }
+              if ((process.env as any)[k] == null || String((process.env as any)[k] || '').trim() === '') {
+                (process.env as any)[k] = v;
+              }
+            }
+          }
+        } catch {}
+      }
+
       const apiKey = String(process.env.PARITER_AI_KEY || '').trim();
-      if (!apiKey) return error('AI не настроен на сервере.', 503);
+      if (!apiKey) return error('AI не настроен на сервере. Добавь PARITER_AI_KEY в .env и перезапусти сервис.', 503);
 
       const body = await readJson(req);
       const field = String(body.field || '').trim();

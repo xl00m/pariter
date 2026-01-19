@@ -1,16 +1,22 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [[ "${EUID:-$(id -u)}" -ne 0 ]]; then
-  echo "Запусти установщик от root (sudo bash)."
-  exit 1
-fi
+trap 'echo -e "\n[ERROR] Установка прервана (строка $LINENO)." >&2' ERR
+
+# --- Helpers
+log(){ printf "%b\n" "$*"; }
+warn(){ printf "%b\n" "[WARN] $*" >&2; }
+die(){ printf "%b\n" "[ERROR] $*" >&2; exit 1; }
+
+have_cmd(){ command -v "$1" >/dev/null 2>&1; }
 
 # When running via pipe (curl | sudo bash), stdin is not a TTY.
 # Read all interactive input from /dev/tty.
+if [[ "${EUID:-$(id -u)}" -ne 0 ]]; then
+  die "Запусти установщик от root (sudo bash)."
+fi
 if [[ ! -r /dev/tty ]]; then
-  echo "Не найден /dev/tty для интерактивного ввода. Запусти установщик в интерактивном терминале." >&2
-  exit 1
+  die "Не найден /dev/tty для интерактивного ввода. Запусти установщик в интерактивном терминале."
 fi
 
 prompt(){
@@ -19,7 +25,6 @@ prompt(){
   local out=""
   if [[ "$silent" == "1" ]]; then
     IFS= read -r -s -p "$msg" out </dev/tty
-    # newline after silent input
     echo </dev/tty
   else
     IFS= read -r -p "$msg" out </dev/tty
@@ -27,72 +32,245 @@ prompt(){
   printf "%s" "$out"
 }
 
+port_busy(){
+  local p="$1"
+  ss -ltnH 2>/dev/null | awk '{print $4}' | grep -qE "(:|\\])${p}\$"
+}
+
+pick_free_port(){
+  # Prefer a small known range to avoid firewall surprises.
+  local p
+  for p in $(seq 8090 8105) $(seq 18080 18105); do
+    if ! port_busy "$p"; then
+      echo "$p"
+      return 0
+    fi
+  done
+  return 1
+}
+
+ensure_user(){
+  local u="$1"
+  if id -u "$u" >/dev/null 2>&1; then
+    return 0
+  fi
+  useradd -r -s /usr/sbin/nologin -d /opt/pariter "$u"
+}
+
+run_as_pariter(){
+  # Run a command as the pariter system user.
+  if have_cmd runuser; then
+    runuser -u pariter -- "$@"
+  else
+    su -s /bin/bash pariter -c "$(printf '%q ' "$@")"
+  fi
+}
+
+nginx_domain_conflict(){
+  local domain="$1"
+  # Avoid grep errors if dirs don't exist
+  local files=()
+  [[ -d /etc/nginx/sites-enabled ]] && files+=(/etc/nginx/sites-enabled)
+  [[ -d /etc/nginx/conf.d ]] && files+=(/etc/nginx/conf.d)
+  [[ ${#files[@]} -eq 0 ]] && return 1
+
+  grep -R "server_name" "${files[@]}" 2>/dev/null | grep -q "\b${domain}\b"
+}
+
+write_nginx_vhost_http(){
+  local vhost_path="$1"
+  local domain="$2"
+  local caddy_port="$3"
+
+  cat > "$vhost_path" <<EOF
+server {
+  listen 80;
+  listen [::]:80;
+  server_name ${domain};
+
+  client_max_body_size 25m;
+
+  location / {
+    proxy_pass http://127.0.0.1:${caddy_port};
+    proxy_http_version 1.1;
+    proxy_set_header Host \$host;
+    proxy_set_header X-Real-IP \$remote_addr;
+    proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto \$scheme;
+    proxy_set_header Upgrade \$http_upgrade;
+    proxy_set_header Connection "upgrade";
+    proxy_read_timeout 120s;
+  }
+}
+EOF
+}
+
+write_nginx_vhost_https(){
+  local vhost_path="$1"
+  local domain="$2"
+  local caddy_port="$3"
+  local le_dir="$4"
+
+  cat > "$vhost_path" <<EOF
+server {
+  listen 80;
+  listen [::]:80;
+  server_name ${domain};
+  return 301 https://\$host\$request_uri;
+}
+
+server {
+  listen 443 ssl http2;
+  listen [::]:443 ssl http2;
+  server_name ${domain};
+
+  ssl_certificate     ${le_dir}/fullchain.pem;
+  ssl_certificate_key ${le_dir}/privkey.pem;
+
+  ssl_session_cache shared:SSL:10m;
+  ssl_session_timeout 10m;
+
+  client_max_body_size 25m;
+
+  location / {
+    proxy_pass http://127.0.0.1:${caddy_port};
+    proxy_http_version 1.1;
+    proxy_set_header Host \$host;
+    proxy_set_header X-Real-IP \$remote_addr;
+    proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto \$scheme;
+    proxy_set_header Upgrade \$http_upgrade;
+    proxy_set_header Connection "upgrade";
+    proxy_read_timeout 120s;
+  }
+}
+EOF
+}
+
+issue_cert_dns_manual(){
+  local domain="$1"
+  local email="$2"
+
+  log "\n[HTTPS] Пытаюсь выпустить сертификат через DNS-01 (manual)."
+  log "Тебе нужно будет добавить TXT запись _acme-challenge.${domain} в DNS панели домена."
+  log "Если DNS-панель не у тебя — пропусти шаг и настрой HTTPS позже.\n"
+
+  apt-get install -y certbot
+
+  # Certbot will ask for DNS TXT record and wait. This is interactive.
+  if certbot certonly \
+      --manual \
+      --preferred-challenges dns \
+      --manual-public-ip-logging-ok \
+      --agree-tos \
+      --no-eff-email \
+      -m "$email" \
+      -d "$domain"; then
+    return 0
+  fi
+  return 1
+}
+
+# --- Inputs
 DOMAIN="$(prompt "Домен (например: pariter.ru): ")"
 ADMIN_EMAIL="$(prompt "Email администратора: ")"
 ADMIN_LOGIN="$(prompt "Логин администратора: ")"
 ADMIN_PASS="$(prompt "Пароль администратора (мин. 6): " 1)"
 
 if [[ -z "$DOMAIN" || -z "$ADMIN_EMAIL" || -z "$ADMIN_LOGIN" || -z "$ADMIN_PASS" ]]; then
-  echo "Все поля обязательны."
-  exit 1
+  die "Все поля обязательны."
 fi
 
-echo
-echo "Будет выполнена установка Pariter:"
-echo "- Домен: $DOMAIN"
-echo "- Email:  $ADMIN_EMAIL"
-echo "- Логин:  $ADMIN_LOGIN"
+log "\nБудет выполнена установка Pariter:" 
+log "- Домен: $DOMAIN"
+log "- Email:  $ADMIN_EMAIL"
+log "- Логин:  $ADMIN_LOGIN"
 OK="$(prompt "Продолжить? (y/N): ")"
 if [[ "${OK,,}" != "y" ]]; then
-  echo "Отменено."
+  log "Отменено."
   exit 0
 fi
 
-printf "\n[1/6] Обновляю apt…\n"
+# --- Packages
+log "\n[1/8] Обновляю apt…"
 apt-get update -y
 
-printf "\n[2/6] Устанавливаю зависимости…\n"
+log "\n[2/8] Устанавливаю зависимости…"
+# iproute2 -> ss
 apt-get install -y curl ca-certificates unzip gnupg iproute2
 
-printf "\n[3/6] Устанавливаю Bun (если нужно)…\n"
-if ! command -v bun >/dev/null 2>&1; then
+# --- Bun
+log "\n[3/8] Устанавливаю Bun (если нужно)…"
+if ! have_cmd bun; then
   curl -fsSL https://bun.sh/install | bash
   export BUN_INSTALL="/root/.bun"
   export PATH="$BUN_INSTALL/bin:$PATH"
 fi
 
-printf "\n[4/6] Устанавливаю Caddy (если нужно)…\n"
-if ! command -v caddy >/dev/null 2>&1; then
+BUN_BIN="$(command -v bun || true)"
+if [[ -z "$BUN_BIN" ]]; then
+  die "bun не найден в PATH после установки."
+fi
+
+# If bun is under /root, make it accessible for systemd non-root service.
+# /root is usually 0700, so we copy bun to /usr/local/bin.
+if [[ "$BUN_BIN" == /root/* ]]; then
+  install -m 0755 "$BUN_BIN" /usr/local/bin/bun
+  BUN_BIN="/usr/local/bin/bun"
+fi
+
+# --- Caddy
+log "\n[4/8] Устанавливаю Caddy (если нужно)…"
+if ! have_cmd caddy; then
   apt-get install -y debian-keyring debian-archive-keyring apt-transport-https
   curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
-  curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | tee /etc/apt/sources.list.d/caddy-stable.list
+  curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | tee /etc/apt/sources.list.d/caddy-stable.list >/dev/null
   apt-get update -y
   apt-get install -y caddy
 fi
 
-APP_DIR="/opt/pariter"
-mkdir -p "$APP_DIR"
+# Caddy package sometimes tries to start immediately.
+systemctl stop caddy 2>/dev/null || true
 
-printf "\n[5/6] Скачиваю репозиторий…\n"
+# --- App dir + user
+log "\n[5/8] Создаю каталоги и системного пользователя…"
+APP_DIR="/opt/pariter"
+APP_PORT="8080"
+mkdir -p "$APP_DIR"
+ensure_user pariter
+
+# --- Download repo
+log "\n[6/8] Скачиваю репозиторий…"
 TMP_ZIP="/tmp/pariter.zip"
 EXTRACT_DIR="$(mktemp -d)"
 
-# Простой способ: архив ветки main
-curl -fsSL "https://github.com/xl00m/pariter/archive/refs/heads/main.zip" -o "$TMP_ZIP"
+if curl -fsSL "https://github.com/xl00m/pariter/archive/refs/heads/main.zip" -o "$TMP_ZIP"; then
+  :
+else
+  warn "Не удалось скачать архив с GitHub (возможна приватность репозитория или блокировки)."
+  TOKEN="$(prompt "GitHub token (PAT) для скачивания private repo (Enter — пропустить): " 1)"
+  if [[ -z "$TOKEN" ]]; then
+    die "Скачивание прервано. Репозиторий недоступен без доступа."
+  fi
+  if ! curl -fsSL \
+        -H "Authorization: token $TOKEN" \
+        -H "User-Agent: pariter-installer" \
+        "https://api.github.com/repos/xl00m/pariter/zipball/main" \
+        -o "$TMP_ZIP"; then
+    die "Не удалось скачать репозиторий даже с token."
+  fi
+fi
 
 unzip -q -o "$TMP_ZIP" -d "$EXTRACT_DIR"
 SRC_DIR="$(find "$EXTRACT_DIR" -mindepth 1 -maxdepth 1 -type d | head -n 1)"
-if [[ -z "$SRC_DIR" ]]; then
-  echo "Не удалось найти распакованный каталог Pariter."
-  exit 1
-fi
+[[ -z "$SRC_DIR" ]] && die "Не удалось найти распакованный каталог Pariter."
 
 rm -rf "$APP_DIR"/*
 cp -R "$SRC_DIR"/* "$APP_DIR"/
-
 rm -f "$TMP_ZIP"
 rm -rf "$EXTRACT_DIR"
 
+# Config
 cat > "$APP_DIR/config.json" <<EOF
 {
   "domain": "${DOMAIN}",
@@ -102,52 +280,16 @@ cat > "$APP_DIR/config.json" <<EOF
   "adminPassword": "${ADMIN_PASS}",
   "adminRole": "warrior",
   "adminTheme": "dark_warrior",
-  "port": 8080,
+  "port": ${APP_PORT},
   "dbPath": "${APP_DIR}/pariter.db",
   "staticDir": "${APP_DIR}/static"
 }
 EOF
 
-printf "\n[6/6] Настраиваю systemd + Caddy + setup…\n"
-BUN_BIN="$(command -v bun)"
-if [[ -z "$BUN_BIN" ]]; then
-  echo "bun не найден в PATH после установки."
-  exit 1
-fi
+chown -R pariter:pariter "$APP_DIR"
 
-# Detect if nginx already occupies standard ports.
-NGINX_ACTIVE=0
-if systemctl is-active --quiet nginx 2>/dev/null; then
-  NGINX_ACTIVE=1
-fi
-
-PORT80_BUSY=0
-PORT443_BUSY=0
-if ss -ltn 2>/dev/null | awk '{print $4}' | grep -qE ':(80)$'; then PORT80_BUSY=1; fi
-if ss -ltn 2>/dev/null | awk '{print $4}' | grep -qE ':(443)$'; then PORT443_BUSY=1; fi
-
-# We only switch to nginx->caddy mode when nginx is active AND it actually listens on :80 or :443.
-if [[ "$NGINX_ACTIVE" -eq 1 && "$PORT80_BUSY" -eq 0 && "$PORT443_BUSY" -eq 0 ]]; then
-  NGINX_ACTIVE=0
-fi
-
-# Pick a free port for Caddy when nginx is on 80/443.
-CADDY_PORT=""
-if [[ "$NGINX_ACTIVE" -eq 1 && ( "$PORT80_BUSY" -eq 1 || "$PORT443_BUSY" -eq 1 ) ]]; then
-  for p in 8090 8091 8092 8093 8094 8095 18080 18081; do
-    if ! ss -ltn 2>/dev/null | awk '{print $4}' | grep -qE ":(${p})$"; then
-      CADDY_PORT="$p"
-      break
-    fi
-  done
-  if [[ -z "$CADDY_PORT" ]]; then
-    echo "Не удалось подобрать свободный порт для Caddy."
-    exit 1
-  fi
-else
-  CADDY_PORT=""
-fi
-
+# --- systemd
+log "\n[7/8] Настраиваю systemd…"
 cat > /etc/systemd/system/pariter.service <<EOF
 [Unit]
 Description=Pariter (Bun + SQLite)
@@ -155,94 +297,237 @@ After=network.target
 
 [Service]
 Type=simple
+User=pariter
+Group=pariter
 WorkingDirectory=${APP_DIR}
-Environment=PORT=8080
+Environment=PORT=${APP_PORT}
 Environment=PARITER_DB=${APP_DIR}/pariter.db
 Environment=PARITER_STATIC=${APP_DIR}/static
 Environment=PARITER_SECURE_COOKIE=1
 ExecStart=${BUN_BIN} run src/index.ts
 Restart=on-failure
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=full
+ReadWritePaths=${APP_DIR}
 
 [Install]
 WantedBy=multi-user.target
 EOF
 
-# Caddy config:
-# - If nginx is already handling :80/:443, run Caddy on a free port and let nginx proxy to it.
-# - Otherwise, let Caddy handle :80/:443 directly (auto-HTTPS).
-if [[ -n "$CADDY_PORT" ]]; then
-  mkdir -p /etc/caddy
-  cat > /etc/caddy/Caddyfile <<EOF
-http://127.0.0.1:${CADDY_PORT} {
-  reverse_proxy 127.0.0.1:8080
-}
+# Backup timer (daily)
+mkdir -p "$APP_DIR/backups"
+cat > /usr/local/bin/pariter-backup.sh <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+APP_DIR="/opt/pariter"
+BK_DIR="${APP_DIR}/backups"
+mkdir -p "$BK_DIR"
+TS="$(date +%F)"
+SRC="${APP_DIR}/pariter.db"
+DST="${BK_DIR}/pariter-${TS}.db"
+if [[ -f "$SRC" ]]; then
+  cp "$SRC" "$DST"
+  gzip -f "$DST"
+fi
+# keep 14 days
+find "$BK_DIR" -type f -name 'pariter-*.db.gz' -mtime +14 -delete 2>/dev/null || true
+EOF
+chmod 0755 /usr/local/bin/pariter-backup.sh
+
+cat > /etc/systemd/system/pariter-backup.service <<'EOF'
+[Unit]
+Description=Pariter DB backup
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/pariter-backup.sh
 EOF
 
-  # nginx vhost for the domain -> proxy to Caddy
-  if [[ -d /etc/nginx/sites-available ]]; then
-    cat > /etc/nginx/sites-available/pariter-${DOMAIN}.conf <<EOF
-server {
-  listen 80;
-  listen [::]:80;
-  server_name ${DOMAIN};
+cat > /etc/systemd/system/pariter-backup.timer <<'EOF'
+[Unit]
+Description=Daily Pariter backup
 
-  location / {
-    proxy_pass http://127.0.0.1:${CADDY_PORT};
-    proxy_http_version 1.1;
-    proxy_set_header Host $host;
-    proxy_set_header X-Real-IP $remote_addr;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
-    proxy_set_header Upgrade $http_upgrade;
-    proxy_set_header Connection "upgrade";
-  }
-}
+[Timer]
+OnCalendar=*-*-* 03:17:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
 EOF
 
-    ln -sf /etc/nginx/sites-available/pariter-${DOMAIN}.conf /etc/nginx/sites-enabled/pariter-${DOMAIN}.conf
-  else
-    # fallback: drop-in config
-    cat > /etc/nginx/conf.d/pariter-${DOMAIN}.conf <<EOF
-server {
-  listen 80;
-  listen [::]:80;
-  server_name ${DOMAIN};
+# --- Reverse proxy
+log "\n[8/8] Настраиваю reverse-proxy и запускаю…"
 
-  location / {
-    proxy_pass http://127.0.0.1:${CADDY_PORT};
-    proxy_http_version 1.1;
-    proxy_set_header Host $host;
-    proxy_set_header X-Real-IP $remote_addr;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
-    proxy_set_header Upgrade $http_upgrade;
-    proxy_set_header Connection "upgrade";
-  }
-}
-EOF
-  fi
-
-  # Reload nginx if present.
-  systemctl reload nginx || systemctl restart nginx || true
-else
-  cat > /etc/caddy/Caddyfile <<EOF
-${DOMAIN} {
-  reverse_proxy 127.0.0.1:8080
-}
-EOF
+NGINX_ACTIVE=0
+if systemctl is-active --quiet nginx 2>/dev/null; then
+  NGINX_ACTIVE=1
 fi
 
-# init admin
-cd "$APP_DIR"
-"${BUN_BIN}" run scripts/setup.ts
+PORT80_BUSY=0
+PORT443_BUSY=0
+port_busy 80 && PORT80_BUSY=1
+port_busy 443 && PORT443_BUSY=1
 
+NGINX_MODE=0
+if [[ "$NGINX_ACTIVE" -eq 1 && ( "$PORT80_BUSY" -eq 1 || "$PORT443_BUSY" -eq 1 ) ]]; then
+  NGINX_MODE=1
+fi
+
+# If ports are busy but nginx is not active -> don't touch ports, but keep going.
+CUSTOM_PROXY_NEEDED=0
+if [[ "$NGINX_MODE" -eq 0 && ( "$PORT80_BUSY" -eq 1 || "$PORT443_BUSY" -eq 1 ) ]]; then
+  CUSTOM_PROXY_NEEDED=1
+  warn "Порты 80/443 заняты, но nginx не активен. Я не буду трогать чужую конфигурацию."
+  warn "Pariter будет поднят, а прокси/HTTPS нужно будет настроить вручную."
+fi
+
+mkdir -p /etc/caddy
+
+# Default: Caddy owns 80/443 (auto HTTPS)
+CADDY_PORT=""
+LE_DIR="/etc/letsencrypt/live/${DOMAIN}"
+HAS_LE_CERT=0
+[[ -f "$LE_DIR/fullchain.pem" && -f "$LE_DIR/privkey.pem" ]] && HAS_LE_CERT=1
+
+NGINX_CONFLICT=0
+if [[ "$NGINX_MODE" -eq 1 ]]; then
+  if nginx_domain_conflict "$DOMAIN"; then
+    NGINX_CONFLICT=1
+    warn "В nginx уже есть конфиг с server_name ${DOMAIN}. Я не буду его перезаписывать."
+  fi
+
+  CADDY_PORT="$(pick_free_port || true)"
+  [[ -z "$CADDY_PORT" ]] && die "Не удалось подобрать свободный порт для Caddy."
+
+  # Caddy on localhost:freeport (HTTP only)
+  cat > /etc/caddy/Caddyfile <<EOF
+http://127.0.0.1:${CADDY_PORT} {
+  reverse_proxy 127.0.0.1:${APP_PORT}
+}
+EOF
+
+  # If nginx vhost is free to create, do it.
+  if [[ "$NGINX_CONFLICT" -eq 0 ]]; then
+    NGINX_VHOST=""
+    if [[ -d /etc/nginx/sites-available && -d /etc/nginx/sites-enabled ]]; then
+      NGINX_VHOST="/etc/nginx/sites-available/pariter-${DOMAIN}.conf"
+    else
+      NGINX_VHOST="/etc/nginx/conf.d/pariter-${DOMAIN}.conf"
+    fi
+
+    if [[ "$HAS_LE_CERT" -eq 1 ]]; then
+      write_nginx_vhost_https "$NGINX_VHOST" "$DOMAIN" "$CADDY_PORT" "$LE_DIR"
+      sed -i 's/^Environment=PARITER_SECURE_COOKIE=.*/Environment=PARITER_SECURE_COOKIE=1/' /etc/systemd/system/pariter.service
+    else
+      write_nginx_vhost_http "$NGINX_VHOST" "$DOMAIN" "$CADDY_PORT"
+      sed -i 's/^Environment=PARITER_SECURE_COOKIE=.*/Environment=PARITER_SECURE_COOKIE=0/' /etc/systemd/system/pariter.service
+
+      CHOICE="$(prompt "\nHTTPS сертификата для ${DOMAIN} нет. Выпустить через DNS-01 сейчас? (y/N): ")"
+      if [[ "${CHOICE,,}" == "y" ]]; then
+        if issue_cert_dns_manual "$DOMAIN" "$ADMIN_EMAIL"; then
+          HAS_LE_CERT=0
+          [[ -f "$LE_DIR/fullchain.pem" && -f "$LE_DIR/privkey.pem" ]] && HAS_LE_CERT=1
+          if [[ "$HAS_LE_CERT" -eq 1 ]]; then
+            write_nginx_vhost_https "$NGINX_VHOST" "$DOMAIN" "$CADDY_PORT" "$LE_DIR"
+            sed -i 's/^Environment=PARITER_SECURE_COOKIE=.*/Environment=PARITER_SECURE_COOKIE=1/' /etc/systemd/system/pariter.service
+            log "[HTTPS] Сертификат выпущен. Переключаю nginx на HTTPS."
+          else
+            warn "DNS-выпуск не дал сертификат (файлы не найдены). Оставляю HTTP."
+          fi
+        else
+          warn "Не удалось выпустить сертификат через DNS-01. Оставляю HTTP."
+        fi
+      fi
+    fi
+
+    if [[ -d /etc/nginx/sites-available && -d /etc/nginx/sites-enabled ]]; then
+      ln -sf "$NGINX_VHOST" "/etc/nginx/sites-enabled/pariter-${DOMAIN}.conf"
+    fi
+
+    if ! nginx -t; then
+      warn "nginx -t не прошёл. Конфиг записан в: ${NGINX_VHOST}"
+      warn "Я не буду перезапускать nginx. Проверь конфиг вручную."
+    else
+      systemctl reload nginx || systemctl restart nginx
+    fi
+  else
+    warn "NGINX_CONFLICT=1: nginx vhost не создан."
+    warn "Добавь вручную reverse proxy для ${DOMAIN} -> http://127.0.0.1:${CADDY_PORT}"
+  fi
+
+elif [[ "$CUSTOM_PROXY_NEEDED" -eq 1 ]]; then
+  # Ports are busy, nginx not active. Run Caddy on free localhost port.
+  CADDY_PORT="$(pick_free_port || true)"
+  [[ -z "$CADDY_PORT" ]] && die "Не удалось подобрать свободный порт для Caddy."
+  cat > /etc/caddy/Caddyfile <<EOF
+http://127.0.0.1:${CADDY_PORT} {
+  reverse_proxy 127.0.0.1:${APP_PORT}
+}
+EOF
+  sed -i 's/^Environment=PARITER_SECURE_COOKIE=.*/Environment=PARITER_SECURE_COOKIE=0/' /etc/systemd/system/pariter.service
+
+else
+  # Caddy owns 80/443 -> auto HTTPS
+  cat > /etc/caddy/Caddyfile <<EOF
+${DOMAIN} {
+  reverse_proxy 127.0.0.1:${APP_PORT}
+}
+EOF
+  sed -i 's/^Environment=PARITER_SECURE_COOKIE=.*/Environment=PARITER_SECURE_COOKIE=1/' /etc/systemd/system/pariter.service
+fi
+
+# --- Init DB + admin (as pariter user so DB permissions match)
+cd "$APP_DIR"
+run_as_pariter "$BUN_BIN" install --no-save >/dev/null 2>&1 || true
+run_as_pariter "$BUN_BIN" run scripts/setup.ts
+
+# --- Start services
 systemctl daemon-reload
 systemctl enable --now pariter
+systemctl restart pariter
+
+systemctl enable --now pariter-backup.timer
+systemctl start pariter-backup.timer 2>/dev/null || true
+
+# Restart caddy last (after config)
 systemctl restart caddy
 
-if [[ -n "$CADDY_PORT" ]]; then
-  printf "\nГотово. nginx проксирует ${DOMAIN} -> Caddy(127.0.0.1:${CADDY_PORT}) -> Pariter(127.0.0.1:8080)\n"
-  printf "Открой: http://${DOMAIN} (HTTPS остаётся за nginx, если он уже настроен)\n"
+# Best-effort local health check
+if curl -fsS "http://127.0.0.1:${APP_PORT}/api/health" >/dev/null 2>&1; then
+  log "\n[OK] Pariter отвечает на http://127.0.0.1:${APP_PORT}"
 else
-  printf "\nУспех! Открой: https://${DOMAIN}\n"
+  warn "Pariter пока не отвечает на http://127.0.0.1:${APP_PORT}. Проверь: journalctl -u pariter -n 80 --no-pager"
+fi
+
+# --- Final message
+if [[ "$NGINX_MODE" -eq 1 ]]; then
+  if [[ "$NGINX_CONFLICT" -eq 1 ]]; then
+    log "\nГотово. Pariter запущен, Caddy слушает 127.0.0.1:${CADDY_PORT}."
+    log "Nginx-конфиг для домена НЕ создавался (конфликт server_name). Настрой proxy_pass вручную." 
+  else
+    if [[ "$HAS_LE_CERT" -eq 1 ]]; then
+      log "\nГотово. nginx(HTTPS) -> Caddy(127.0.0.1:${CADDY_PORT}) -> Pariter(127.0.0.1:${APP_PORT})"
+      log "Открой: https://${DOMAIN}"
+    else
+      log "\nГотово. nginx(HTTP) -> Caddy(127.0.0.1:${CADDY_PORT}) -> Pariter(127.0.0.1:${APP_PORT})"
+      log "Открой: http://${DOMAIN}"
+      log "\nЕсли позже включишь HTTPS на nginx, включи Secure cookie:"
+      log "  sudo sed -i 's/PARITER_SECURE_COOKIE=0/PARITER_SECURE_COOKIE=1/' /etc/systemd/system/pariter.service && sudo systemctl daemon-reload && sudo systemctl restart pariter"
+    fi
+  fi
+elif [[ "$CUSTOM_PROXY_NEEDED" -eq 1 ]]; then
+  log "\nГотово. Pariter запущен, Caddy слушает 127.0.0.1:${CADDY_PORT}."
+  log "Порты 80/443 заняты другим сервисом. Настрой reverse proxy вручную на ${DOMAIN} -> http://127.0.0.1:${CADDY_PORT}"
+else
+  log "\nУспех! Открой: https://${DOMAIN}"
+fi
+
+log "\nБэкапы БД: ${APP_DIR}/backups (хранение 14 дней, ежедневно 03:17)"
+log "\nЛоги:"
+log "  sudo journalctl -u pariter -f"
+log "  sudo journalctl -u caddy -f"
+if [[ "$NGINX_MODE" -eq 1 ]]; then
+  log "  sudo journalctl -u nginx -f"
 fi

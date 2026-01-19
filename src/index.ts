@@ -39,7 +39,8 @@ async function loadDotEnv(path = './.env'){
       if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
         val = val.slice(1, -1);
       }
-      if (!(key in process.env)) {
+      const cur = process.env[key];
+      if (cur == null || cur === '') {
         process.env[key] = val;
       }
     }

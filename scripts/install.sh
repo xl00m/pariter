@@ -29,12 +29,6 @@ prompt(){
   else
     IFS= read -r -p "$msg" out </dev/tty
   fi
-  # Trim leading/trailing whitespace and control characters
-  out="${out#"${out%%[![:space:]]*}"}"
-  out="${out%"${out##*[![:space:]]}"}"
-  # Remove any remaining newlines/carriage returns
-  out="${out//$'\n'/}"
-  out="${out//$'\r'/}"
   printf "%s" "$out"
 }
 
@@ -43,7 +37,14 @@ port_busy(){
   ss -ltnH 2>/dev/null | awk '{print $4}' | grep -qE "(:|\\])${p}\$"
 }
 
+port_busy_by_nginx(){
+  local p="$1"
+  # Needs ss with process info; returns true if nginx is the listener on this port.
+  ss -ltnpH 2>/dev/null | grep -E "(:|\\])${p}\\b" | grep -q '"nginx"'
+}
+
 pick_free_port(){
+  # Prefer a small known range to avoid firewall surprises.
   local p
   for p in $(seq 8090 8105) $(seq 18080 18105); do
     if ! port_busy "$p"; then
@@ -63,6 +64,7 @@ ensure_user(){
 }
 
 run_as_pariter(){
+  # Run a command as the pariter system user.
   if have_cmd runuser; then
     runuser -u pariter -- "$@"
   else
@@ -72,10 +74,12 @@ run_as_pariter(){
 
 nginx_domain_conflict(){
   local domain="$1"
+  # Avoid grep errors if dirs don't exist
   local files=()
   [[ -d /etc/nginx/sites-enabled ]] && files+=(/etc/nginx/sites-enabled)
   [[ -d /etc/nginx/conf.d ]] && files+=(/etc/nginx/conf.d)
   [[ ${#files[@]} -eq 0 ]] && return 1
+
   grep -R "server_name" "${files[@]}" 2>/dev/null | grep -q "\b${domain}\b"
 }
 
@@ -92,6 +96,7 @@ server {
 
   client_max_body_size 25m;
 
+  # ACME HTTP-01 challenge (certbot --webroot)
   location ^~ /.well-known/acme-challenge/ {
     root /var/www/letsencrypt;
   }
@@ -123,6 +128,7 @@ server {
   listen [::]:80;
   server_name ${domain};
 
+  # ACME HTTP-01 challenge (certbot --webroot)
   location ^~ /.well-known/acme-challenge/ {
     root /var/www/letsencrypt;
   }
@@ -170,6 +176,7 @@ issue_cert_http_webroot(){
   apt-get install -y certbot
   mkdir -p /var/www/letsencrypt
 
+  # certbot can be interactive (first run); ensure it reads from /dev/tty.
   if certbot certonly \
       --webroot \
       -w /var/www/letsencrypt \
@@ -188,13 +195,18 @@ issue_cert_dns_manual(){
 
   log "\n[HTTPS] Пытаюсь выпустить сертификат через DNS-01 (manual)."
   log "Тебе нужно будет добавить TXT запись _acme-challenge.${domain} в DNS панели домена."
-  log "Важно: после добавления TXT записи подожди обновления DNS (иногда 1–10 минут)."
-  log "Важно: сертификат через manual DNS-01 НЕ продляется автоматически.\n"
+  log "Важно: после добавления TXT записи подожди обновления DNS (иногда 1–10 минут, зависит от TTL)."
+  log "Важно: сертификат через manual DNS-01 НЕ продляется автоматически — раз в ~90 дней потребуется повторить выпуск или настроить DNS-плагин."
+  log "Если DNS-панель не у тебя — пропусти шаг и настрой HTTPS позже.\n"
 
-  prompt "Нажми Enter, чтобы запустить certbot (или Ctrl+C чтобы отменить)… " >/dev/null
+  # Extra pause so user clearly sees what will happen next.
+  prompt "Нажми Enter, чтобы запустить certbot (или Ctrl+C чтобы отменить выпуск сертификата и остаться на HTTP)… " >/dev/null
 
   apt-get install -y certbot
 
+  # Certbot is interactive in manual DNS mode. When running via pipe (curl | bash),
+  # stdin is not a TTY, so certbot may immediately continue (EOF) and fail.
+  # Force stdin to /dev/tty so it truly waits for Enter.
   if certbot certonly \
       --manual \
       --preferred-challenges dns \
@@ -207,47 +219,20 @@ issue_cert_dns_manual(){
   return 1
 }
 
-# --- Inputs with validation
-DOMAIN=""
-ADMIN_EMAIL=""
-ADMIN_LOGIN=""
-ADMIN_PASS=""
+# --- Inputs
+DOMAIN="$(prompt "Домен (например: pariter.ru): ")"
+ADMIN_EMAIL="$(prompt "Email администратора: ")"
+ADMIN_LOGIN="$(prompt "Логин администратора: ")"
+ADMIN_PASS="$(prompt "Пароль администратора (мин. 6): " 1)"
 
-while [[ -z "$DOMAIN" ]]; do
-  DOMAIN="$(prompt "Домен (например: pariter.ru): ")"
-  if [[ -z "$DOMAIN" ]]; then
-    warn "Домен не может быть пустым."
-  fi
-done
+if [[ -z "$DOMAIN" || -z "$ADMIN_EMAIL" || -z "$ADMIN_LOGIN" || -z "$ADMIN_PASS" ]]; then
+  die "Все поля обязательны."
+fi
 
-while [[ -z "$ADMIN_EMAIL" ]]; do
-  ADMIN_EMAIL="$(prompt "Email администратора: ")"
-  if [[ -z "$ADMIN_EMAIL" ]]; then
-    warn "Email не может быть пустым."
-  fi
-done
-
-while [[ -z "$ADMIN_LOGIN" ]]; do
-  ADMIN_LOGIN="$(prompt "Логин администратора: ")"
-  if [[ -z "$ADMIN_LOGIN" ]]; then
-    warn "Логин не может быть пустым."
-  fi
-done
-
-while [[ -z "$ADMIN_PASS" || ${#ADMIN_PASS} -lt 6 ]]; do
-  ADMIN_PASS="$(prompt "Пароль администратора (мин. 6 символов): " 1)"
-  if [[ -z "$ADMIN_PASS" ]]; then
-    warn "Пароль не может быть пустым."
-  elif [[ ${#ADMIN_PASS} -lt 6 ]]; then
-    warn "Пароль должен быть минимум 6 символов (введено: ${#ADMIN_PASS})."
-  fi
-done
-
-log "\nБудет выполнена установка Pariter:"
+log "\nБудет выполнена установка Pariter:" 
 log "- Домен: $DOMAIN"
 log "- Email:  $ADMIN_EMAIL"
 log "- Логин:  $ADMIN_LOGIN"
-log "- Пароль: (скрыт, ${#ADMIN_PASS} символов)"
 OK="$(prompt "Продолжить? (y/N): ")"
 if [[ "${OK,,}" != "y" ]]; then
   log "Отменено."
@@ -259,7 +244,35 @@ log "\n[1/8] Обновляю apt…"
 apt-get update -y
 
 log "\n[2/8] Устанавливаю зависимости…"
+# iproute2 -> ss
 apt-get install -y curl ca-certificates unzip gnupg iproute2
+
+# --- DNS sanity check (prevents broken ACME / wrong IP situations)
+PUBLIC_IP="$(curl -fsS https://api.ipify.org || true)"
+DOMAIN_IP="$(getent ahostsv4 "$DOMAIN" 2>/dev/null | awk '{print $1; exit}' || true)"
+PUBLIC_IP6="$(curl -fsS https://api64.ipify.org || true)"
+DOMAIN_IP6="$(getent ahostsv6 "$DOMAIN" 2>/dev/null | awk '{print $1; exit}' || true)"
+
+if [[ -n "$PUBLIC_IP" && -n "$DOMAIN_IP" && "$PUBLIC_IP" != "$DOMAIN_IP" ]]; then
+  warn "DNS A: ${DOMAIN} -> ${DOMAIN_IP}, но внешний IPv4 сервера: ${PUBLIC_IP}."
+  warn "Это частая причина пустой страницы и провала выпуска сертификата."
+  CONT="$(prompt "Продолжить установку всё равно? (y/N): ")"
+  if [[ "${CONT,,}" != "y" ]]; then
+    die "Остановлено. Исправь DNS A-запись и запусти установку снова."
+  fi
+elif [[ -z "$DOMAIN_IP" ]]; then
+  warn "Не удалось получить A-запись (IPv4) для домена ${DOMAIN}."
+fi
+
+# IPv6 is a very common ACME pitfall: if AAAA points elsewhere, Let's Encrypt will try IPv6 and fail.
+if [[ -n "$DOMAIN_IP6" && -n "$PUBLIC_IP6" && "$DOMAIN_IP6" != "$PUBLIC_IP6" ]]; then
+  warn "DNS AAAA: ${DOMAIN} -> ${DOMAIN_IP6}, но внешний IPv6 сервера: ${PUBLIC_IP6}."
+  warn "Если AAAA указывает не на этот сервер — ACME/HTTPS часто будет падать."
+  CONT6="$(prompt "Продолжить установку всё равно? (y/N): ")"
+  if [[ "${CONT6,,}" != "y" ]]; then
+    die "Остановлено. Исправь DNS AAAA-запись (или удали AAAA) и запусти установку снова."
+  fi
+fi
 
 # --- Bun
 log "\n[3/8] Устанавливаю Bun (если нужно)…"
@@ -274,6 +287,8 @@ if [[ -z "$BUN_BIN" ]]; then
   die "bun не найден в PATH после установки."
 fi
 
+# If bun is under /root, make it accessible for systemd non-root service.
+# /root is usually 0700, so we copy bun to /usr/local/bin.
 if [[ "$BUN_BIN" == /root/* ]]; then
   install -m 0755 "$BUN_BIN" /usr/local/bin/bun
   BUN_BIN="/usr/local/bin/bun"
@@ -289,6 +304,7 @@ if ! have_cmd caddy; then
   apt-get install -y caddy
 fi
 
+# Caddy package sometimes tries to start immediately.
 systemctl stop caddy 2>/dev/null || true
 
 # --- App dir + user
@@ -306,17 +322,17 @@ EXTRACT_DIR="$(mktemp -d)"
 if curl -fsSL "https://github.com/xl00m/pariter/archive/refs/heads/main.zip" -o "$TMP_ZIP"; then
   :
 else
-  warn "Не удалось скачать архив с GitHub."
-  TOKEN="$(prompt "GitHub token (PAT) для private repo (Enter — пропустить): " 1)"
+  warn "Не удалось скачать архив с GitHub (возможна приватность репозитория или блокировки)."
+  TOKEN="$(prompt "GitHub token (PAT) для скачивания private repo (Enter — пропустить): " 1)"
   if [[ -z "$TOKEN" ]]; then
-    die "Скачивание прервано."
+    die "Скачивание прервано. Репозиторий недоступен без доступа."
   fi
   if ! curl -fsSL \
         -H "Authorization: token $TOKEN" \
         -H "User-Agent: pariter-installer" \
         "https://api.github.com/repos/xl00m/pariter/zipball/main" \
         -o "$TMP_ZIP"; then
-    die "Не удалось скачать репозиторий."
+    die "Не удалось скачать репозиторий даже с token."
   fi
 fi
 
@@ -329,11 +345,12 @@ cp -R "$SRC_DIR"/* "$APP_DIR"/
 rm -f "$TMP_ZIP"
 rm -rf "$EXTRACT_DIR"
 
-# --- Config (safe JSON)
+# Config (safe JSON)
 json_escape(){
+  # Minimal JSON string escaping (enough for our config fields)
   local s="$1"
   s=${s//\\/\\\\}
-  s=${s//\"/\\\"}
+  s=${s//"/\\"}
   s=${s//$'\n'/\\n}
   s=${s//$'\r'/\\r}
   s=${s//$'\t'/\\t}
@@ -362,26 +379,11 @@ cat > "$APP_DIR/config.json" <<EOF
 }
 EOF
 
-# Validate JSON with detailed diagnostics
-log "Проверяю config.json…"
-if ! "$BUN_BIN" -e "
-  const fs = require('fs');
-  try {
-    const content = fs.readFileSync(process.argv[1], 'utf8');
-    JSON.parse(content);
-    process.exit(0);
-  } catch (e) {
-    console.error('JSON parse error:', e.message);
-    console.error('--- File contents ---');
-    console.error(fs.readFileSync(process.argv[1], 'utf8'));
-    console.error('--- End of file ---');
-    process.exit(1);
-  }
-" "$APP_DIR/config.json"; then
-  die "config.json повреждён. См. вывод выше."
+# Validate JSON early to avoid confusing failures later.
+if ! "$BUN_BIN" -e "const fs=require('fs'); JSON.parse(fs.readFileSync(process.argv[1],'utf8'));" "$APP_DIR/config.json" >/dev/null 2>&1; then
+  die "config.json повреждён: невалидный JSON. Проверь введённые данные (кавычки/переводы строк) и повтори установку."
 fi
 
-log "config.json валиден."
 chown -R pariter:pariter "$APP_DIR"
 
 # --- systemd
@@ -412,7 +414,7 @@ ReadWritePaths=${APP_DIR}
 WantedBy=multi-user.target
 EOF
 
-# Backup timer
+# Backup timer (daily)
 mkdir -p "$APP_DIR/backups"
 cat > /usr/local/bin/pariter-backup.sh <<'EOF'
 #!/usr/bin/env bash
@@ -427,6 +429,7 @@ if [[ -f "$SRC" ]]; then
   cp "$SRC" "$DST"
   gzip -f "$DST"
 fi
+# keep 14 days
 find "$BK_DIR" -type f -name 'pariter-*.db.gz' -mtime +14 -delete 2>/dev/null || true
 EOF
 chmod 0755 /usr/local/bin/pariter-backup.sh
@@ -465,20 +468,28 @@ PORT443_BUSY=0
 port_busy 80 && PORT80_BUSY=1
 port_busy 443 && PORT443_BUSY=1
 
+# Stronger detection: enable nginx-mode only if nginx is the actual listener.
+NGINX_80=0
+NGINX_443=0
+port_busy_by_nginx 80 && NGINX_80=1
+port_busy_by_nginx 443 && NGINX_443=1
+
 NGINX_MODE=0
-if [[ "$NGINX_ACTIVE" -eq 1 && ( "$PORT80_BUSY" -eq 1 || "$PORT443_BUSY" -eq 1 ) ]]; then
+if [[ "$NGINX_ACTIVE" -eq 1 && ( "$NGINX_80" -eq 1 || "$NGINX_443" -eq 1 ) ]]; then
   NGINX_MODE=1
 fi
 
+# If ports are busy but nginx is not active -> don't touch ports, but keep going.
 CUSTOM_PROXY_NEEDED=0
 if [[ "$NGINX_MODE" -eq 0 && ( "$PORT80_BUSY" -eq 1 || "$PORT443_BUSY" -eq 1 ) ]]; then
   CUSTOM_PROXY_NEEDED=1
-  warn "Порты 80/443 заняты, но nginx не активен."
-  warn "Pariter будет поднят, прокси/HTTPS нужно настроить вручную."
+  warn "Порты 80/443 заняты, но nginx не активен. Я не буду трогать чужую конфигурацию."
+  warn "Pariter будет поднят, а прокси/HTTPS нужно будет настроить вручную."
 fi
 
 mkdir -p /etc/caddy
 
+# Default: Caddy owns 80/443 (auto HTTPS)
 CADDY_PORT=""
 LE_DIR="/etc/letsencrypt/live/${DOMAIN}"
 HAS_LE_CERT=0
@@ -488,18 +499,20 @@ NGINX_CONFLICT=0
 if [[ "$NGINX_MODE" -eq 1 ]]; then
   if nginx_domain_conflict "$DOMAIN"; then
     NGINX_CONFLICT=1
-    warn "В nginx уже есть конфиг с server_name ${DOMAIN}."
+    warn "В nginx уже есть конфиг с server_name ${DOMAIN}. Я не буду его перезаписывать."
   fi
 
   CADDY_PORT="$(pick_free_port || true)"
   [[ -z "$CADDY_PORT" ]] && die "Не удалось подобрать свободный порт для Caddy."
 
+  # Caddy on localhost:freeport (HTTP only)
   cat > /etc/caddy/Caddyfile <<EOF
 http://127.0.0.1:${CADDY_PORT} {
   reverse_proxy 127.0.0.1:${APP_PORT}
 }
 EOF
 
+  # If nginx vhost is free to create, do it.
   if [[ "$NGINX_CONFLICT" -eq 0 ]]; then
     NGINX_VHOST=""
     if [[ -d /etc/nginx/sites-available && -d /etc/nginx/sites-enabled ]]; then
@@ -512,29 +525,41 @@ EOF
       write_nginx_vhost_https "$NGINX_VHOST" "$DOMAIN" "$CADDY_PORT" "$LE_DIR"
       sed -i 's/^Environment=PARITER_SECURE_COOKIE=.*/Environment=PARITER_SECURE_COOKIE=1/' /etc/systemd/system/pariter.service
     else
+      # Start with HTTP vhost (needed for HTTP-01 webroot).
       write_nginx_vhost_http "$NGINX_VHOST" "$DOMAIN" "$CADDY_PORT"
       sed -i 's/^Environment=PARITER_SECURE_COOKIE=.*/Environment=PARITER_SECURE_COOKIE=0/' /etc/systemd/system/pariter.service
 
+      # Enable site early so certbot HTTP-01 can pass.
       if [[ -d /etc/nginx/sites-available && -d /etc/nginx/sites-enabled ]]; then
         ln -sf "$NGINX_VHOST" "/etc/nginx/sites-enabled/pariter-${DOMAIN}.conf"
       fi
       mkdir -p /var/www/letsencrypt
 
-      if nginx -t 2>/dev/null; then
+      if ! nginx -t; then
+        warn "nginx -t не прошёл. Не могу попытаться выпустить сертификат через HTTP-01."
+      else
         systemctl reload nginx || systemctl restart nginx
 
+        # 1) Try automatic HTTP-01 first
         if issue_cert_http_webroot "$DOMAIN" "$ADMIN_EMAIL"; then
           HAS_LE_CERT=0
           [[ -f "$LE_DIR/fullchain.pem" && -f "$LE_DIR/privkey.pem" ]] && HAS_LE_CERT=1
           if [[ "$HAS_LE_CERT" -eq 1 ]]; then
             write_nginx_vhost_https "$NGINX_VHOST" "$DOMAIN" "$CADDY_PORT" "$LE_DIR"
             sed -i 's/^Environment=PARITER_SECURE_COOKIE=.*/Environment=PARITER_SECURE_COOKIE=1/' /etc/systemd/system/pariter.service
-            log "[HTTPS] Сертификат выпущен через HTTP-01."
-            nginx -t && systemctl reload nginx
+            log "[HTTPS] Сертификат выпущен через HTTP-01. Переключаю nginx на HTTPS."
+            if nginx -t; then
+              systemctl reload nginx || systemctl restart nginx
+            else
+              warn "nginx -t не прошёл после включения HTTPS. Оставляю конфиг, но nginx не перезагружаю."
+            fi
+          else
+            warn "Certbot завершился успешно, но файлы сертификата не найдены. Оставляю HTTP."
           fi
         else
-          warn "Не удалось выпустить сертификат через HTTP-01."
+          warn "Не удалось выпустить сертификат автоматически через HTTP-01."
 
+          # 2) Fallback to DNS-01 manual
           CHOICE="$(prompt "\nПопробовать выпуск через DNS-01 (manual)? (y/N): ")"
           if [[ "${CHOICE,,}" == "y" ]]; then
             success=0
@@ -543,10 +568,13 @@ EOF
                 success=1
                 break
               fi
-              warn "Не удалось выпустить сертификат (попытка ${attempt}/2)."
+
+              warn "Не удалось выпустить сертификат через DNS-01 (попытка ${attempt}/2)."
               if [[ "$attempt" -lt 2 ]]; then
-                AGAIN="$(prompt "Повторить? (y/N): ")"
-                [[ "${AGAIN,,}" != "y" ]] && break
+                AGAIN="$(prompt "Повторить попытку выпуска через DNS-01? (y/N): ")"
+                if [[ "${AGAIN,,}" != "y" ]]; then
+                  break
+                fi
               fi
             done
 
@@ -556,14 +584,20 @@ EOF
               if [[ "$HAS_LE_CERT" -eq 1 ]]; then
                 write_nginx_vhost_https "$NGINX_VHOST" "$DOMAIN" "$CADDY_PORT" "$LE_DIR"
                 sed -i 's/^Environment=PARITER_SECURE_COOKIE=.*/Environment=PARITER_SECURE_COOKIE=1/' /etc/systemd/system/pariter.service
-                log "[HTTPS] Сертификат выпущен через DNS-01."
-                nginx -t && systemctl reload nginx
+                log "[HTTPS] Сертификат выпущен через DNS-01. Переключаю nginx на HTTPS."
+                if nginx -t; then
+                  systemctl reload nginx || systemctl restart nginx
+                else
+                  warn "nginx -t не прошёл после включения HTTPS. Оставляю конфиг, но nginx не перезагружаю."
+                fi
+              else
+                warn "Certbot завершился успешно, но файлы сертификата не найдены. Оставляю HTTP."
               fi
+            else
+              warn "Не удалось выпустить сертификат через DNS-01. Оставляю HTTP."
             fi
           fi
         fi
-      else
-        warn "nginx -t не прошёл. Сертификат не выпущен."
       fi
     fi
 
@@ -571,19 +605,21 @@ EOF
       ln -sf "$NGINX_VHOST" "/etc/nginx/sites-enabled/pariter-${DOMAIN}.conf"
     fi
 
-    if nginx -t 2>/dev/null; then
-      systemctl reload nginx || systemctl restart nginx
+    if ! nginx -t; then
+      warn "nginx -t не прошёл. Конфиг записан в: ${NGINX_VHOST}"
+      warn "Я не буду перезапускать nginx. Проверь конфиг вручную."
     else
-      warn "nginx -t не прошёл. Проверь конфиг вручную: ${NGINX_VHOST}"
+      systemctl reload nginx || systemctl restart nginx
     fi
   else
     warn "NGINX_CONFLICT=1: nginx vhost не создан."
-    warn "Настрой proxy_pass для ${DOMAIN} -> http://127.0.0.1:${CADDY_PORT}"
+    warn "Добавь вручную reverse proxy для ${DOMAIN} -> http://127.0.0.1:${CADDY_PORT}"
   fi
 
 elif [[ "$CUSTOM_PROXY_NEEDED" -eq 1 ]]; then
+  # Ports are busy, nginx not active. Run Caddy on free localhost port.
   CADDY_PORT="$(pick_free_port || true)"
-  [[ -z "$CADDY_PORT" ]] && die "Не удалось подобрать порт для Caddy."
+  [[ -z "$CADDY_PORT" ]] && die "Не удалось подобрать свободный порт для Caddy."
   cat > /etc/caddy/Caddyfile <<EOF
 http://127.0.0.1:${CADDY_PORT} {
   reverse_proxy 127.0.0.1:${APP_PORT}
@@ -592,6 +628,7 @@ EOF
   sed -i 's/^Environment=PARITER_SECURE_COOKIE=.*/Environment=PARITER_SECURE_COOKIE=0/' /etc/systemd/system/pariter.service
 
 else
+  # Caddy owns 80/443 -> auto HTTPS
   cat > /etc/caddy/Caddyfile <<EOF
 ${DOMAIN} {
   reverse_proxy 127.0.0.1:${APP_PORT}
@@ -600,7 +637,7 @@ EOF
   sed -i 's/^Environment=PARITER_SECURE_COOKIE=.*/Environment=PARITER_SECURE_COOKIE=1/' /etc/systemd/system/pariter.service
 fi
 
-# --- Init DB + admin
+# --- Init DB + admin (as pariter user so DB permissions match)
 cd "$APP_DIR"
 run_as_pariter "$BUN_BIN" install --no-save >/dev/null 2>&1 || true
 run_as_pariter "$BUN_BIN" run scripts/setup.ts
@@ -613,38 +650,60 @@ systemctl restart pariter
 systemctl enable --now pariter-backup.timer
 systemctl start pariter-backup.timer 2>/dev/null || true
 
+# Restart caddy last (after config)
 systemctl restart caddy
 
-# Health check
-sleep 2
+# Best-effort local health checks (helps debug the proxy chain)
+sleep 1
 if curl -fsS "http://127.0.0.1:${APP_PORT}/api/health" >/dev/null 2>&1; then
   log "\n[OK] Pariter отвечает на http://127.0.0.1:${APP_PORT}"
 else
-  warn "Pariter не отвечает. Проверь: journalctl -u pariter -n 80 --no-pager"
+  warn "Pariter пока не отвечает на http://127.0.0.1:${APP_PORT}. Проверь: journalctl -u pariter -n 120 --no-pager"
+fi
+
+if [[ -n "${CADDY_PORT}" ]]; then
+  if curl -fsS "http://127.0.0.1:${CADDY_PORT}/api/health" >/dev/null 2>&1; then
+    log "[OK] Caddy proxy отвечает на http://127.0.0.1:${CADDY_PORT}"
+  else
+    warn "Caddy proxy не отвечает на http://127.0.0.1:${CADDY_PORT}. Проверь: journalctl -u caddy -n 120 --no-pager"
+  fi
+fi
+
+if [[ "$NGINX_MODE" -eq 1 ]]; then
+  if curl -fsS -H "Host: ${DOMAIN}" "http://127.0.0.1/api/health" >/dev/null 2>&1; then
+    log "[OK] Nginx proxy отвечает локально (Host: ${DOMAIN})"
+  else
+    warn "Nginx proxy не отвечает локально. Проверь: nginx -t; journalctl -u nginx -n 120 --no-pager"
+  fi
 fi
 
 # --- Final message
 if [[ "$NGINX_MODE" -eq 1 ]]; then
   if [[ "$NGINX_CONFLICT" -eq 1 ]]; then
-    log "\nГотово. Caddy: 127.0.0.1:${CADDY_PORT}. Настрой nginx вручную."
-  elif [[ "$HAS_LE_CERT" -eq 1 ]]; then
-    log "\nГотово. nginx(HTTPS) -> Caddy -> Pariter"
-    log "Открой: https://${DOMAIN}"
+    log "\nГотово. Pariter запущен, Caddy слушает 127.0.0.1:${CADDY_PORT}."
+    log "Nginx-конфиг для домена НЕ создавался (конфликт server_name). Настрой proxy_pass вручную." 
   else
-    log "\nГотово. nginx(HTTP) -> Caddy -> Pariter"
-    log "Открой: http://${DOMAIN}"
-    log "\nДля HTTPS:"
-    log "  sudo sed -i 's/PARITER_SECURE_COOKIE=0/PARITER_SECURE_COOKIE=1/' /etc/systemd/system/pariter.service"
-    log "  sudo systemctl daemon-reload && sudo systemctl restart pariter"
+    if [[ "$HAS_LE_CERT" -eq 1 ]]; then
+      log "\nГотово. nginx(HTTPS) -> Caddy(127.0.0.1:${CADDY_PORT}) -> Pariter(127.0.0.1:${APP_PORT})"
+      log "Открой: https://${DOMAIN}"
+    else
+      log "\nГотово. nginx(HTTP) -> Caddy(127.0.0.1:${CADDY_PORT}) -> Pariter(127.0.0.1:${APP_PORT})"
+      log "Открой: http://${DOMAIN}"
+      log "\nЕсли позже включишь HTTPS на nginx, включи Secure cookie:"
+      log "  sudo sed -i 's/PARITER_SECURE_COOKIE=0/PARITER_SECURE_COOKIE=1/' /etc/systemd/system/pariter.service && sudo systemctl daemon-reload && sudo systemctl restart pariter"
+    fi
   fi
 elif [[ "$CUSTOM_PROXY_NEEDED" -eq 1 ]]; then
-  log "\nГотово. Caddy: 127.0.0.1:${CADDY_PORT}. Настрой reverse proxy вручную."
+  log "\nГотово. Pariter запущен, Caddy слушает 127.0.0.1:${CADDY_PORT}."
+  log "Порты 80/443 заняты другим сервисом. Настрой reverse proxy вручную на ${DOMAIN} -> http://127.0.0.1:${CADDY_PORT}"
 else
   log "\nУспех! Открой: https://${DOMAIN}"
 fi
 
-log "\nБэкапы: ${APP_DIR}/backups (14 дней, ежедневно 03:17)"
+log "\nБэкапы БД: ${APP_DIR}/backups (хранение 14 дней, ежедневно 03:17)"
 log "\nЛоги:"
 log "  sudo journalctl -u pariter -f"
 log "  sudo journalctl -u caddy -f"
-[[ "$NGINX_MODE" -eq 1 ]] && log "  sudo journalctl -u nginx -f"
+if [[ "$NGINX_MODE" -eq 1 ]]; then
+  log "  sudo journalctl -u nginx -f"
+fi

@@ -184,15 +184,23 @@ function closeEntryModal(){
 function setTheme(themeId){
   const t = THEMES.find(x=>x.id===themeId) || THEMES[0];
   const r = document.documentElement;
-  Object.entries(t.colors).forEach(([k,v]) => r.style.setProperty(`--${k}`, v));
+  const b = document.body;
+
+  // Important: SSR can set CSS variables inline on <body>. If we only set vars on <html>,
+  // body vars will win and theme switching will look “stuck”. So we set vars on BOTH.
+  Object.entries(t.colors).forEach(([k,v]) => {
+    r.style.setProperty(`--${k}`, v);
+    b.style.setProperty(`--${k}`, v);
+  });
+
   if (t.light) {
-    document.body.style.background = `radial-gradient(1100px 560px at 20% -10%, rgba(76,111,255,.12), transparent 55%),
-                                      radial-gradient(900px 520px at 110% 10%, rgba(31,185,129,.12), transparent 60%),
-                                      var(--bg)`;
+    b.style.background = `radial-gradient(1100px 560px at 20% -10%, rgba(76,111,255,.12), transparent 55%),
+                          radial-gradient(900px 520px at 110% 10%, rgba(31,185,129,.12), transparent 60%),
+                          var(--bg)`;
   } else {
-    document.body.style.background = `radial-gradient(1200px 600px at 20% -10%, rgba(124,92,255,.22), transparent 55%),
-                                      radial-gradient(900px 520px at 110% 10%, rgba(46,212,167,.20), transparent 60%),
-                                      var(--bg)`;
+    b.style.background = `radial-gradient(1200px 600px at 20% -10%, rgba(124,92,255,.22), transparent 55%),
+                          radial-gradient(900px 520px at 110% 10%, rgba(46,212,167,.20), transparent 60%),
+                          var(--bg)`;
   }
 }
 
@@ -1408,9 +1416,24 @@ function bindHandlers(){
       try {
         const r = await api.login({ login: fd.get('login'), password: fd.get('password') });
         if (r?.user) {
+          // optimistic UI
           APP.state.user = r.user;
           APP.state.teamUsersFetchedAt = 0;
           if (APP.state.user?.theme) setTheme(APP.state.user.theme);
+
+          // hard sync (prevents rare mismatches in role/theme/team after auth transitions)
+          try {
+            const m = await api.me();
+            APP.state.user = m.user;
+            APP.state.team = m.team;
+            if (APP.state.user?.theme) setTheme(APP.state.user.theme);
+
+            const t = await api.team();
+            if (Array.isArray(t?.users)) {
+              APP.state.teamUsers = t.users;
+              APP.state.teamUsersFetchedAt = Date.now();
+            }
+          } catch {}
         }
         toast('Вход выполнен.');
         history.replaceState({}, '', '/path');
@@ -1437,9 +1460,24 @@ function bindHandlers(){
           theme: fd.get('theme'),
         });
         if (r?.user) {
+          // optimistic UI
           APP.state.user = r.user;
           APP.state.teamUsersFetchedAt = 0;
           if (APP.state.user?.theme) setTheme(APP.state.user.theme);
+
+          // hard sync
+          try {
+            const m = await api.me();
+            APP.state.user = m.user;
+            APP.state.team = m.team;
+            if (APP.state.user?.theme) setTheme(APP.state.user.theme);
+
+            const t = await api.team();
+            if (Array.isArray(t?.users)) {
+              APP.state.teamUsers = t.users;
+              APP.state.teamUsersFetchedAt = Date.now();
+            }
+          } catch {}
         }
         toast('Команда создана. Путь начался.');
         history.replaceState({}, '', '/path');
@@ -1466,9 +1504,24 @@ function bindHandlers(){
           theme: fd.get('theme'),
         });
         if (r?.user) {
+          // optimistic UI
           APP.state.user = r.user;
           APP.state.teamUsersFetchedAt = 0;
           if (APP.state.user?.theme) setTheme(APP.state.user.theme);
+
+          // hard sync
+          try {
+            const m = await api.me();
+            APP.state.user = m.user;
+            APP.state.team = m.team;
+            if (APP.state.user?.theme) setTheme(APP.state.user.theme);
+
+            const t = await api.team();
+            if (Array.isArray(t?.users)) {
+              APP.state.teamUsers = t.users;
+              APP.state.teamUsersFetchedAt = Date.now();
+            }
+          } catch {}
         }
         toast('Добро пожаловать на путь.');
         history.replaceState({}, '', '/path');
@@ -1498,7 +1551,26 @@ function bindHandlers(){
           theme: fd.get('theme'),
           password: pass,
         });
-        if (r?.user) APP.state.user = r.user;
+
+        if (r?.user) {
+          APP.state.user = r.user;
+          if (APP.state.user?.theme) setTheme(APP.state.user.theme);
+        }
+
+        // hard sync (prevents edge cases where role/theme UI gets out of sync)
+        try {
+          const m = await api.me();
+          APP.state.user = m.user;
+          APP.state.team = m.team;
+          if (APP.state.user?.theme) setTheme(APP.state.user.theme);
+
+          const t = await api.team();
+          if (Array.isArray(t?.users)) {
+            APP.state.teamUsers = t.users;
+            APP.state.teamUsersFetchedAt = Date.now();
+          }
+        } catch {}
+
         // refresh team cache (role/theme icon may change)
         APP.state.teamUsersFetchedAt = 0;
         toast('Сохранено.');

@@ -68,10 +68,16 @@ async function serveFile(pathname: string){
   const filePath = safeStaticPath(pathname);
   const f = Bun.file(filePath);
   if (!(await f.exists())) return new Response('not found', { status: 404 });
+
+  // Important: JS/CSS must update immediately after deploy. Avoid long-lived caching for these.
+  const cache = (pathname.endsWith('.js') || pathname.endsWith('.css'))
+    ? 'no-store'
+    : 'public, max-age=86400';
+
   return new Response(f, {
     headers: {
       'content-type': contentTypeFor(pathname),
-      'cache-control': 'public, max-age=86400'
+      'cache-control': cache
     }
   });
 }

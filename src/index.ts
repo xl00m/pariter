@@ -21,6 +21,35 @@ async function readConfig(): Promise<Config> {
   }
 }
 
+async function loadDotEnv(path = './.env'){
+  try {
+    const f = Bun.file(path);
+    if (!(await f.exists())) return;
+    const txt = await f.text();
+    const lines = txt.split(/\r?\n/);
+    for (const line of lines) {
+      const s = line.trim();
+      if (!s || s.startsWith('#')) continue;
+      const i = s.indexOf('=');
+      if (i === -1) continue;
+      const key = s.slice(0, i).trim();
+      let val = s.slice(i + 1).trim();
+      if (!key) continue;
+      // strip optional quotes
+      if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+        val = val.slice(1, -1);
+      }
+      if (!(key in process.env)) {
+        process.env[key] = val;
+      }
+    }
+  } catch {
+    // ignore
+  }
+}
+
+await loadDotEnv();
+
 const cfg = await readConfig();
 
 const db = openDB(process.env.PARITER_DB || cfg.dbPath || './pariter.db');

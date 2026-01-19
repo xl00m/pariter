@@ -61,12 +61,17 @@ export function migrate(db: DB){
   );`);
 
   // AI memory: persistent compressed context per user (to keep context under 100KB)
+  // last_entry_id tracks up to which entry the compressed summary includes.
   db.run(`CREATE TABLE IF NOT EXISTS ai_memory (
     user_id INTEGER PRIMARY KEY,
     compressed TEXT,
     updated_at TEXT,
+    last_entry_id INTEGER,
     FOREIGN KEY(user_id) REFERENCES users(id)
   );`);
+
+  // Backward compatible migration: add last_entry_id if table existed without it.
+  try { db.run('ALTER TABLE ai_memory ADD COLUMN last_entry_id INTEGER;'); } catch {}
 
   // indices
   // Allow multiple entries per day: remove legacy UNIQUE(user_id, date) constraint if present.

@@ -91,19 +91,19 @@ function ensureEntryModal(){
 
         <div class="grid" style="margin-top: 12px;">
           <div class="soft" style="padding: 12px; background: var(--victory)">
-            <div class="rowBetween" style="align-items:center">
-              <div style="font-size: 12px; font-weight: 900; letter-spacing:.16em">⚔️ VICTORIA</div>
-              <button type="button" class="ai-btn" style="position: static; width: 34px; height: 34px" data-action="ai-rewrite" data-target="entryModalVictory" data-field="victory" title="Переписать с ИИ" aria-label="Переписать с ИИ">✦</button>
+            <div style="font-size: 12px; font-weight: 900; letter-spacing:.16em">⚔️ VICTORIA</div>
+            <div class="ai-wrap" style="margin-top: 10px;">
+              <textarea class="textarea ai-textarea" id="entryModalVictory" placeholder="Текст победы"></textarea>
+              <button type="button" class="ai-btn" data-action="ai-rewrite" data-target="entryModalVictory" data-field="victory" title="Переписать с ИИ" aria-label="Переписать с ИИ">✦</button>
             </div>
-            <textarea class="textarea" style="margin-top: 10px" id="entryModalVictory" placeholder="Текст победы"></textarea>
           </div>
 
           <div class="soft" style="padding: 12px; background: var(--lesson)">
-            <div class="rowBetween" style="align-items:center">
-              <div style="font-size: 12px; font-weight: 900; letter-spacing:.16em">🦉 LECTIO</div>
-              <button type="button" class="ai-btn" style="position: static; width: 34px; height: 34px" data-action="ai-rewrite" data-target="entryModalLesson" data-field="lesson" title="Переписать с ИИ" aria-label="Переписать с ИИ">✦</button>
+            <div style="font-size: 12px; font-weight: 900; letter-spacing:.16em">🦉 LECTIO</div>
+            <div class="ai-wrap" style="margin-top: 10px;">
+              <textarea class="textarea ai-textarea" id="entryModalLesson" placeholder="Текст урока"></textarea>
+              <button type="button" class="ai-btn" data-action="ai-rewrite" data-target="entryModalLesson" data-field="lesson" title="Переписать с ИИ" aria-label="Переписать с ИИ">✦</button>
             </div>
-            <textarea class="textarea" style="margin-top: 10px" id="entryModalLesson" placeholder="Текст урока"></textarea>
           </div>
 
           <div class="rowBetween" style="flex-wrap: wrap; gap: 10px">
@@ -778,22 +778,18 @@ function pagePath(){
 
         <form id="todayForm" class="grid" style="margin-top: 14px">
           <div class="soft" style="padding: 12px; background: var(--victory)">
-            <div class="rowBetween" style="align-items:center">
-              <div style="font-size: 12px; font-weight: 900; letter-spacing:.16em">⚔️ VICTORIA</div>
-              <button type="button" class="ai-btn" data-action="ai-rewrite" data-target="todayVictory" data-field="victory" title="Переписать с ИИ" aria-label="Переписать с ИИ">✦</button>
-            </div>
+            <div style="font-size: 12px; font-weight: 900; letter-spacing:.16em">⚔️ VICTORIA</div>
             <div class="ai-wrap" style="margin-top: 10px;">
               <textarea id="todayVictory" class="textarea ai-textarea" name="victory" placeholder="Что ты ${me.role === 'amazon' ? 'сделала' : 'сделал'} сейчас, несмотря на страх?"></textarea>
+              <button type="button" class="ai-btn" data-action="ai-rewrite" data-target="todayVictory" data-field="victory" title="Переписать с ИИ" aria-label="Переписать с ИИ">✦</button>
             </div>
           </div>
 
           <div class="soft" style="padding: 12px; background: var(--lesson)">
-            <div class="rowBetween" style="align-items:center">
-              <div style="font-size: 12px; font-weight: 900; letter-spacing:.16em">🦉 LECTIO</div>
-              <button type="button" class="ai-btn" data-action="ai-rewrite" data-target="todayLesson" data-field="lesson" title="Переписать с ИИ" aria-label="Переписать с ИИ">✦</button>
-            </div>
+            <div style="font-size: 12px; font-weight: 900; letter-spacing:.16em">🦉 LECTIO</div>
             <div class="ai-wrap" style="margin-top: 10px;">
               <textarea id="todayLesson" class="textarea ai-textarea" name="lesson" placeholder="Какой урок ты забираешь прямо сейчас?"></textarea>
+              <button type="button" class="ai-btn" data-action="ai-rewrite" data-target="todayLesson" data-field="lesson" title="Переписать с ИИ" aria-label="Переписать с ИИ">✦</button>
             </div>
           </div>
 

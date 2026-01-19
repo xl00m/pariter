@@ -274,6 +274,7 @@ if [[ -d "$APP_DIR_DEFAULT" && -f "$APP_DIR_DEFAULT/config.json" && -f /etc/syst
     cp -f "$APP_DIR_DEFAULT/pariter.db" "$PRESERVE_DIR/" 2>/dev/null || true
     cp -f "$APP_DIR_DEFAULT/pariter.db-wal" "$PRESERVE_DIR/" 2>/dev/null || true
     cp -f "$APP_DIR_DEFAULT/pariter.db-shm" "$PRESERVE_DIR/" 2>/dev/null || true
+    cp -f "$APP_DIR_DEFAULT/.env" "$PRESERVE_DIR/" 2>/dev/null || true
     if [[ -d "$APP_DIR_DEFAULT/backups" ]]; then
       mv "$APP_DIR_DEFAULT/backups" "$PRESERVE_DIR/backups" 2>/dev/null || true
     fi
@@ -292,6 +293,9 @@ if [[ -d "$APP_DIR_DEFAULT" && -f "$APP_DIR_DEFAULT/config.json" && -f /etc/syst
     fi
     [[ -f "$PRESERVE_DIR/pariter.db-wal" ]] && cp -f "$PRESERVE_DIR/pariter.db-wal" "$APP_DIR_DEFAULT/pariter.db-wal" || true
     [[ -f "$PRESERVE_DIR/pariter.db-shm" ]] && cp -f "$PRESERVE_DIR/pariter.db-shm" "$APP_DIR_DEFAULT/pariter.db-shm" || true
+    if [[ -f "$PRESERVE_DIR/.env" ]]; then
+      cp -f "$PRESERVE_DIR/.env" "$APP_DIR_DEFAULT/.env"
+    fi
 
     if [[ -d "$PRESERVE_DIR/backups" ]]; then
       mv "$PRESERVE_DIR/backups" "$APP_DIR_DEFAULT/backups" 2>/dev/null || true
@@ -499,6 +503,14 @@ cat > "$APP_DIR/config.json" <<EOF
   "staticDir": "${APP_DIR}/static"
 }
 EOF
+
+# .env (AI key). Create only if missing; keep user's existing env if present.
+if [[ ! -f "$APP_DIR/.env" ]]; then
+  cat > "$APP_DIR/.env" <<EOF
+# Pariter server configuration
+PARITER_AI_KEY=your-secret-key-here
+EOF
+fi
 
 # Validate JSON early to avoid confusing failures later.
 if ! "$BUN_BIN" -e "const fs=require('fs'); JSON.parse(fs.readFileSync(process.argv[1],'utf8'));" "$APP_DIR/config.json" >/dev/null 2>&1; then

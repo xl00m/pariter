@@ -299,16 +299,27 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
       const MAX = 100 * 1024;
 
       // Load compressed memory
-      const mem = db.query('SELECT compressed FROM ai_memory WHERE user_id = ?').get(user.id) as any;
+      const mem = db.query('SELECT compressed, last_entry_id FROM ai_memory WHERE user_id = ?').get(user.id) as any;
       let compressed = mem?.compressed ? String(mem.compressed) : '';
+      let lastEntryId = Number(mem?.last_entry_id || 0);
+      if (!Number.isFinite(lastEntryId) || lastEntryId < 0) lastEntryId = 0;
 
-      // Load recent raw history from DB (latest N). Older context should live in compressed memory.
-      const recent = db.query(
-        'SELECT id, date, victory, lesson, created_at FROM entries WHERE user_id = ? ORDER BY date DESC, id DESC LIMIT 220'
-      ).all(user.id) as any[];
+      // Load raw history (only NEW entries after last_entry_id if we have compressed memory).
+      // If no compressed memory exists yet, we load ALL entries.
+      const recent = (compressed && lastEntryId > 0)
+        ? (db.query(
+            'SELECT id, date, victory, lesson, created_at FROM entries WHERE user_id = ? AND id > ? ORDER BY id ASC'
+          ).all(user.id, lastEntryId) as any[])
+        : (db.query(
+            'SELECT id, date, victory, lesson, created_at FROM entries WHERE user_id = ? ORDER BY id ASC'
+          ).all(user.id) as any[]);
 
       const lines: string[] = [];
-      for (const e of recent.slice().reverse()) {
+      let maxSeenId = lastEntryId;
+      for (const e of recent) {
+        const id = Number(e.id || 0);
+        if (id > maxSeenId) maxSeenId = id;
+
         const dt = String(e.created_at || '');
         const when = dt ? dt : String(e.date || '');
         const v = gunzipText(e.victory);
@@ -327,9 +338,20 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
         return blocks.join('\n\n');
       };
 
+      // Build context: compressed summary (if any) + ONLY new raw steps (after last_entry_id).
       let history = buildHistory(compressed, lines);
 
-      // If history too large, compress via LLM and store.
+      // If we have no compressed memory yet, and history is already under the limit, mark memory as up-to-date
+      // so next time we don't resend the entire raw history.
+      if (!compressed && byteLen(history) <= MAX && maxSeenId > 0) {
+        db.run(
+          'INSERT INTO ai_memory (user_id, compressed, updated_at, last_entry_id) VALUES (?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET last_entry_id = excluded.last_entry_id, updated_at = excluded.updated_at',
+          [user.id, '', nowISO(), maxSeenId]
+        );
+        lastEntryId = maxSeenId;
+      }
+
+      // If context too large, compress via LLM and store.
       if (byteLen(history) > MAX) {
         const sys = [
           'Ты — инструмент сжатия контекста дневника Pariter.',
@@ -339,27 +361,35 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
           'Цель: итог должен быть короче, чтобы поместиться в лимит 100KB вместе с новыми шагами.'
         ].join('\n');
 
-        const userMsg = `Сожми следующую историю. Это ТОЛЬКО история, её не нужно переписывать как новый текст.\n\n${history}`;
+        const userMsg = `Сожми следующую историю. Это ТОЛЬКО история (контекст), её не нужно переписывать как новый текст.\n\n${history}`;
         const out = await callPariterAI({ apiKey, temperature: 0.3, messages: [
           { role: 'system', content: sys },
           { role: 'user', content: userMsg },
         ]});
 
         compressed = out;
-        // Upsert memory
+
+        // Determine current max entry id for the user (everything is now included in compressed summary)
+        const maxRow = db.query('SELECT MAX(id) AS m FROM entries WHERE user_id = ?').get(user.id) as any;
+        const maxId = Number(maxRow?.m || maxSeenId || 0);
+
+        // Upsert memory (store last_entry_id marker)
         db.run(
-          'INSERT INTO ai_memory (user_id, compressed, updated_at) VALUES (?,?,?) ON CONFLICT(user_id) DO UPDATE SET compressed = excluded.compressed, updated_at = excluded.updated_at',
-          [user.id, compressed, nowISO()]
+          'INSERT INTO ai_memory (user_id, compressed, updated_at, last_entry_id) VALUES (?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET compressed = excluded.compressed, updated_at = excluded.updated_at, last_entry_id = excluded.last_entry_id',
+          [user.id, compressed, nowISO(), maxId]
         );
 
-        // Use compressed + only last 60 steps as tail
-        history = buildHistory(compressed, lines.slice(-60));
+        // After compressing, there are no "new" raw lines yet.
+        history = buildHistory(compressed, []);
 
-        // If still too large, drop first 10KB from compressed (as per spec)
-        if (byteLen(history) > MAX) {
+        // If still too large, drop first 10KB from compressed repeatedly (as per spec)
+        let drops = 0;
+        while (byteLen(history) > MAX && drops < 25) {
           compressed = dropFirstUTF8Bytes(compressed, 10 * 1024);
           db.run('UPDATE ai_memory SET compressed = ?, updated_at = ? WHERE user_id = ?', [compressed, nowISO(), user.id]);
-          history = buildHistory(compressed, lines.slice(-40));
+          history = buildHistory(compressed, []);
+          drops++;
+          if (!compressed) break;
         }
 
         // Final clamp to be safe

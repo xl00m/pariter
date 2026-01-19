@@ -628,3 +628,4 @@ log "  sudo journalctl -u caddy -f"
 if [[ "$NGINX_MODE" -eq 1 ]]; then
   log "  sudo journalctl -u nginx -f"
 fi
+

@@ -298,13 +298,14 @@ if [[ -d "$APP_DIR_DEFAULT" && -f "$APP_DIR_DEFAULT/config.json" && -f /etc/syst
     fi
 
     # Ensure .env exists (AI key, etc). Do NOT overwrite existing .env.
-    if [[ ! -f "$APP_DIR_DEFAULT/.env" ]]; then
+    if [[ ! -s "$APP_DIR_DEFAULT/.env" ]]; then
       cat > "$APP_DIR_DEFAULT/.env" <<EOF
 # Pariter server configuration
 # AI key for /api/ai/rewrite
 PARITER_AI_KEY=your-secret-key-here
 EOF
     fi
+    chown pariter:pariter "$APP_DIR_DEFAULT/.env" 2>/dev/null || true
 
     if [[ -d "$PRESERVE_DIR/backups" ]]; then
       mv "$PRESERVE_DIR/backups" "$APP_DIR_DEFAULT/backups" 2>/dev/null || true
@@ -513,8 +514,8 @@ cat > "$APP_DIR/config.json" <<EOF
 }
 EOF
 
-# .env (AI key). Create only if missing; keep user's existing env if present.
-if [[ ! -f "$APP_DIR/.env" ]]; then
+# .env (AI key). Create if missing OR empty; keep user's existing env if present.
+if [[ ! -s "$APP_DIR/.env" ]]; then
   cat > "$APP_DIR/.env" <<EOF
 # Pariter server configuration
 # AI key for /api/ai/rewrite

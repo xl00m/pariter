@@ -132,6 +132,15 @@ body{
 .ai-btn:hover{ background: rgba(255,255,255,.06); border-color: color-mix(in srgb, var(--border) 40%, var(--accent) 60%); }
 .ai-btn:disabled{ opacity: .55; cursor: not-allowed; }
 
+/* AI accept/undo mini bar */
+.ai-bar{
+  margin-top: 8px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .label{ color: var(--textMuted); font-size: 12px; letter-spacing: .02em; }
 
 .link{ color: color-mix(in srgb, var(--accent) 80%, white); text-decoration: none; }

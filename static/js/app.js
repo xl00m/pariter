@@ -1405,6 +1405,24 @@ function bindHandlers(){
         const text = String(target.value || '').trim();
         if (!text) return toast('Сначала напиши текст.');
 
+        // Find (or create) a small accept/undo bar under the textarea
+        const host = target.closest('.ai-wrap') || target.parentElement || target;
+        const barId = `${targetId || 'ai'}-aiBar`;
+        let bar = host.querySelector(`#${CSS.escape(barId)}`);
+        if (!bar) {
+          bar = document.createElement('div');
+          bar.id = barId;
+          bar.className = 'ai-bar hidden';
+          bar.innerHTML = `
+            <button type="button" class="btn-ghost" style="padding:10px 12px" data-action="ai-undo" data-target="${escapeHTML(targetId || '')}">Вернуть</button>
+            <button type="button" class="btn" style="padding:10px 14px" data-action="ai-accept" data-target="${escapeHTML(targetId || '')}">Принять</button>
+          `;
+          host.appendChild(bar);
+        }
+
+        // store original text for undo
+        target.dataset.aiOriginal = target.value;
+
         // lock button
         const btn = actionEl;
         const prev = btn.textContent;
@@ -1415,16 +1433,45 @@ function bindHandlers(){
           const r = await api.aiRewrite({ field, text });
           const out = String(r?.text || '').trim();
           if (!out) throw new Error('Пустой ответ ИИ.');
+
           target.value = out;
           // trigger draft autosave if present
           try { target.dispatchEvent(new Event('input', { bubbles: true })); } catch {}
-          toast('Готово.');
+
+          bar.classList.remove('hidden');
+          toast('ИИ предложил вариант.');
         } catch (err) {
           toast(err.message || 'Ошибка ИИ.');
+          // restore original on error
+          if (target.dataset.aiOriginal != null) target.value = target.dataset.aiOriginal;
         } finally {
           btn.disabled = false;
           btn.textContent = prev || '✦';
         }
+        return;
+      }
+
+      // AI accept/undo
+      if (action === 'ai-undo' || action === 'ai-accept') {
+        const targetId = actionEl.getAttribute('data-target');
+        const target = targetId ? document.getElementById(targetId) : null;
+        if (!target || !('value' in target)) return;
+        const host = target.closest('.ai-wrap') || target.parentElement || target;
+        const bar = targetId ? host.querySelector(`#${CSS.escape(targetId + '-aiBar')}`) : null;
+
+        if (action === 'ai-undo') {
+          if (target.dataset.aiOriginal != null) {
+            target.value = target.dataset.aiOriginal;
+            try { target.dispatchEvent(new Event('input', { bubbles: true })); } catch {}
+          }
+          toast('Возвращено.');
+        } else {
+          toast('Принято.');
+        }
+
+        // cleanup
+        delete target.dataset.aiOriginal;
+        if (bar) bar.classList.add('hidden');
         return;
       }
 

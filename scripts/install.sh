@@ -32,7 +32,7 @@ printf "\n[1/6] Обновляю apt…\n"
 apt-get update -y
 
 printf "\n[2/6] Устанавливаю зависимости…\n"
-apt-get install -y curl ca-certificates unzip gnupg
+apt-get install -y curl ca-certificates unzip gnupg iproute2
 
 printf "\n[3/6] Устанавливаю Bun (если нужно)…\n"
 if ! command -v bun >/dev/null 2>&1; then
@@ -54,12 +54,24 @@ APP_DIR="/opt/pariter"
 mkdir -p "$APP_DIR"
 
 printf "\n[5/6] Скачиваю репозиторий…\n"
-# простая установка через git zip (без git)
 TMP_ZIP="/tmp/pariter.zip"
+EXTRACT_DIR="$(mktemp -d)"
+
+# Простой способ: архив ветки main
 curl -fsSL "https://github.com/xl00m/pariter/archive/refs/heads/main.zip" -o "$TMP_ZIP"
-unzip -q -o "$TMP_ZIP" -d /tmp
+
+unzip -q -o "$TMP_ZIP" -d "$EXTRACT_DIR"
+SRC_DIR="$(find "$EXTRACT_DIR" -mindepth 1 -maxdepth 1 -type d | head -n 1)"
+if [[ -z "$SRC_DIR" ]]; then
+  echo "Не удалось найти распакованный каталог Pariter."
+  exit 1
+fi
+
 rm -rf "$APP_DIR"/*
-cp -R /tmp/pariter-main/* "$APP_DIR"/
+cp -R "$SRC_DIR"/* "$APP_DIR"/
+
+rm -f "$TMP_ZIP"
+rm -rf "$EXTRACT_DIR"
 
 cat > "$APP_DIR/config.json" <<EOF
 {
@@ -83,6 +95,39 @@ if [[ -z "$BUN_BIN" ]]; then
   exit 1
 fi
 
+# Detect if nginx already occupies standard ports.
+NGINX_ACTIVE=0
+if systemctl is-active --quiet nginx 2>/dev/null; then
+  NGINX_ACTIVE=1
+fi
+
+PORT80_BUSY=0
+PORT443_BUSY=0
+if ss -ltn 2>/dev/null | awk '{print $4}' | grep -qE ':(80)$'; then PORT80_BUSY=1; fi
+if ss -ltn 2>/dev/null | awk '{print $4}' | grep -qE ':(443)$'; then PORT443_BUSY=1; fi
+
+# We only switch to nginx->caddy mode when nginx is active AND it actually listens on :80 or :443.
+if [[ "$NGINX_ACTIVE" -eq 1 && "$PORT80_BUSY" -eq 0 && "$PORT443_BUSY" -eq 0 ]]; then
+  NGINX_ACTIVE=0
+fi
+
+# Pick a free port for Caddy when nginx is on 80/443.
+CADDY_PORT=""
+if [[ "$NGINX_ACTIVE" -eq 1 && ( "$PORT80_BUSY" -eq 1 || "$PORT443_BUSY" -eq 1 ) ]]; then
+  for p in 8090 8091 8092 8093 8094 8095 18080 18081; do
+    if ! ss -ltn 2>/dev/null | awk '{print $4}' | grep -qE ":(${p})$"; then
+      CADDY_PORT="$p"
+      break
+    fi
+  done
+  if [[ -z "$CADDY_PORT" ]]; then
+    echo "Не удалось подобрать свободный порт для Caddy."
+    exit 1
+  fi
+else
+  CADDY_PORT=""
+fi
+
 cat > /etc/systemd/system/pariter.service <<EOF
 [Unit]
 Description=Pariter (Bun + SQLite)
@@ -102,12 +147,70 @@ Restart=on-failure
 WantedBy=multi-user.target
 EOF
 
-# Caddy reverse proxy
-cat > /etc/caddy/Caddyfile <<EOF
+# Caddy config:
+# - If nginx is already handling :80/:443, run Caddy on a free port and let nginx proxy to it.
+# - Otherwise, let Caddy handle :80/:443 directly (auto-HTTPS).
+if [[ -n "$CADDY_PORT" ]]; then
+  mkdir -p /etc/caddy
+  cat > /etc/caddy/Caddyfile <<EOF
+http://127.0.0.1:${CADDY_PORT} {
+  reverse_proxy 127.0.0.1:8080
+}
+EOF
+
+  # nginx vhost for the domain -> proxy to Caddy
+  if [[ -d /etc/nginx/sites-available ]]; then
+    cat > /etc/nginx/sites-available/pariter-${DOMAIN}.conf <<EOF
+server {
+  listen 80;
+  listen [::]:80;
+  server_name ${DOMAIN};
+
+  location / {
+    proxy_pass http://127.0.0.1:${CADDY_PORT};
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+  }
+}
+EOF
+
+    ln -sf /etc/nginx/sites-available/pariter-${DOMAIN}.conf /etc/nginx/sites-enabled/pariter-${DOMAIN}.conf
+  else
+    # fallback: drop-in config
+    cat > /etc/nginx/conf.d/pariter-${DOMAIN}.conf <<EOF
+server {
+  listen 80;
+  listen [::]:80;
+  server_name ${DOMAIN};
+
+  location / {
+    proxy_pass http://127.0.0.1:${CADDY_PORT};
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+  }
+}
+EOF
+  fi
+
+  # Reload nginx if present.
+  systemctl reload nginx || systemctl restart nginx || true
+else
+  cat > /etc/caddy/Caddyfile <<EOF
 ${DOMAIN} {
   reverse_proxy 127.0.0.1:8080
 }
 EOF
+fi
 
 # init admin
 cd "$APP_DIR"
@@ -117,4 +220,9 @@ systemctl daemon-reload
 systemctl enable --now pariter
 systemctl restart caddy
 
-printf "\nУспех! Открой: https://${DOMAIN}\n"
+if [[ -n "$CADDY_PORT" ]]; then
+  printf "\nГотово. nginx проксирует ${DOMAIN} -> Caddy(127.0.0.1:${CADDY_PORT}) -> Pariter(127.0.0.1:8080)\n"
+  printf "Открой: http://${DOMAIN} (HTTPS остаётся за nginx, если он уже настроен)\n"
+else
+  printf "\nУспех! Открой: https://${DOMAIN}\n"
+fi

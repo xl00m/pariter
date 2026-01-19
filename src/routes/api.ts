@@ -1,5 +1,5 @@
 import type { DB } from '../db';
-import { ROLE_META, THEMES } from '../themes';
+import { ROLE_META, THEMES, defaultThemeForRole } from '../themes';
 import { authErrorToResponse, clearSessionCookieHeaders, createSession, requireAuth, setSessionCookieHeaders } from '../auth';
 import { error, json, nowISO, randomInviteCode, readJson, sanitizeLogin, todayYMD, validateEmail, validateLogin, validatePassword } from '../utils';
 
@@ -178,32 +178,62 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
       const { user } = requireAuth(db, req);
       const body = await readJson(req);
       const name = String(body.name || '').trim();
-      const theme = body.theme ? String(body.theme) : null;
+      const roleIn = body.role ? String(body.role) : null;
+      const themeIn = body.theme ? String(body.theme) : null;
       const password = body.password ? String(body.password) : null;
 
       if (!name || name.length < 2) return error('Имя слишком короткое.');
 
-      if (theme) {
-        const t = THEMES.find(x => x.id === theme);
-        if (!t || t.role !== user.role) return error('Неверная тема.');
+      // role/theme validation
+      let nextRole = String(user.role);
+      if (roleIn != null) {
+        if (!(roleIn in ROLE_META)) return error('Выбери роль.');
+        nextRole = roleIn;
       }
+
+      let nextTheme = String(user.theme);
+      if (roleIn != null) {
+        // role is changing (or being re-sent): theme must be compatible with new role
+        if (themeIn) {
+          if (!themeAllowed(nextRole, themeIn)) return error('Неверная тема.');
+          nextTheme = themeIn;
+        } else {
+          nextTheme = defaultThemeForRole(nextRole as any);
+        }
+      } else if (themeIn) {
+        // role not changing: theme must match current role
+        const t = THEMES.find(x => x.id === themeIn);
+        if (!t || t.role !== user.role) return error('Неверная тема.');
+        nextTheme = themeIn;
+      }
+
       if (password) {
         if (!validatePassword(password)) return error('Пароль: минимум 6 символов.');
       }
 
-      if (password && theme) {
-        // @ts-ignore
-        const password_hash = await Bun.password.hash(password);
-        db.run('UPDATE users SET name = ?, theme = ?, password_hash = ? WHERE id = ?', [name, theme, password_hash, user.id]);
-      } else if (password) {
-        // @ts-ignore
-        const password_hash = await Bun.password.hash(password);
-        db.run('UPDATE users SET name = ?, password_hash = ? WHERE id = ?', [name, password_hash, user.id]);
-      } else if (theme) {
-        db.run('UPDATE users SET name = ?, theme = ? WHERE id = ?', [name, theme, user.id]);
-      } else {
-        db.run('UPDATE users SET name = ? WHERE id = ?', [name, user.id]);
+      // build dynamic UPDATE
+      const args: any[] = [name];
+      let sql = 'UPDATE users SET name = ?';
+
+      // If roleIn is provided, update role and theme (theme is recalculated above).
+      if (roleIn != null) {
+        sql += ', role = ?, theme = ?';
+        args.push(nextRole, nextTheme);
+      } else if (themeIn) {
+        sql += ', theme = ?';
+        args.push(nextTheme);
       }
+
+      if (password) {
+        // @ts-ignore
+        const password_hash = await Bun.password.hash(password);
+        sql += ', password_hash = ?';
+        args.push(password_hash);
+      }
+
+      sql += ' WHERE id = ?';
+      args.push(user.id);
+      db.run(sql, args);
 
       const updated = db.query('SELECT * FROM users WHERE id = ?').get(user.id) as any;
       return json({ ok: true, user: safeUser(updated) });

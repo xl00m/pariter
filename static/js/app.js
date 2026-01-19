@@ -38,6 +38,14 @@ const THEMES = [
   { id:'quiet_storm', role:'amazon', emoji:'🦋', ru:'Тихая буря', la:'Tempestās Tacita', light:false, colors:{ bg:'#0b1014', bgSecondary:'#0f1a22', text:'#eef8ff', textMuted:'#9ab3c2', accent:'#7dd3fc', accentHover:'#5ec7f8', border:'rgba(255,255,255,.11)', victory:'rgba(125,211,252,.14)', lesson:'rgba(179,146,255,.10)' } },
 ];
 
+function themeById(id){
+  return THEMES.find(t => t.id === id) || THEMES[0];
+}
+
+function defaultThemeForRole(role){
+  return (THEMES.find(t => t.role === role) || THEMES[0]).id;
+}
+
 const $ = (sel, el=document) => el.querySelector(sel);
 const $$ = (sel, el=document) => Array.from(el.querySelectorAll(sel));
 
@@ -288,7 +296,7 @@ const api = {
   entryUpsertToday: ({victory, lesson})=> apiFetch('/api/entries', { method:'POST', body: { victory, lesson } }),
   entryUpdate: (id, {victory, lesson})=> apiFetch('/api/entries/' + Number(id), { method:'PUT', body: { victory, lesson } }),
   entryDelete: (id)=> apiFetch('/api/entries/' + Number(id), { method:'DELETE' }),
-  settingsUpdate: ({name, theme, password})=> apiFetch('/api/settings', { method:'PUT', body: { name, theme, password } }),
+  settingsUpdate: ({name, role, theme, password})=> apiFetch('/api/settings', { method:'PUT', body: { name, role, theme, password } }),
   export: ()=> apiFetch('/api/export'),
   import: ({data, defaultPassword})=> apiFetch('/api/import', { method:'POST', body: { data, defaultPassword } }),
   stats: ()=> apiFetch('/api/stats'),
@@ -370,7 +378,7 @@ function Logo(){
 }
 
 function HealthBadge(){
-  return `<span id="healthBadge" class="pill textMuted" style="font-size: 12px">backend: …</span>`;
+  return `<span id="healthBadge" class="pill textMuted" style="font-size: 12px">связь: …</span>`;
 }
 
 function PageShell({title, subtitle, body, footer}={}){
@@ -400,7 +408,7 @@ function AppHeader(){
       <div class="container">
         <div class="headerRow">
           <button class="btn-ghost" style="padding: 10px 12px" data-action="sidebar-open" aria-label="Меню">☰</button>
-          <div style="font-size: 13px; font-weight: 900; letter-spacing: .16em;">PARITER</div>
+          <button type="button" class="btn-ghost" style="padding: 8px 10px; border:0; background:transparent; letter-spacing:.16em" data-nav="/" aria-label="На главную">PARITER</button>
           <div class="row">
             <div class="row" style="display:none" id="mateIcons"></div>
             <div class="row" style="gap:6px" aria-hidden="true">
@@ -466,9 +474,6 @@ function Sidebar(){
 
         <button class="btn-danger" style="width:100%; text-align:left; padding: 12px; border-radius: 16px;" data-action="logout">🚪 Выйти</button>
 
-        <div class="textMuted" style="margin-top: 14px; font-size: 12px;">
-          <div>Backend: <span style="color: var(--text); font-weight: 800;">Bun + SQLite</span></div>
-        </div>
       </aside>
     </div>
   `;
@@ -492,7 +497,6 @@ function ThemeGrid({role, value, onPickAction, idsPrefix=''}={}){
             <div style="font-weight: 900;" id="${idsPrefix}themePreviewTitle">${t.emoji} ${escapeHTML(t.ru)}</div>
             <div class="textMuted" style="font-size: 12px" id="${idsPrefix}themePreviewLa">${escapeHTML(t.la)}</div>
           </div>
-          <div class="textMuted" style="font-size: 12px">превью</div>
         </div>
       </div>
     </div>
@@ -541,7 +545,7 @@ function EntryCard({entry, author, meId}){
         <div class="row" style="gap:10px; min-width:0">
           <div style="width:40px;height:40px;border-radius:999px;display:grid;place-items:center;border:1px solid var(--border);background:rgba(255,255,255,.03)">${roleEmoji}</div>
           <div style="min-width:0">
-            <div style="font-weight: 900; white-space: nowrap; overflow:hidden; text-overflow: ellipsis;">${escapeHTML(authorName)}${isMine ? ' <span class="textMuted" style="font-size:12px">(ты)</span>' : ''}</div>
+            <div style="font-weight: 900; white-space: nowrap; overflow:hidden; text-overflow: ellipsis;">${escapeHTML(authorName)}</div>
             <div class="textMuted" style="font-size: 12px">${escapeHTML(dateLabel)}${timeLabel ? ` <span aria-hidden="true">·</span> ${escapeHTML(timeLabel)}` : ''}</div>
           </div>
         </div>
@@ -731,7 +735,7 @@ function pagePath(){
       <div class="card" style="padding: 18px">
         <div class="rowBetween" style="align-items: flex-start">
           <div>
-            <div class="textMuted" style="font-size: 12px; font-weight: 900; letter-spacing: .18em">✦ Бесконечный путь героя — сколько угодно шагов ✦</div>
+            <div class="textMuted" style="font-size: 12px; font-weight: 900; letter-spacing: .18em">✦ Путь героя ✦</div>
             <div style="margin-top: 6px; font-size: 22px; font-weight: 900">${escapeHTML(ruDateLabel(today))}</div>
             <div class="textMuted" style="margin-top: 8px; font-size: 12px" id="pathStats">Загрузка статистики…</div>
           </div>
@@ -741,7 +745,7 @@ function pagePath(){
         <form id="todayForm" class="grid" style="margin-top: 14px">
           <div class="soft" style="padding: 12px; background: var(--victory)">
             <div style="font-size: 12px; font-weight: 900; letter-spacing:.16em">⚔️ VICTORIA</div>
-            <textarea class="textarea" style="margin-top: 10px" name="victory" placeholder="Что ты сделал(а) сейчас, несмотря на страх?"></textarea>
+            <textarea class="textarea" style="margin-top: 10px" name="victory" placeholder="Что ты ${me.role === 'amazon' ? 'сделала' : 'сделал'} сейчас, несмотря на страх?"></textarea>
           </div>
 
           <div class="soft" style="padding: 12px; background: var(--lesson)">
@@ -750,14 +754,13 @@ function pagePath(){
           </div>
 
           <div class="rowBetween">
-            <div class="textMuted" style="font-size: 12px" id="todayHint">Загрузка…</div>
+            <div class="textMuted" style="font-size: 12px" id="todayHint"></div>
             <button class="btn" type="submit">✓ Зафиксировать шаг</button>
           </div>
         </form>
       </div>
 
       <div style="margin-top: 18px;">
-        <div class="textMuted" style="font-size: 12px; font-weight: 900; letter-spacing: .18em">Бесконечный путь вниз</div>
         <div id="feed" class="grid" style="margin-top: 10px"></div>
         <div id="feedSentinel" style="height: 10px"></div>
         <div id="feedStatus" class="textMuted" style="text-align:center; font-size: 12px; padding: 12px 0"></div>
@@ -817,7 +820,7 @@ function pageInvite(){
 function pageSettings(){
   if (!requireAuth()) return '';
   const me = APP.state.user;
-  const t = THEMES.find(x=>x.id===me.theme) || THEMES[0];
+  const t = themeById(me.theme);
 
   return `
     ${AppHeader()}
@@ -842,16 +845,28 @@ function pageSettings(){
           <div class="divider"></div>
 
           <div>
+            <div style="font-size: 14px; font-weight: 900; margin-bottom: 10px">Выбери свой путь</div>
+            <input type="hidden" name="role" value="${escapeHTML(me.role)}" />
+            <div id="settingsRoleBlock">${RolePicker({ value: me.role, onPickAction: 'pick-role-settings' })}</div>
+          </div>
+
+          <div class="divider"></div>
+
+          <div>
             <input type="hidden" name="theme" value="${escapeHTML(me.theme)}" />
             <div id="settingsThemeBlock">${ThemeGrid({ role: me.role, value: me.theme, onPickAction: 'pick-theme-settings', idsPrefix:'set-' })}</div>
-            <div class="textMuted" style="margin-top: 10px; font-size: 12px">Текущая тема: <span style="color: var(--text); font-weight: 900">${t.emoji} ${escapeHTML(t.ru)}</span></div>
+            <div class="textMuted" style="margin-top: 10px; font-size: 12px">
+              Выбрано: <span id="settingsThemeLabel" style="color: var(--text); font-weight: 900">${t.emoji} ${escapeHTML(t.ru)}</span>
+              <span aria-hidden="true"> · </span>
+              можно менять в любой момент
+            </div>
           </div>
 
           <div class="row" style="flex-wrap: wrap">
             <button class="btn" type="submit">Сохранить</button>
             <button class="btn-ghost" type="button" data-action="go-path">Назад</button>
-            <button class="btn-ghost" type="button" data-action="export-json">Экспорт JSON</button>
-            <button class="btn-ghost" type="button" data-action="import-json">Импорт JSON</button>
+            <button class="btn-ghost" type="button" data-action="export-json">Экспорт</button>
+            <button class="btn-ghost" type="button" data-action="import-json">Импорт</button>
             <input id="importFile" type="file" accept="application/json" style="display:none" />
           </div>
           <div class="textMuted" style="font-size: 12px; line-height: 1.5">
@@ -1090,7 +1105,7 @@ function bindHandlers(){
             const data = JSON.parse(text);
 
             const defaultPassword = prompt(
-              'Импорт JSON.\n\n' +
+              'Импорт.\n\n' +
               'Если в текущей команде нет пользователя с таким login, он будет создан.\n' +
               'Укажи пароль по умолчанию для НОВЫХ пользователей (минимум 6 символов).\n' +
               'Оставь пустым — Pariter сгенерирует пароли и отдаст их списком.',
@@ -1182,22 +1197,48 @@ function bindHandlers(){
         return;
       }
 
+      if (action === 'pick-role-settings') {
+        const role = actionEl.getAttribute('data-role');
+        const f = $('#settingsForm');
+        if (!f || !role) return;
+
+        const nextTheme = defaultThemeForRole(role);
+        f.querySelector('input[name="role"]').value = role;
+        f.querySelector('input[name="theme"]').value = nextTheme;
+
+        setTheme(nextTheme);
+
+        const rb = $('#settingsRoleBlock');
+        if (rb) rb.innerHTML = RolePicker({ value: role, onPickAction: 'pick-role-settings' });
+
+        const tb = $('#settingsThemeBlock');
+        if (tb) tb.innerHTML = ThemeGrid({ role, value: nextTheme, onPickAction: 'pick-theme-settings', idsPrefix:'set-' });
+
+        const lbl = $('#settingsThemeLabel');
+        if (lbl) {
+          const t = themeById(nextTheme);
+          lbl.textContent = `${t.emoji} ${t.ru}`;
+        }
+        return;
+      }
+
       if (action === 'pick-theme-settings') {
         const theme = actionEl.getAttribute('data-theme');
         const f = $('#settingsForm');
         if (!f || !theme) return;
 
-        const nameV = f.querySelector('input[name="name"]').value;
-        const passV = f.querySelector('input[name="password"]').value;
-
+        const role = f.querySelector('input[name="role"]')?.value || APP.state.user?.role || 'warrior';
         f.querySelector('input[name="theme"]').value = theme;
+
         setTheme(theme);
-        await render();
-        const nf = $('#settingsForm');
-        if (nf) {
-          nf.querySelector('input[name="name"]').value = nameV;
-          nf.querySelector('input[name="password"]').value = passV;
-          nf.querySelector('input[name="theme"]').value = theme;
+
+        const tb = $('#settingsThemeBlock');
+        if (tb) tb.innerHTML = ThemeGrid({ role, value: theme, onPickAction: 'pick-theme-settings', idsPrefix:'set-' });
+
+        const lbl = $('#settingsThemeLabel');
+        if (lbl) {
+          const t = themeById(theme);
+          lbl.textContent = `${t.emoji} ${t.ru}`;
         }
         return;
       }
@@ -1391,11 +1432,15 @@ function bindHandlers(){
       const fd = new FormData(settingsForm);
       try {
         const pass = String(fd.get('password') || '').trim() || null;
-        await api.settingsUpdate({
+        const r = await api.settingsUpdate({
           name: fd.get('name'),
+          role: fd.get('role'),
           theme: fd.get('theme'),
           password: pass,
         });
+        if (r?.user) APP.state.user = r.user;
+        // refresh team cache (role/theme icon may change)
+        APP.state.teamUsersFetchedAt = 0;
         toast('Сохранено.');
         await render();
       } catch (err) {
@@ -1411,12 +1456,12 @@ async function hydrateHealth(){
   try {
     const r = await api.health();
     if (r && r.ok) {
-      el.innerHTML = `backend: <span style="color: var(--text); font-weight: 900">ok</span>`;
+      el.innerHTML = `связь: <span style="color: var(--text); font-weight: 900">ok</span>`;
       return;
     }
-    el.innerHTML = `backend: <span style="color: var(--danger); font-weight: 900">offline</span>`;
+    el.innerHTML = `связь: <span style="color: var(--danger); font-weight: 900">offline</span>`;
   } catch {
-    el.innerHTML = `backend: <span style="color: var(--danger); font-weight: 900">offline</span>`;
+    el.innerHTML = `связь: <span style="color: var(--danger); font-weight: 900">offline</span>`;
   }
 }
 
@@ -1522,7 +1567,7 @@ async function hydrateTodayForm(){
   const lEl = form.querySelector('textarea[name="lesson"]');
   if (vEl && !vEl.value) vEl.value = d?.victory || '';
   if (lEl && !lEl.value) lEl.value = d?.lesson || '';
-  if (hint) hint.textContent = d ? 'Черновик восстановлен. Можно фиксировать сколько угодно раз.' : 'Можно фиксировать сколько угодно раз.';
+  if (hint) hint.textContent = d ? 'Черновик восстановлен.' : '';
 
   // draft autosave (debounced)
   if (!form._draftBound) {
@@ -1622,7 +1667,7 @@ async function loadMoreFeed(){
     const { entries, nextCursor, nextBefore } = await api.entriesGet({ limit: 20, before: APP.state.feed.cursor });
     if (!entries.length) {
       APP.state.feed.done = true;
-      status.textContent = APP.state.feed.renderedCount ? 'Конец пути (пока что).' : 'Пока нет записей. Начни шаг сейчас.';
+      status.textContent = APP.state.feed.renderedCount ? 'Здесь начался путь.' : 'Пока нет записей. Начни шаг сейчас.';
       const moreBtn = $('#feedMore');
       if (moreBtn) moreBtn.classList.add('hidden');
       return;
@@ -1701,7 +1746,7 @@ async function hydrateInvite(){
         <div class="row" style="min-width:0; gap:10px">
           <div style="width:36px;height:36px;border-radius:999px;border:1px solid var(--border);display:grid;place-items:center;background:rgba(255,255,255,.03)">${ROLE_META[u.role]?.emoji || '✦'}</div>
           <div style="min-width:0">
-            <div style="font-weight: 800; white-space: nowrap; overflow:hidden; text-overflow: ellipsis;">${escapeHTML(u.name)}${u.id===me.id ? ' <span class="textMuted" style="font-size:12px">(ты)</span>' : ''}</div>
+            <div style="font-weight: 800; white-space: nowrap; overflow:hidden; text-overflow: ellipsis;">${escapeHTML(u.name)}</div>
             <div class="textMuted" style="font-size: 12px">присоединился: ${escapeHTML(joined)}</div>
           </div>
         </div>

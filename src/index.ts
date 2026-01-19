@@ -138,6 +138,11 @@ const server = Bun.serve({
       return withSecurityHeaders(Response.redirect('/path', 302));
     }
 
+    // If not authenticated, avoid serving protected pages.
+    if (!authed && (path === '/path' || path === '/settings' || path === '/invite')) {
+      return withSecurityHeaders(Response.redirect('/login', 302));
+    }
+
     const allowed = new Set(['/', '/login', '/register', '/path', '/settings', '/invite']);
     if (allowed.has(path) || path.startsWith('/join/')) {
       return withSecurityHeaders(new Response(renderAppShell(path, themeId, bootstrap), {

@@ -125,7 +125,6 @@ function ensureEntryModal(){
         APP.state.cache.entryText.delete(id);
         close();
         await hydratePathStats();
-        await hydrateTodayForm();
         await hydrateFeed(true);
       } catch (err) {
         toast(err.message || 'Ошибка обновления.');
@@ -141,7 +140,6 @@ function ensureEntryModal(){
         APP.state.cache.entryText.delete(id);
         close();
         await hydratePathStats();
-        await hydrateTodayForm();
         await hydrateFeed(true);
       } catch (err) {
         toast(err.message || 'Ошибка удаления.');
@@ -203,6 +201,14 @@ function ruDateLabel(ymd){
   return new Intl.DateTimeFormat('ru-RU', { day:'numeric', month:'long' }).format(date);
 }
 
+function ruTimeLabel(iso){
+  try {
+    const dt = new Date(iso);
+    if (Number.isNaN(dt.getTime())) return '';
+    return new Intl.DateTimeFormat('ru-RU', { hour:'2-digit', minute:'2-digit' }).format(dt);
+  } catch { return ''; }
+}
+
 async function apiFetch(path, { method='GET', body=null }={}){
   const headers = { 'accept': 'application/json' };
   if (body !== null) headers['content-type'] = 'application/json';
@@ -224,8 +230,8 @@ async function apiFetch(path, { method='GET', body=null }={}){
       APP.state.user = null;
       APP.state.team = null;
 
-      const path = location.pathname;
-      const isAuthPage = path === '/login' || path === '/register' || path.startsWith('/join/');
+      const curPath = location.pathname;
+      const isAuthPage = curPath === '/login' || curPath === '/register' || curPath.startsWith('/join/');
       if (!isAuthPage && !APP._authRedirectScheduled) {
         APP._authRedirectScheduled = true;
         setTimeout(()=>{
@@ -263,6 +269,7 @@ const api = {
   invitesList: ()=> apiFetch('/api/invites'),
   invitesCreate: ()=> apiFetch('/api/invites', { method:'POST', body: {} }),
   invitesDelete: (id)=> apiFetch('/api/invites/' + Number(id), { method:'DELETE' }),
+  // legacy, not used in infinite-path mode
   today: ()=> apiFetch('/api/today'),
   entriesGet: ({limit=20, before=null}={}) => {
     const p = new URLSearchParams();
@@ -276,6 +283,8 @@ const api = {
     }
     return apiFetch('/api/entries?' + p.toString());
   },
+  entryCreate: ({victory, lesson})=> apiFetch('/api/entries', { method:'POST', body: { victory, lesson } }),
+  // legacy name (kept for older code paths)
   entryUpsertToday: ({victory, lesson})=> apiFetch('/api/entries', { method:'POST', body: { victory, lesson } }),
   entryUpdate: (id, {victory, lesson})=> apiFetch('/api/entries/' + Number(id), { method:'PUT', body: { victory, lesson } }),
   entryDelete: (id)=> apiFetch('/api/entries/' + Number(id), { method:'DELETE' }),
@@ -524,6 +533,7 @@ function EntryCard({entry, author, meId}){
   const roleEmoji = ROLE_META[author?.role]?.emoji || '✦';
   const authorName = author?.name || 'Неизвестный';
   const dateLabel = ruDateLabel(entry.date);
+  const timeLabel = entry?.created_at ? ruTimeLabel(entry.created_at) : '';
 
   return `
     <article class="card" style="padding: 14px;">
@@ -532,7 +542,7 @@ function EntryCard({entry, author, meId}){
           <div style="width:40px;height:40px;border-radius:999px;display:grid;place-items:center;border:1px solid var(--border);background:rgba(255,255,255,.03)">${roleEmoji}</div>
           <div style="min-width:0">
             <div style="font-weight: 900; white-space: nowrap; overflow:hidden; text-overflow: ellipsis;">${escapeHTML(authorName)}${isMine ? ' <span class="textMuted" style="font-size:12px">(ты)</span>' : ''}</div>
-            <div class="textMuted" style="font-size: 12px">${escapeHTML(dateLabel)}</div>
+            <div class="textMuted" style="font-size: 12px">${escapeHTML(dateLabel)}${timeLabel ? ` <span aria-hidden="true">·</span> ${escapeHTML(timeLabel)}` : ''}</div>
           </div>
         </div>
         ${isMine ? `
@@ -721,7 +731,7 @@ function pagePath(){
       <div class="card" style="padding: 18px">
         <div class="rowBetween" style="align-items: flex-start">
           <div>
-            <div class="textMuted" style="font-size: 12px; font-weight: 900; letter-spacing: .18em">✦ Сегодня ✦</div>
+            <div class="textMuted" style="font-size: 12px; font-weight: 900; letter-spacing: .18em">✦ Бесконечный путь героя — сколько угодно шагов ✦</div>
             <div style="margin-top: 6px; font-size: 22px; font-weight: 900">${escapeHTML(ruDateLabel(today))}</div>
             <div class="textMuted" style="margin-top: 8px; font-size: 12px" id="pathStats">Загрузка статистики…</div>
           </div>
@@ -731,17 +741,17 @@ function pagePath(){
         <form id="todayForm" class="grid" style="margin-top: 14px">
           <div class="soft" style="padding: 12px; background: var(--victory)">
             <div style="font-size: 12px; font-weight: 900; letter-spacing:.16em">⚔️ VICTORIA</div>
-            <textarea class="textarea" style="margin-top: 10px" name="victory" placeholder="Что ты сделал(а) сегодня, несмотря на страх?"></textarea>
+            <textarea class="textarea" style="margin-top: 10px" name="victory" placeholder="Что ты сделал(а) сейчас, несмотря на страх?"></textarea>
           </div>
 
           <div class="soft" style="padding: 12px; background: var(--lesson)">
             <div style="font-size: 12px; font-weight: 900; letter-spacing:.16em">🦉 LECTIO</div>
-            <textarea class="textarea" style="margin-top: 10px" name="lesson" placeholder="Какой урок ты забираешь из ошибки?"></textarea>
+            <textarea class="textarea" style="margin-top: 10px" name="lesson" placeholder="Какой урок ты забираешь прямо сейчас?"></textarea>
           </div>
 
           <div class="rowBetween">
             <div class="textMuted" style="font-size: 12px" id="todayHint">Загрузка…</div>
-            <button class="btn" type="submit">✓ Зафиксировать</button>
+            <button class="btn" type="submit">✓ Зафиксировать шаг</button>
           </div>
         </form>
       </div>
@@ -927,6 +937,13 @@ async function render(){
 
   APP.state.route = parseRoute();
   const route = APP.state.route.path;
+
+  // Cleanup path-only observers when leaving /path.
+  // Prevents observing a removed sentinel node and reduces background work.
+  if (route !== '/path' && hydrateFeed._io) {
+    try { hydrateFeed._io.disconnect(); } catch {}
+    hydrateFeed._io = null;
+  }
 
   let html = '';
   if (route === '/') html = pageLanding();
@@ -1279,7 +1296,6 @@ function bindHandlers(){
           toast('Удалено.');
           await hydratePathStats();
           await hydrateFeed(true);
-          await hydrateTodayForm();
         } catch (err) {
           toast(err.message || 'Ошибка удаления.');
         }
@@ -1448,8 +1464,9 @@ async function hydratePathStats(){
     const s = await api.stats();
     const bits = [];
     bits.push(`Серия: <span style="color: var(--text); font-weight: 900">${Number(s.streak || 0)}</span>`);
+    bits.push(`Шагов сегодня: <span style="color: var(--text); font-weight: 900">${Number(s.userTodaySteps || 0)}</span>`);
     bits.push(`Команда сегодня: <span style="color: var(--text); font-weight: 900">${Number(s.teamToday || 0)}</span>`);
-    bits.push(`Всего в команде: <span style="color: var(--text); font-weight: 900">${Number(s.teamTotal || 0)}</span>`);
+    bits.push(`Всего шагов в команде: <span style="color: var(--text); font-weight: 900">${Number(s.teamTotal || 0)}</span>`);
     el.innerHTML = bits.join(' · ');
   } catch {
     el.textContent = '';
@@ -1461,21 +1478,63 @@ async function hydrateTodayForm(){
   if (!form) return;
   const hint = $('#todayHint');
 
-  try {
-    const { entry } = await api.today();
-    if (!entry) {
-      form.querySelector('textarea[name="victory"]').value = '';
-      form.querySelector('textarea[name="lesson"]').value = '';
-      if (hint) hint.textContent = 'Новая запись будет добавлена.';
-    } else {
-      const v = await gunzipB64(entry.victory);
-      const l = await gunzipB64(entry.lesson);
-      form.querySelector('textarea[name="victory"]').value = v;
-      form.querySelector('textarea[name="lesson"]').value = l;
-      if (hint) hint.textContent = 'Сегодняшняя запись будет обновлена.';
-    }
-  } catch {
-    if (hint) hint.textContent = 'Новая запись будет добавлена.';
+  // Infinite path: draft is per-user (not per-day), because you can write many times a day.
+  const draftKey = ()=>{
+    const uid = APP.state.user?.id;
+    if (!uid) return null;
+    return `pariter_draft_${uid}`;
+  };
+  const readDraft = ()=>{
+    const k = draftKey();
+    if (!k) return null;
+    try {
+      const raw = localStorage.getItem(k);
+      if (!raw) return null;
+      const obj = JSON.parse(raw);
+      return {
+        victory: typeof obj?.victory === 'string' ? obj.victory : '',
+        lesson: typeof obj?.lesson === 'string' ? obj.lesson : '',
+      };
+    } catch { return null; }
+  };
+  const clearDraft = ()=>{
+    const k = draftKey();
+    if (!k) return;
+    try { localStorage.removeItem(k); } catch {}
+  };
+  const saveDraft = (victory, lesson)=>{
+    const k = draftKey();
+    if (!k) return;
+    try {
+      const v = String(victory || '');
+      const l = String(lesson || '');
+      if (!v.trim() && !l.trim()) {
+        localStorage.removeItem(k);
+        return;
+      }
+      localStorage.setItem(k, JSON.stringify({ victory: v, lesson: l, ts: Date.now() }));
+    } catch {}
+  };
+
+  // restore draft into empty form
+  const d = readDraft();
+  const vEl = form.querySelector('textarea[name="victory"]');
+  const lEl = form.querySelector('textarea[name="lesson"]');
+  if (vEl && !vEl.value) vEl.value = d?.victory || '';
+  if (lEl && !lEl.value) lEl.value = d?.lesson || '';
+  if (hint) hint.textContent = d ? 'Черновик восстановлен. Можно фиксировать сколько угодно раз.' : 'Можно фиксировать сколько угодно раз.';
+
+  // draft autosave (debounced)
+  if (!form._draftBound) {
+    form._draftBound = true;
+    const schedule = ()=>{
+      clearTimeout(form._draftT);
+      form._draftT = setTimeout(()=>{
+        saveDraft(vEl?.value || '', lEl?.value || '');
+      }, 250);
+    };
+    vEl?.addEventListener('input', schedule);
+    lEl?.addEventListener('input', schedule);
   }
 
   if (!form._bound) {
@@ -1487,10 +1546,16 @@ async function hydrateTodayForm(){
         const victory = String(fd.get('victory') || '').trim();
         const lesson = String(fd.get('lesson') || '').trim();
         if (!victory && !lesson) return toast('Заполни хотя бы одну часть: победу или урок.');
-        await api.entryUpsertToday({ victory, lesson });
+
+        // creates a new entry every time
+        await api.entryCreate({ victory, lesson });
+        clearDraft();
+
+        // reset form for the next step
+        try { vEl.value = ''; lEl.value = ''; } catch {}
+
         toast('Зафиксировано.');
         await hydratePathStats();
-        await hydrateTodayForm();
         await hydrateFeed(true);
       } catch (err) {
         toast(err.message || 'Ошибка сохранения.');
@@ -1557,7 +1622,7 @@ async function loadMoreFeed(){
     const { entries, nextCursor, nextBefore } = await api.entriesGet({ limit: 20, before: APP.state.feed.cursor });
     if (!entries.length) {
       APP.state.feed.done = true;
-      status.textContent = APP.state.feed.renderedCount ? 'Конец пути (пока что).' : 'Пока нет записей. Начни сегодня.';
+      status.textContent = APP.state.feed.renderedCount ? 'Конец пути (пока что).' : 'Пока нет записей. Начни шаг сейчас.';
       const moreBtn = $('#feedMore');
       if (moreBtn) moreBtn.classList.add('hidden');
       return;

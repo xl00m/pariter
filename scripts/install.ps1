@@ -16,20 +16,69 @@ if (-not (Get-Command bun -ErrorAction SilentlyContinue)) {
   irm https://bun.sh/install.ps1 | iex
 }
 
+# Ensure bun is available in current PowerShell session (installer may require terminal restart)
+if (-not (Get-Command bun -ErrorAction SilentlyContinue)) {
+  $candidate = Join-Path $env:USERPROFILE ".bun\\bin"
+  if (Test-Path (Join-Path $candidate "bun.exe")) {
+    $env:Path = "$candidate;" + $env:Path
+  }
+}
+if (-not (Get-Command bun -ErrorAction SilentlyContinue)) {
+  throw "bun не найден в PATH. Перезапусти терминал и запусти установку снова."
+}
+
 $base = Join-Path $env:LOCALAPPDATA "Pariter"
 New-Item -ItemType Directory -Force -Path $base | Out-Null
 
+function Download-PariterZip {
+  param(
+    [string]$OutFile
+  )
+
+  $repo = "xl00m/pariter"
+  $branches = @("main", "master")
+  $headers = @{ "User-Agent" = "PariterInstaller" }
+
+  foreach ($b in $branches) {
+    $urls = @(
+      "https://codeload.github.com/$repo/zip/refs/heads/$b",
+      "https://github.com/$repo/archive/refs/heads/$b.zip",
+      "https://api.github.com/repos/$repo/zipball/$b"
+    )
+
+    foreach ($u in $urls) {
+      try {
+        Write-Host "  -> $u"
+        Invoke-WebRequest -Uri $u -OutFile $OutFile -Headers $headers -MaximumRedirection 10
+        if ((Get-Item $OutFile).Length -gt 1024) { return }
+      } catch {
+        # try next url
+      }
+    }
+  }
+
+  throw "Не удалось скачать репозиторий Pariter с GitHub. Проверь доступ к github.com / codeload.github.com и попробуй снова."
+}
+
 Write-Host "Скачиваю Pariter…"
-$tmp = Join-Path $env:TEMP "pariter.zip"
-Invoke-WebRequest -Uri "https://github.com/xl00m/pariter/archive/refs/heads/main.zip" -OutFile $tmp
-Expand-Archive -Force -Path $tmp -DestinationPath $env:TEMP
+$tmp = Join-Path $env:TEMP ("pariter-" + [guid]::NewGuid().ToString("N") + ".zip")
+Download-PariterZip -OutFile $tmp
+
+$extract = Join-Path $env:TEMP ("pariter-extract-" + [guid]::NewGuid().ToString("N"))
+New-Item -ItemType Directory -Force -Path $extract | Out-Null
+Expand-Archive -Force -Path $tmp -DestinationPath $extract
 Remove-Item $tmp -Force
 
-$src = Join-Path $env:TEMP "pariter-main"
-if (-not (Test-Path $src)) { throw "Не найден распакованный каталог pariter-main" }
+# GitHub archive name can vary (pariter-main, pariter-master, or zipball hash)
+$rootDir = Get-ChildItem -Path $extract -Directory | Select-Object -First 1
+if (-not $rootDir) { throw "Не удалось найти распакованный каталог Pariter." }
+$src = $rootDir.FullName
 
 Remove-Item -Recurse -Force -ErrorAction SilentlyContinue (Join-Path $base "*")
 Copy-Item -Recurse -Force -Path (Join-Path $src "*") -Destination $base
+
+# cleanup extracted temp
+Remove-Item -Recurse -Force -ErrorAction SilentlyContinue $extract
 
 $config = @{
   domain = $domain

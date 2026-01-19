@@ -61,9 +61,15 @@ export function migrate(db: DB){
   );`);
 
   // indices
-  db.run('CREATE INDEX IF NOT EXISTS idx_entries_user_date ON entries(user_id, date DESC);');
-  db.run('CREATE INDEX IF NOT EXISTS idx_entries_date ON entries(date DESC);');
-  db.run('CREATE UNIQUE INDEX IF NOT EXISTS idx_entries_user_date_unique ON entries(user_id, date);');
+  // Allow multiple entries per day: remove legacy UNIQUE(user_id, date) constraint if present.
+  db.run('DROP INDEX IF EXISTS idx_entries_user_date_unique;');
+
+  // Replace legacy indices with (.., id DESC) variants to support stable pagination within the same date.
+  db.run('DROP INDEX IF EXISTS idx_entries_user_date;');
+  db.run('DROP INDEX IF EXISTS idx_entries_date;');
+  db.run('CREATE INDEX IF NOT EXISTS idx_entries_user_date_id ON entries(user_id, date DESC, id DESC);');
+  db.run('CREATE INDEX IF NOT EXISTS idx_entries_date_id ON entries(date DESC, id DESC);');
+
   db.run('CREATE INDEX IF NOT EXISTS idx_invites_code ON invites(code);');
   db.run('CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at);');
 

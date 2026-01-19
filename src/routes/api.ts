@@ -215,7 +215,9 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
 
       const today = todayYMD();
 
-      const rows = db.query('SELECT date FROM entries WHERE user_id = ? ORDER BY date DESC LIMIT 400').all(user.id) as any[];
+      // DISTINCT is important for the “infinite path”: user can create many entries per day.
+      // We only need unique dates to calculate streak.
+      const rows = db.query('SELECT DISTINCT date FROM entries WHERE user_id = ? ORDER BY date DESC LIMIT 400').all(user.id) as any[];
       const set = new Set(rows.map(r => String(r.date)));
 
       const ymdShift = (ymd: string, deltaDays: number) => {
@@ -243,8 +245,19 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
         }
       }
 
+      // totals
       const userTotalRow = db.query('SELECT COUNT(*) AS c FROM entries WHERE user_id = ?').get(user.id) as any;
+      const userTodayStepsRow = db.query('SELECT COUNT(*) AS c FROM entries WHERE user_id = ? AND date = ?').get(user.id, today) as any;
+
+      // team: members active today vs total steps today
       const teamTodayRow = db.query(
+        `SELECT COUNT(DISTINCT e.user_id) AS c
+         FROM entries e
+         JOIN users u ON u.id = e.user_id
+         WHERE u.team_id = ? AND e.date = ?`
+      ).get(user.team_id, today) as any;
+
+      const teamTodayStepsRow = db.query(
         `SELECT COUNT(*) AS c
          FROM entries e
          JOIN users u ON u.id = e.user_id
@@ -266,8 +279,10 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
         streak,
         streakFrom,
         lastEntryDate,
+        userTodaySteps: Number(userTodayStepsRow?.c || 0),
         userTotal: Number(userTotalRow?.c || 0),
         teamToday: Number(teamTodayRow?.c || 0),
+        teamTodaySteps: Number(teamTodayStepsRow?.c || 0),
         teamTotal: Number(teamTotalRow?.c || 0),
       });
     }
@@ -310,10 +325,14 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
     }
 
     // --- Entries
+    // Legacy helper: return the latest entry for today (if any).
+    // The app allows multiple entries per day; client no longer relies on this endpoint.
     if (req.method === 'GET' && path === '/api/today') {
       const { user } = requireAuth(db, req);
       const date = todayYMD();
-      const entry = db.query('SELECT id, user_id, date, victory, lesson, created_at FROM entries WHERE user_id = ? AND date = ?').get(user.id, date) as any;
+      const entry = db.query(
+        'SELECT id, user_id, date, victory, lesson, created_at FROM entries WHERE user_id = ? AND date = ? ORDER BY id DESC LIMIT 1'
+      ).get(user.id, date) as any;
       if (!entry) return json({ entry: null });
       return json({ entry: { ...entry, victory: entry.victory ? Buffer.from(entry.victory).toString('base64') : null, lesson: entry.lesson ? Buffer.from(entry.lesson).toString('base64') : null } });
     }
@@ -365,33 +384,16 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
       const lesson = String(body.lesson || '').trim();
       if (!victory && !lesson) return error('Заполни хотя бы одну часть: победу или урок.');
 
+      // Infinite path: allow multiple entries per day.
       const date = todayYMD();
-      const existing = db.query('SELECT id FROM entries WHERE user_id = ? AND date = ?').get(user.id, date) as any;
-
       const vblob = gzipText(victory);
       const lblob = gzipText(lesson);
 
-      if (existing) {
-        db.run('UPDATE entries SET victory = ?, lesson = ? WHERE id = ?', [vblob, lblob, existing.id]);
-        return json({ ok: true, id: existing.id, updated: true });
-      }
-
-      try {
-        db.run('INSERT INTO entries (user_id, date, victory, lesson, created_at) VALUES (?,?,?,?,?)', [
-          user.id, date, vblob, lblob, nowISO(),
-        ]);
-        const row = db.query('SELECT last_insert_rowid() AS id').get() as any;
-        return json({ ok: true, id: Number(row.id), created: true });
-      } catch (e) {
-        // in case UNIQUE(user_id,date) triggers under concurrency, fallback to update
-        const again = db.query('SELECT id FROM entries WHERE user_id = ? AND date = ?').get(user.id, date) as any;
-        if (again?.id) {
-          db.run('UPDATE entries SET victory = ?, lesson = ? WHERE id = ?', [vblob, lblob, again.id]);
-          return json({ ok: true, id: again.id, updated: true });
-        }
-        // rethrow a sane message (outer handler maps it to JSON error)
-        throw new Error('Не удалось сохранить запись.');
-      }
+      db.run('INSERT INTO entries (user_id, date, victory, lesson, created_at) VALUES (?,?,?,?,?)', [
+        user.id, date, vblob, lblob, nowISO(),
+      ]);
+      const row = db.query('SELECT last_insert_rowid() AS id').get() as any;
+      return json({ ok: true, id: Number(row.id), created: true });
     }
 
     if (req.method === 'PUT' && path.startsWith('/api/entries/')) {
@@ -550,9 +552,10 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
         invitesCreated++;
       }
 
-      // entries (upsert by user_id+date)
+      // entries (insert-only; allow multiple entries per day)
+      // Dedupe by (user_id, date, created_at) when possible to reduce duplicates on repeated imports.
       let entriesCreated = 0;
-      let entriesUpdated = 0;
+      let entriesUpdated = 0; // kept for backward compatibility in response
       let entriesSkipped = 0;
 
       const empty = gzipText('');
@@ -568,16 +571,13 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
         const lblob = e?.lesson ? Buffer.from(String(e.lesson), 'base64') : empty;
         const created_at = String(e?.created_at || '') || nowISO();
 
-        const ex = db.query('SELECT id FROM entries WHERE user_id = ? AND date = ?').get(newUserId, date) as any;
-        if (ex?.id) {
-          db.run('UPDATE entries SET victory = ?, lesson = ? WHERE id = ?', [vblob, lblob, Number(ex.id)]);
-          entriesUpdated++;
-        } else {
-          db.run('INSERT INTO entries (user_id, date, victory, lesson, created_at) VALUES (?,?,?,?,?)', [
-            newUserId, date, vblob, lblob, created_at,
-          ]);
-          entriesCreated++;
-        }
+        const ex = db.query('SELECT id FROM entries WHERE user_id = ? AND date = ? AND created_at = ?').get(newUserId, date, created_at) as any;
+        if (ex?.id) { entriesSkipped++; continue; }
+
+        db.run('INSERT INTO entries (user_id, date, victory, lesson, created_at) VALUES (?,?,?,?,?)', [
+          newUserId, date, vblob, lblob, created_at,
+        ]);
+        entriesCreated++;
       }
 
       return json({

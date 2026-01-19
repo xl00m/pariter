@@ -1,5 +1,8 @@
 import { themeById } from '../themes';
 
+// Cache-busting for JS/CSS. Changes on server restart (deploy/update).
+const ASSET_VER = Date.now().toString(36);
+
 export function escapeHtml(s: string){
   return String(s)
     .replaceAll('&','&amp;')
@@ -38,7 +41,7 @@ export function layout({ title, description, body, themeId, bootstrap }: { title
   <!-- (Платформенное требование) Tailwind CDN подключён, но приложение не зависит от Tailwind. -->
   <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
 
-  <link rel="stylesheet" href="/static/css/style.css" />
+  <link rel="stylesheet" href="/static/css/style.css?v=${ASSET_VER}" />
   <link rel="icon" href="/static/favicon.svg" type="image/svg+xml" />
 </head>
 <body style="${bodyStyle}">
@@ -50,7 +53,7 @@ export function layout({ title, description, body, themeId, bootstrap }: { title
   </noscript>
 
   ${bootstrapScript}
-  <script type="module" src="/static/js/app.js"></script>
+  <script type="module" src="/static/js/app.js?v=${ASSET_VER}"></script>
 </body>
 </html>`;
 }

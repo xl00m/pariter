@@ -69,17 +69,23 @@ async function serveFile(pathname: string){
   const f = Bun.file(filePath);
   if (!(await f.exists())) return new Response('not found', { status: 404 });
 
-  // Important: JS/CSS must update immediately after deploy. Avoid long-lived caching for these.
-  const cache = (pathname.endsWith('.js') || pathname.endsWith('.css'))
-    ? 'no-store'
-    : 'public, max-age=86400';
+  const hot = (pathname.endsWith('.js') || pathname.endsWith('.css'));
 
-  return new Response(f, {
-    headers: {
-      'content-type': contentTypeFor(pathname),
-      'cache-control': cache
-    }
-  });
+  // Important: JS/CSS must update immediately after deploy. Some browsers/proxies can be stubborn,
+  // so we use a very explicit no-cache policy.
+  const headers: Record<string,string> = {
+    'content-type': contentTypeFor(pathname),
+  };
+
+  if (hot) {
+    headers['cache-control'] = 'no-cache, no-store, must-revalidate';
+    headers['pragma'] = 'no-cache';
+    headers['expires'] = '0';
+  } else {
+    headers['cache-control'] = 'public, max-age=86400';
+  }
+
+  return new Response(f, { headers });
 }
 
 function isStatic(pathname: string){

@@ -368,6 +368,19 @@ function parseRoute(){
   return { path: '/' + parts[0], params: {} };
 }
 
+function setDocumentTitle(routePath){
+  // Keep titles in sync with server-side pages.ts (so no F5 needed for title updates).
+  const base = '✦ PARITER ✦';
+  let t = base;
+  if (routePath === '/login') t = `Вход — ${base}`;
+  else if (routePath === '/register') t = `Регистрация — ${base}`;
+  else if (routePath === '/join') t = `Присоединиться — ${base}`;
+  else if (routePath === '/path') t = `Путь — ${base}`;
+  else if (routePath === '/invite') t = `Спутники — ${base}`;
+  else if (routePath === '/settings') t = `Настройки — ${base}`;
+  try { document.title = t; } catch {}
+}
+
 function nav(path){
   history.pushState({}, '', path);
   render();
@@ -975,6 +988,9 @@ async function render(){
 
   APP.state.route = parseRoute();
   const route = APP.state.route.path;
+
+  // Update document title on every SPA navigation (no full reload needed).
+  setDocumentTitle(route);
 
   // Cleanup path-only observers when leaving /path.
   // Prevents observing a removed sentinel node and reduces background work.

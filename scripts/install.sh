@@ -297,6 +297,15 @@ if [[ -d "$APP_DIR_DEFAULT" && -f "$APP_DIR_DEFAULT/config.json" && -f /etc/syst
       cp -f "$PRESERVE_DIR/.env" "$APP_DIR_DEFAULT/.env"
     fi
 
+    # Ensure .env exists (AI key, etc). Do NOT overwrite existing .env.
+    if [[ ! -f "$APP_DIR_DEFAULT/.env" ]]; then
+      cat > "$APP_DIR_DEFAULT/.env" <<EOF
+# Pariter server configuration
+# AI key for /api/ai/rewrite
+PARITER_AI_KEY=your-secret-key-here
+EOF
+    fi
+
     if [[ -d "$PRESERVE_DIR/backups" ]]; then
       mv "$PRESERVE_DIR/backups" "$APP_DIR_DEFAULT/backups" 2>/dev/null || true
     else
@@ -508,9 +517,12 @@ EOF
 if [[ ! -f "$APP_DIR/.env" ]]; then
   cat > "$APP_DIR/.env" <<EOF
 # Pariter server configuration
+# AI key for /api/ai/rewrite
 PARITER_AI_KEY=your-secret-key-here
 EOF
 fi
+# Ensure correct ownership for service user
+chown pariter:pariter "$APP_DIR/.env" 2>/dev/null || true
 
 # Validate JSON early to avoid confusing failures later.
 if ! "$BUN_BIN" -e "const fs=require('fs'); JSON.parse(fs.readFileSync(process.argv[1],'utf8'));" "$APP_DIR/config.json" >/dev/null 2>&1; then

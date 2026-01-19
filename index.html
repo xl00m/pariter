@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>✦ PARITER ✦</title>
+  <meta name="description" content="Pariter — вместе, наравне, вперёд. Совместный дневник личностного роста." />
+
+  <!-- (Платформенное требование) Tailwind CDN подключён, но приложение не зависит от Tailwind. -->
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+
+  <link rel="stylesheet" href="/static/css/style.css" />
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml" />
+</head>
+<body>
+  <div id="app"></div>
+  <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
+
+  <noscript>
+    <div style="padding:16px; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;">Для работы Pariter нужен JavaScript.</div>
+  </noscript>
+
+  <script type="module" src="/static/js/app.js"></script>
+</body>
+</html>

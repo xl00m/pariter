@@ -1,0 +1,11 @@
+{
+  "name": "pariter",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "bun run src/index.ts",
+    "start": "bun run src/index.ts",
+    "setup": "bun run scripts/setup.ts"
+  }
+}

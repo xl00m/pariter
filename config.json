@@ -1,0 +1,12 @@
+{
+  "domain": "example.com",
+  "adminEmail": "admin@example.com",
+  "adminName": "Admin",
+  "adminLogin": "admin",
+  "adminPassword": "change_me_please",
+  "adminRole": "warrior",
+  "adminTheme": "dark_warrior",
+  "port": 8080,
+  "dbPath": "./pariter.db",
+  "staticDir": "./static"
+}

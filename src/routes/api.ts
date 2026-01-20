@@ -517,11 +517,53 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
       const auth = String(body?.keys?.auth || '').trim();
       if (!endpoint || !p256dh || !auth) return error('Неверная подписка.');
 
-      // Upsert by endpoint
+      // token: persistent per-device handle for background resubscribe (pushsubscriptionchange) without cookies.
+      let token = String(body?.token || '').trim();
+      if (!token) {
+        const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+        const buf = crypto.getRandomValues(new Uint8Array(32));
+        token = Array.from(buf).map(b => chars[b % chars.length]).join('');
+      }
+
+      // If token already exists - update by token (handles endpoint rotation without creating duplicates).
+      try {
+        const row = db.query('SELECT id, endpoint FROM push_subscriptions WHERE token = ?').get(token) as any;
+        if (row?.id) {
+          // Ensure endpoint uniqueness: if another row has this endpoint, remove it.
+          db.run('DELETE FROM push_subscriptions WHERE endpoint = ? AND token != ?', [endpoint, token]);
+          db.run(
+            'UPDATE push_subscriptions SET user_id = ?, endpoint = ?, p256dh = ?, auth = ?, last_seen_at = ? WHERE id = ?',
+            [user.id, endpoint, p256dh, auth, nowISO(), Number(row.id)]
+          );
+          return json({ ok: true, token });
+        }
+      } catch {}
+
+      // Fallback: upsert by endpoint
       db.run(
-        'INSERT INTO push_subscriptions (user_id, endpoint, p256dh, auth, created_at, last_seen_at) VALUES (?,?,?,?,?,?) ' +
-        'ON CONFLICT(endpoint) DO UPDATE SET user_id=excluded.user_id, p256dh=excluded.p256dh, auth=excluded.auth, last_seen_at=excluded.last_seen_at',
-        [user.id, endpoint, p256dh, auth, nowISO(), nowISO()]
+        'INSERT INTO push_subscriptions (user_id, endpoint, p256dh, auth, token, created_at, last_seen_at) VALUES (?,?,?,?,?,?,?) ' +
+        'ON CONFLICT(endpoint) DO UPDATE SET user_id=excluded.user_id, p256dh=excluded.p256dh, auth=excluded.auth, token=COALESCE(push_subscriptions.token, excluded.token), last_seen_at=excluded.last_seen_at',
+        [user.id, endpoint, p256dh, auth, token, nowISO(), nowISO()]
+      );
+
+      return json({ ok: true, token });
+    }
+
+    // Background resubscribe without cookies (for pushsubscriptionchange)
+    if (req.method === 'POST' && path === '/api/push/resubscribe') {
+      const body = await readJson(req);
+      const token = String(body?.token || '').trim();
+      const endpoint = String(body?.endpoint || '').trim();
+      const p256dh = String(body?.keys?.p256dh || '').trim();
+      const auth = String(body?.keys?.auth || '').trim();
+      if (!token || !endpoint || !p256dh || !auth) return error('Неверная подписка.');
+
+      const row = db.query('SELECT id FROM push_subscriptions WHERE token = ?').get(token) as any;
+      if (!row?.id) return error('Токен подписки не найден.', 404);
+
+      db.run(
+        'UPDATE push_subscriptions SET endpoint = ?, p256dh = ?, auth = ?, last_seen_at = ? WHERE id = ?',
+        [endpoint, p256dh, auth, nowISO(), Number(row.id)]
       );
 
       return json({ ok: true });
@@ -550,10 +592,8 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
       if (!subs.length) return error('Нет активных push-подписок для этого пользователя.', 404);
 
       const subject = String(process.env.PARITER_VAPID_SUBJECT || 'mailto:admin@pariter.local');
-      const payloadJson = {
-        type: 'text',
-        text: `Pariter test: ${String(user.name || 'Спутник')}`,
-      };
+      // Send a "tickle" push without payload for maximum compatibility (debugging delivery).
+      const payloadJson = null;
 
       const results = await Promise.allSettled(subs.map(async (s)=>{
         const res = await sendWebPush({
@@ -814,12 +854,9 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
         ).all(user.team_id, user.id) as any[];
 
         const subject = String(process.env.PARITER_VAPID_SUBJECT || 'mailto:admin@pariter.local');
-        const payloadJson = {
-          type: 'entry',
-          entry: { id: entryId, date, created_at: createdAt },
-          author: { id: user.id, name: authorName, role: String(user.role || '') },
-          preview,
-        };
+        // Send a "tickle" push without payload for maximum delivery reliability.
+        // Service Worker will show a generic notification and the app will refresh via live polling.
+        const payloadJson = null;
 
         const results = await Promise.allSettled(subs.map(async (s)=>{
           const res = await sendWebPush({

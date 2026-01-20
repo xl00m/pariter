@@ -87,6 +87,8 @@ self.addEventListener('fetch', (event) => {
 });
 
 // Push notifications
+// Important: even if payload is missing (event.data == null) or can't be parsed,
+// we still show a generic notification. Otherwise it looks like "push doesn't arrive".
 self.addEventListener('push', (event) => {
   event.waitUntil((async ()=>{
     try {
@@ -99,42 +101,46 @@ self.addEventListener('push', (event) => {
         data = { type: 'text', text: String(t || '').trim() };
       }
 
-      if (!data || typeof data !== 'object') return;
+      // Messenger-like: keep one “inbox” notification updated.
+      // If user clears it manually, next push will re-create it.
+      const inboxTag = 'pariter_inbox';
 
-      if (data.type === 'entry') {
-        const authorName = data?.author?.name || 'Спутник';
-        const preview = String(data?.preview || '').trim();
-        const title = `Новый шаг: ${authorName}`;
-        const body = preview ? preview.slice(0, 160) : 'Открой Pariter, чтобы посмотреть.';
-        const tag = data?.entry?.id ? `pariter_entry_${data.entry.id}` : 'pariter_entry';
+      let title = 'Pariter';
+      let body = 'Новый шаг. Открой Pariter, чтобы посмотреть.';
+      let url = '/path';
 
-        await self.registration.showNotification(title, {
-          body,
-          tag,
-          renotify: false,
-          data: { url: '/path' },
-        });
-
-        // If the app is open, tell the client to refresh UI/badges immediately.
-        try {
-          const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
-          for (const c of clients) {
-            try { c.postMessage({ type: 'push', payload: data }); } catch {}
-          }
-        } catch {}
-
-        return;
+      if (data && typeof data === 'object') {
+        if (data.type === 'entry') {
+          const authorName = data?.author?.name || 'Спутник';
+          const preview = String(data?.preview || '').trim();
+          title = `Новый шаг: ${authorName}`;
+          body = preview ? preview.slice(0, 160) : body;
+          url = '/path';
+        } else if (data.type === 'text' && data.text) {
+          title = 'Pariter';
+          body = String(data.text).slice(0, 160);
+        }
       }
 
-      // Fallback: show whatever text we got
-      if (data.type === 'text' && data.text) {
-        await self.registration.showNotification('Pariter', {
-          body: String(data.text).slice(0, 160),
-          tag: 'pariter_text',
-          renotify: false,
-          data: { url: '/path' },
-        });
-      }
+      await self.registration.showNotification(title, {
+        body,
+        tag: inboxTag,
+        renotify: true,
+        // Messenger-like: keep a single "inbox" notification and make it sticky until the user acts.
+        requireInteraction: true,
+        icon: '/static/favicon.svg',
+        badge: '/static/favicon.svg',
+        data: { url },
+      });
+
+      // If the app is open, tell the client to refresh UI/badges immediately.
+      try {
+        const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+        for (const c of clients) {
+          try { c.postMessage({ type: 'push', payload: data || null }); } catch {}
+        }
+      } catch {}
+
     } catch {
       // ignore
     }
@@ -180,8 +186,59 @@ self.addEventListener('message', (event)=>{
   } catch {}
 });
 
+// --- SW storage (tiny IndexedDB) to persist push token across restarts
+const DB_NAME = 'pariter_sw';
+const DB_VER = 1;
+const STORE = 'kv';
+
+function idbOpen(){
+  return new Promise((resolve, reject)=>{
+    const req = indexedDB.open(DB_NAME, DB_VER);
+    req.onupgradeneeded = ()=>{
+      try { req.result.createObjectStore(STORE); } catch {}
+    };
+    req.onsuccess = ()=> resolve(req.result);
+    req.onerror = ()=> reject(req.error);
+  });
+}
+async function idbGet(key){
+  try {
+    const db = await idbOpen();
+    return await new Promise((resolve)=>{
+      const tx = db.transaction(STORE, 'readonly');
+      const st = tx.objectStore(STORE);
+      const r = st.get(key);
+      r.onsuccess = ()=> resolve(r.result);
+      r.onerror = ()=> resolve(null);
+    });
+  } catch { return null; }
+}
+async function idbSet(key, val){
+  try {
+    const db = await idbOpen();
+    await new Promise((resolve)=>{
+      const tx = db.transaction(STORE, 'readwrite');
+      tx.oncomplete = ()=> resolve(true);
+      tx.onerror = ()=> resolve(true);
+      tx.objectStore(STORE).put(val, key);
+    });
+  } catch {}
+}
+
+// Receive token from the client
+self.addEventListener('message', (event)=>{
+  try {
+    const data = event?.data;
+    if (!data || typeof data !== 'object') return;
+    if (data.type !== 'push-token') return;
+    const tok = String(data.token || '').trim();
+    // allow clearing
+    event.waitUntil(idbSet('pushToken', tok));
+  } catch {}
+});
+
 // Some browsers can rotate/expire push subscriptions after inactivity.
-// Try to resubscribe and re-send the new subscription to the backend automatically.
+// Resubscribe and update backend without cookies using a persistent token.
 function b64urlToU8(b64url){
   let s = String(b64url || '').replace(/-/g, '+').replace(/_/g, '/');
   const pad = s.length % 4;
@@ -195,8 +252,11 @@ function b64urlToU8(b64url){
 self.addEventListener('pushsubscriptionchange', (event)=>{
   event.waitUntil((async ()=>{
     try {
-      // Fetch current VAPID public key
-      const r = await fetch('/api/push/vapidPublicKey', { cache: 'no-store', credentials: 'include' }).catch(()=>null);
+      const token = String(await idbGet('pushToken') || '').trim();
+      if (!token) return;
+
+      // Fetch current VAPID public key (no auth)
+      const r = await fetch('/api/push/vapidPublicKey', { cache: 'no-store' }).catch(()=>null);
       const j = r ? await r.json().catch(()=>null) : null;
       const publicKey = j?.publicKey;
       if (!publicKey) return;
@@ -209,11 +269,10 @@ self.addEventListener('pushsubscriptionchange', (event)=>{
       const sj = sub.toJSON();
       if (!sj?.endpoint || !sj?.keys?.p256dh || !sj?.keys?.auth) return;
 
-      await fetch('/api/push/subscribe', {
+      await fetch('/api/push/resubscribe', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ endpoint: sj.endpoint, keys: sj.keys })
+        body: JSON.stringify({ token, endpoint: sj.endpoint, keys: sj.keys })
       }).catch(()=>{});
 
     } catch {

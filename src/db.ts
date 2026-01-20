@@ -61,12 +61,14 @@ export function migrate(db: DB){
   );`);
 
   // Web Push subscriptions
+  // token is used for service-worker driven resubscribe (pushsubscriptionchange) without cookies.
   db.run(`CREATE TABLE IF NOT EXISTS push_subscriptions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL,
     endpoint TEXT NOT NULL,
     p256dh TEXT NOT NULL,
     auth TEXT NOT NULL,
+    token TEXT,
     created_at TEXT,
     last_seen_at TEXT,
     FOREIGN KEY(user_id) REFERENCES users(id)
@@ -99,6 +101,22 @@ export function migrate(db: DB){
   db.run('CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at);');
   db.run('CREATE UNIQUE INDEX IF NOT EXISTS idx_push_endpoint_unique ON push_subscriptions(endpoint);');
   db.run('CREATE INDEX IF NOT EXISTS idx_push_user ON push_subscriptions(user_id);');
+  db.run('CREATE UNIQUE INDEX IF NOT EXISTS idx_push_token_unique ON push_subscriptions(token);');
+
+  // Backfill token for existing rows that might have been created before token was introduced.
+  try {
+    const rows = db.query('SELECT id, token FROM push_subscriptions').all() as any[];
+    for (const r of rows) {
+      const t = String(r?.token || '').trim();
+      if (t) continue;
+      // token: 32 url-safe chars
+      const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+      const buf = crypto.getRandomValues(new Uint8Array(32));
+      let tok = '';
+      for (let i=0;i<32;i++) tok += chars[buf[i] % chars.length];
+      db.run('UPDATE push_subscriptions SET token = ? WHERE id = ?', [tok, Number(r.id)]);
+    }
+  } catch {}
 
   // ensure created_at for existing nulls
   const ts = nowISO();

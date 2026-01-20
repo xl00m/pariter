@@ -242,35 +242,48 @@ export type PushSubscriptionRecord = {
 
 export async function sendWebPush({ subscription, payloadJson, subject }:{
   subscription: PushSubscriptionRecord;
-  payloadJson: any;
+  payloadJson: any | null;
   subject: string;
 }){
   const endpoint = String(subscription.endpoint || '').trim();
   if (!endpoint) throw new Error('No endpoint');
 
+  const { jwt, publicKeyB64Url } = await makeVapidJwt(endpoint, subject);
+
+  // Messenger-like delivery: allow the push service to retain notifications longer
+  // when the device/browser is temporarily offline/asleep.
+  const baseHeaders: Record<string,string> = {
+    'TTL': '86400',
+    'Authorization': `vapid t=${jwt}, k=${publicKeyB64Url}`,
+    'Urgency': 'high',
+  };
+
+  // Tickle push (no payload): maximum compatibility across browsers.
+  // Some browsers can silently drop a push if the encrypted payload cannot be decrypted.
+  if (payloadJson == null) {
+    const headers: Record<string,string> = {
+      ...baseHeaders,
+      'Content-Length': '0',
+      'Crypto-Key': `p256ecdsa=${publicKeyB64Url}`,
+    };
+    return await fetch(endpoint, { method:'POST', headers });
+  }
+
+  // Encrypted payload (aes128gcm)
   const clientPublicKey = b64DecodeFlex(subscription.p256dh);
   const clientAuthSecret = b64DecodeFlex(subscription.auth);
   if (clientPublicKey.length < 10 || clientAuthSecret.length < 8) throw new Error('Bad subscription keys');
 
   const payload = JSON.stringify(payloadJson);
-
   const { salt, serverPublicRaw, ciphertext } = await encryptWebPushPayload(payload, clientPublicKey, clientAuthSecret);
-  const { jwt, publicKeyB64Url } = await makeVapidJwt(endpoint, subject);
 
-  // Messenger-like delivery: allow the push service to retain notifications longer
-  // when the device/browser is temporarily offline/asleep.
   const headers: Record<string,string> = {
-    // 24 hours
-    'TTL': '86400',
+    ...baseHeaders,
     'Content-Encoding': 'aes128gcm',
     'Content-Type': 'application/octet-stream',
     'Encryption': `salt=${b64urlEncode(salt)}`,
     'Crypto-Key': `dh=${b64urlEncode(serverPublicRaw)}; p256ecdsa=${publicKeyB64Url}`,
-    'Authorization': `vapid t=${jwt}, k=${publicKeyB64Url}`,
-    // High urgency to behave closer to messengers (when supported by the push service)
-    'Urgency': 'high',
   };
 
-  const res = await fetch(endpoint, { method:'POST', headers, body: ciphertext });
-  return res;
+  return await fetch(endpoint, { method:'POST', headers, body: ciphertext });
 }

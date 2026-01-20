@@ -331,7 +331,8 @@ const api = {
 
   // Push
   pushVapidKey: ()=> apiFetch('/api/push/vapidPublicKey'),
-  pushSubscribe: ({ endpoint, keys })=> apiFetch('/api/push/subscribe', { method:'POST', body: { endpoint, keys } }),
+  pushSubscribe: ({ endpoint, keys, token=null })=> apiFetch('/api/push/subscribe', { method:'POST', body: { endpoint, keys, token } }),
+  pushResubscribe: ({ token, endpoint, keys })=> apiFetch('/api/push/resubscribe', { method:'POST', body: { token, endpoint, keys } }),
   pushUnsubscribe: ({ endpoint=null }={})=> apiFetch('/api/push/unsubscribe', { method:'POST', body: { endpoint } }),
   pushTest: ()=> apiFetch('/api/push/test', { method:'POST', body: {} }),
 };
@@ -1351,8 +1352,14 @@ function bindHandlers(){
         try {
           const r = await api.pushTest();
           const ok = !!r?.ok;
-          if (ok) toast('Тест отправлен.');
-          else toast('Не удалось отправить тест.');
+          const subs = Number(r?.subs || 0);
+          const results = Array.isArray(r?.results) ? r.results : [];
+          if (ok) {
+            const tail = results.length ? ` (${results.map(x=>String(x)).join(', ')})` : '';
+            toast(`Тест отправлен: ${subs}${tail}`);
+          } else {
+            toast('Не удалось отправить тест.');
+          }
         } catch (err) {
           toast(err.message || 'Ошибка теста.');
         }
@@ -2727,6 +2734,7 @@ async function updatePushUI(){
 const PUSH_DESIRED_KEY = 'pariter_push_desired';
 const PUSH_VAPID_KEY_KEY = 'pariter_push_vapid_public_key';
 const PUSH_NEEDS_RESUB_KEY = 'pariter_push_needs_resub';
+const PUSH_TOKEN_KEY = 'pariter_push_token';
 
 function readPushDesired(){
   try { return localStorage.getItem(PUSH_DESIRED_KEY) === '1'; } catch { return false; }
@@ -2747,6 +2755,32 @@ function writePushNeedsResub(k){
   try {
     if (!k) localStorage.removeItem(PUSH_NEEDS_RESUB_KEY);
     else localStorage.setItem(PUSH_NEEDS_RESUB_KEY, String(k));
+  } catch {}
+}
+function readPushToken(){
+  try { return String(localStorage.getItem(PUSH_TOKEN_KEY) || '').trim(); } catch { return ''; }
+}
+function writePushToken(tok){
+  try {
+    const t = String(tok || '').trim();
+    if (!t) localStorage.removeItem(PUSH_TOKEN_KEY);
+    else localStorage.setItem(PUSH_TOKEN_KEY, t);
+  } catch {}
+}
+
+async function sendPushTokenToSW(token){
+  try {
+    const tok = String(token || '').trim();
+    if (!tok) return;
+
+    // Prefer controller
+    try { navigator.serviceWorker?.controller?.postMessage?.({ type: 'push-token', token: tok }); } catch {}
+
+    // Also try active reg
+    try {
+      const reg = await navigator.serviceWorker?.getRegistration?.();
+      reg?.active?.postMessage?.({ type: 'push-token', token: tok });
+    } catch {}
   } catch {}
 }
 
@@ -2791,7 +2825,14 @@ async function enablePush(){
   }
 
   const json = sub.toJSON();
-  await api.pushSubscribe({ endpoint: json.endpoint, keys: json.keys });
+  const token = readPushToken() || null;
+  const r = await api.pushSubscribe({ endpoint: json.endpoint, keys: json.keys, token });
+
+  // Persist token for background resubscribe (pushsubscriptionchange)
+  if (r?.token) {
+    writePushToken(String(r.token));
+    sendPushTokenToSW(String(r.token));
+  }
 
   writePushDesired(true);
   writeVapidPublicKey(publicKey);
@@ -2813,6 +2854,11 @@ async function disablePush(){
   } catch {}
   writePushDesired(false);
   writePushNeedsResub('');
+  writePushToken('');
+  try {
+    // also clear token from SW storage
+    sendPushTokenToSW('');
+  } catch {}
   try { await updatePushUI(); } catch {}
 }
 
@@ -2840,7 +2886,12 @@ async function pushResubscribeIfNeeded(){
   });
 
   const j = sub.toJSON();
-  await api.pushSubscribe({ endpoint: j.endpoint, keys: j.keys }).catch(()=>{});
+  const token = readPushToken() || null;
+  const r = await api.pushSubscribe({ endpoint: j.endpoint, keys: j.keys, token }).catch(()=>null);
+  if (r?.token) {
+    writePushToken(String(r.token));
+    sendPushTokenToSW(String(r.token));
+  }
 
   writeVapidPublicKey(publicKey);
   writePushNeedsResub('');
@@ -2897,10 +2948,15 @@ async function pushAutoMaintain(){
       }
     }
 
-    // Refresh server record (upsert)
+    // Refresh server record (upsert). Pass a persistent token so endpoint rotation can be bound to the same device.
     const j = sub.toJSON();
     if (j?.endpoint && j?.keys?.p256dh && j?.keys?.auth) {
-      await api.pushSubscribe({ endpoint: j.endpoint, keys: j.keys }).catch(()=>{});
+      const token = readPushToken() || null;
+      const r = await api.pushSubscribe({ endpoint: j.endpoint, keys: j.keys, token }).catch(()=>null);
+      if (r?.token) {
+        writePushToken(String(r.token));
+        sendPushTokenToSW(String(r.token));
+      }
     }
   } catch {
     // ignore
@@ -3073,7 +3129,14 @@ document.addEventListener('click', (e)=>{
   try { APP.state.sound.enabled = readSoundEnabled(); } catch {}
 
   // Best-effort: ensure root-scope Service Worker is registered early (needed for Push on Android).
-  try { ensureServiceWorkerForPush(); } catch {}
+  try {
+    await ensureServiceWorkerForPush();
+    // Send stored token to SW so pushsubscriptionchange can resubscribe without cookies.
+    try {
+      const tok = readPushToken();
+      if (tok) sendPushTokenToSW(tok);
+    } catch {}
+  } catch {}
 
   // If a push arrives while the app is open, the SW can postMessage to update UI faster.
   try {

@@ -2563,10 +2563,31 @@ async function ensureServiceWorkerForPush(){
       throw new Error('Service worker не зарегистрирован');
     }
 
+    // Important on Android: ensure the registration is activated. ready can hang until SW controls the page.
+    // We avoid hanging by waiting for statechange with a timeout.
+    try {
+      const active = reg.active || reg.waiting || reg.installing;
+      if (active && active.state !== 'activated') {
+        await withTimeout(new Promise((resolve)=>{
+          try {
+            const on = ()=>{
+              if (active.state === 'activated') {
+                try { active.removeEventListener('statechange', on); } catch {}
+                resolve(true);
+              }
+            };
+            active.addEventListener('statechange', on);
+            on();
+          } catch { resolve(true); }
+        }), 3000, 'Service worker не активировался');
+      }
+    } catch {}
+
     return reg;
-  })().finally(()=>{
-    // allow re-try on next call if we failed
-    // (but keep cache if resolved)
+  })().catch((e)=>{
+    // allow re-try if we failed
+    ensureServiceWorkerForPush._p = null;
+    throw e;
   });
 
   return ensureServiceWorkerForPush._p;
@@ -2678,5 +2699,7 @@ document.addEventListener('click', (e)=>{
 (async function init(){
   setTheme('dark_warrior');
   ensureEntryModal();
+  // Best-effort: ensure root-scope Service Worker is registered early (needed for Push on Android).
+  try { ensureServiceWorkerForPush(); } catch {}
   await render();
 })();

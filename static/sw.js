@@ -90,7 +90,7 @@ self.addEventListener('fetch', (event) => {
 self.addEventListener('push', (event) => {
   event.waitUntil((async ()=>{
     try {
-      let data: any = null;
+      let data = null;
       try {
         data = event.data ? event.data.json() : null;
       } catch {

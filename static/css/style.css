@@ -1,86 +1,115 @@
-:root{
-  --bg:#0b1020;
-  --bgSecondary:#0f1730;
-  --text:#e7eaf3;
-  --textMuted:#9aa4c3;
-  --accent:#7c5cff;
-  --accentHover:#6a4ff0;
-  --border:rgba(255,255,255,.10);
-  --victory:rgba(124,92,255,.12);
-  --lesson:rgba(46,212,167,.12);
-  --danger:#ff4d6d;
-  --shadow: 0 8px 30px rgba(0,0,0,.35);
+:root {
+  --bg: #0b1020;
+  --bgSecondary: #0f1730;
+  --text: #e7eaf3;
+  --textMuted: #9aa4c3;
+  --accent: #7c5cff;
+  --accentHover: #6a4ff0;
+  --border: rgba(255, 255, 255, .10);
+  --victory: rgba(124, 92, 255, .12);
+  --lesson: rgba(46, 212, 167, .12);
+  --danger: #ff4d6d;
+  --shadow: 0 8px 30px rgba(0, 0, 0, .35);
   --radius: 18px;
   --radiusSm: 12px;
-  --focus: 0 0 0 3px rgba(124,92,255,.22);
+  --focus: 0 0 0 3px rgba(124, 92, 255, .22);
+  --glassBg: rgba(15, 23, 48, 0.2);
 }
 
-html, body { height: 100%; }
-body{
-  margin:0;
-  background: radial-gradient(1200px 600px at 20% -10%, rgba(124,92,255,.22), transparent 55%),
-              radial-gradient(900px 520px at 110% 10%, rgba(46,212,167,.20), transparent 60%),
-              var(--bg);
+html,
+body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: transparent;
   color: var(--text);
   font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
   transition: background .2s ease, color .2s ease;
   overflow-x: hidden;
 }
 
-#app{ min-height: 100vh; }
+#app {
+  min-height: 100vh;
+}
 
-::selection{ background: rgba(124,92,255,.28); }
+::selection {
+  background: rgba(124, 92, 255, .28);
+}
 
-.card{
-  background: color-mix(in srgb, var(--bgSecondary) 20%, transparent);
+.card {
+  background: var(--glassBg);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
+  backdrop-filter: blur(12px);
+}
+
+.soft {
+  background: var(--glassBg);
+  border: 1px solid var(--border);
+  border-radius: var(--radiusSm);
   backdrop-filter: blur(8px);
 }
 
-.soft{
-  background: color-mix(in srgb, var(--bgSecondary) 20%, transparent);
-  border: 1px solid var(--border);
-  border-radius: var(--radiusSm);
-}
-
-.btn{
-  background: var(--accent);
+.btn {
+  background: rgba(124, 92, 255, 0.2);
   color: white;
   border-radius: 999px;
   padding: 12px 16px;
   font-weight: 650;
   transition: transform .12s ease, background .2s ease, opacity .2s ease;
-  border: 1px solid color-mix(in srgb, var(--accent) 70%, white 0%);
+  border: 1px solid rgba(124, 92, 255, 0.3);
   cursor: pointer;
+  backdrop-filter: blur(8px);
 }
-.btn:hover{ background: var(--accentHover); }
-.btn:active{ transform: translateY(1px); }
-.btn:disabled{ opacity: .55; cursor: not-allowed; }
 
-.btn-ghost{
+.btn:hover {
+  background: rgba(124, 92, 255, 0.35);
+}
+
+.btn:active {
+  transform: translateY(1px);
+}
+
+.btn:disabled {
+  opacity: .55;
+  cursor: not-allowed;
+}
+
+.btn-ghost {
   border: 1px solid var(--border);
-  background: transparent;
+  background: rgba(255, 255, 255, .05);
   border-radius: 999px;
   padding: 12px 16px;
   font-weight: 650;
   transition: background .2s ease, border-color .2s ease;
   color: var(--text);
   cursor: pointer;
+  backdrop-filter: blur(8px);
 }
-.btn-ghost:hover{ background: rgba(255,255,255,.05); border-color: color-mix(in srgb, var(--border) 40%, var(--accent) 60%); }
 
-.btn-danger{
-  border: 1px solid color-mix(in srgb, var(--danger) 45%, transparent);
-  background: color-mix(in srgb, var(--danger) 18%, transparent);
+.btn-ghost:hover {
+  background: rgba(255, 255, 255, .1);
+  border-color: color-mix(in srgb, var(--border) 40%, var(--accent) 60%);
+}
+
+.btn-danger {
+  border: 1px solid rgba(255, 77, 109, 0.3);
+  background: rgba(255, 77, 109, 0.2);
   color: color-mix(in srgb, var(--danger) 90%, white);
+  backdrop-filter: blur(8px);
 }
-.btn-danger:hover{ background: color-mix(in srgb, var(--danger) 26%, transparent); }
 
-.input, .textarea{
+.btn-danger:hover {
+  background: rgba(255, 77, 109, 0.3);
+}
+
+.input,
+.textarea {
   width: 100%;
-  background: rgba(255,255,255,.04);
+  background: rgba(255, 255, 255, .05);
   border: 1px solid var(--border);
   border-radius: 14px;
   padding: 12px 12px;
@@ -88,14 +117,31 @@ body{
   transition: box-shadow .2s ease, border-color .2s ease, background .2s ease;
   color: var(--text);
   box-sizing: border-box;
+  backdrop-filter: blur(8px);
 }
-.textarea{ min-height: 110px; resize: vertical; }
-.input:focus, .textarea:focus{ box-shadow: var(--focus); border-color: color-mix(in srgb, var(--accent) 70%, var(--border)); background: rgba(255,255,255,.05); }
+
+.textarea {
+  min-height: 110px;
+  resize: vertical;
+}
+
+.input:focus,
+.textarea:focus {
+  box-shadow: var(--focus);
+  border-color: color-mix(in srgb, var(--accent) 70%, var(--border));
+  background: rgba(255, 255, 255, .08);
+}
 
 /* Password input with toggle */
-.pw-wrap{ position: relative; }
-.pw-input{ padding-right: 46px; }
-.pw-toggle{
+.pw-wrap {
+  position: relative;
+}
+
+.pw-input {
+  padding-right: 46px;
+}
+
+.pw-toggle {
   position: absolute;
   right: 8px;
   top: 50%;
@@ -104,18 +150,29 @@ body{
   height: 36px;
   border-radius: 999px;
   border: 1px solid var(--border);
-  background: rgba(255,255,255,.03);
+  background: rgba(255, 255, 255, .05);
   color: var(--text);
   display: grid;
   place-items: center;
   cursor: pointer;
+  backdrop-filter: blur(8px);
 }
-.pw-toggle:hover{ background: rgba(255,255,255,.06); border-color: color-mix(in srgb, var(--border) 40%, var(--accent) 60%); }
+
+.pw-toggle:hover {
+  background: rgba(255, 255, 255, .1);
+  border-color: color-mix(in srgb, var(--border) 40%, var(--accent) 60%);
+}
 
 /* AI rewrite button for textareas */
-.ai-wrap{ position: relative; }
-.ai-textarea{ padding-right: 46px; }
-.ai-btn{
+.ai-wrap {
+  position: relative;
+}
+
+.ai-textarea {
+  padding-right: 46px;
+}
+
+.ai-btn {
   position: absolute;
   right: 8px;
   top: 8px;
@@ -123,17 +180,26 @@ body{
   height: 36px;
   border-radius: 999px;
   border: 1px solid var(--border);
-  background: rgba(255,255,255,.03);
+  background: rgba(255, 255, 255, .05);
   color: var(--text);
   display: grid;
   place-items: center;
   cursor: pointer;
+  backdrop-filter: blur(8px);
 }
-.ai-btn:hover{ background: rgba(255,255,255,.06); border-color: color-mix(in srgb, var(--border) 40%, var(--accent) 60%); }
-.ai-btn:disabled{ opacity: .55; cursor: not-allowed; }
+
+.ai-btn:hover {
+  background: rgba(255, 255, 255, .1);
+  border-color: color-mix(in srgb, var(--border) 40%, var(--accent) 60%);
+}
+
+.ai-btn:disabled {
+  opacity: .55;
+  cursor: not-allowed;
+}
 
 /* AI accept/undo mini bar */
-.ai-bar{
+.ai-bar {
   margin-top: 8px;
   display: flex;
   justify-content: flex-end;
@@ -141,34 +207,76 @@ body{
   flex-wrap: wrap;
 }
 
-.label{ color: var(--textMuted); font-size: 12px; letter-spacing: .02em; }
+.label {
+  color: var(--textMuted);
+  font-size: 12px;
+  letter-spacing: .02em;
+}
 
-.link{ color: color-mix(in srgb, var(--accent) 80%, white); text-decoration: none; }
-.link:hover{ text-decoration: underline; }
+.link {
+  color: color-mix(in srgb, var(--accent) 80%, white);
+  text-decoration: none;
+}
 
-.pill{
+.link:hover {
+  text-decoration: underline;
+}
+
+.pill {
   border: 1px solid var(--border);
-  background: rgba(255,255,255,.03);
+  background: rgba(255, 255, 255, .05);
   border-radius: 999px;
   padding: 8px 12px;
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  backdrop-filter: blur(8px);
 }
 
-.divider{ height: 1px; background: var(--border); }
+.divider {
+  height: 1px;
+  background: var(--border);
+}
 
-.fade-in{ animation: fadeIn .18s ease-out; }
-@keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+.fade-in {
+  animation: fadeIn .18s ease-out;
+}
 
-.kbd{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; font-size: 12px; border: 1px solid var(--border); padding: 2px 6px; border-radius: 8px; background: rgba(255,255,255,.04); }
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.kbd {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 12px;
+  border: 1px solid var(--border);
+  padding: 2px 6px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, .05);
+  backdrop-filter: blur(8px);
+}
 
 /* Sidebar */
-.sidebar-scrim{ background: rgba(0,0,0,.55); }
-.sidebar{ background: color-mix(in srgb, var(--bgSecondary) 20%, transparent); border-right: 1px solid var(--border); }
+.sidebar-scrim {
+  background: rgba(0, 0, 0, .4);
+}
+
+.sidebar {
+  background: var(--glassBg);
+  border-right: 1px solid var(--border);
+  backdrop-filter: blur(16px);
+}
 
 /* Theme chips */
-.theme-dot{
+.theme-dot {
   width: 44px;
   height: 44px;
   border-radius: 999px;
@@ -178,133 +286,218 @@ body{
   cursor: pointer;
   transition: transform .12s ease, border-color .2s ease, box-shadow .2s ease;
   user-select: none;
-
-  /* allow using as <button> without default button styles */
   appearance: none;
   -webkit-appearance: none;
-  background: rgba(255,255,255,.03);
+  background: rgba(255, 255, 255, .05);
   padding: 0;
   color: inherit;
   font: inherit;
+  backdrop-filter: blur(8px);
 }
-.theme-dot:hover{ transform: translateY(-1px); border-color: color-mix(in srgb, var(--accent) 55%, var(--border)); }
-.theme-dot[data-active="true"]{ box-shadow: var(--focus); border-color: color-mix(in srgb, var(--accent) 70%, var(--border)); }
 
-.toast{
+.theme-dot:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+}
+
+.theme-dot[data-active="true"] {
+  box-shadow: var(--focus);
+  border-color: color-mix(in srgb, var(--accent) 70%, var(--border));
+}
+
+.toast {
   position: fixed;
   left: 50%;
   bottom: 22px;
   transform: translateX(-50%);
-  background: color-mix(in srgb, var(--bgSecondary) 20%, transparent);
+  background: var(--glassBg);
   border: 1px solid var(--border);
   padding: 10px 12px;
   border-radius: 14px;
   box-shadow: var(--shadow);
   max-width: min(560px, calc(100vw - 28px));
   z-index: 60;
+  backdrop-filter: blur(12px);
 }
-.hidden{ display:none !important; }
+
+.hidden {
+  display: none !important;
+}
 
 /* Layout helpers (minimal, no Tailwind reliance) */
-.container{ width: min(920px, calc(100vw - 32px)); margin: 0 auto; }
-.centerShell{ min-height: 100vh; padding: 40px 16px; }
-.centerMax{ width: min(720px, calc(100vw - 32px)); margin: 0 auto; }
+.container {
+  width: min(920px, calc(100vw - 32px));
+  margin: 0 auto;
+}
 
-.header{
+.centerShell {
+  min-height: 100vh;
+  padding: 40px 16px;
+}
+
+.centerMax {
+  width: min(720px, calc(100vw - 32px));
+  margin: 0 auto;
+}
+
+.header {
   position: sticky;
   top: 0;
   z-index: 40;
   border-bottom: 1px solid var(--border);
-  background: color-mix(in srgb, var(--bg) 88%, transparent);
-  backdrop-filter: blur(10px);
+  background: var(--glassBg);
+  backdrop-filter: blur(16px);
 }
-.headerRow{ display:flex; align-items:center; justify-content: space-between; gap: 12px; padding: 12px 0; }
 
-.grid{ display: grid; gap: 12px; }
-.grid2{ display:grid; gap:12px; grid-template-columns: 1fr; }
-@media (min-width: 640px){ .grid2{ grid-template-columns: 1fr 1fr; } }
+.headerRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 0;
+}
 
-.row{ display:flex; gap: 10px; align-items:center; }
-.rowBetween{ display:flex; gap: 10px; align-items:center; justify-content: space-between; }
+.grid {
+  display: grid;
+  gap: 12px;
+}
 
-.textMuted{ color: var(--textMuted); }
+.grid2 {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 640px) {
+  .grid2 {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.rowBetween {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.textMuted {
+  color: var(--textMuted);
+}
 
 /* Modal */
-.modalWrap{ position:fixed; inset:0; z-index: 80; display:grid; place-items:center; padding: 16px; overscroll-behavior: contain; }
-.modalScrim{ position:absolute; inset:0; background: rgba(0,0,0,.55); }
-.modalPanel{ position:relative; width: min(720px, calc(100vw - 32px)); max-height: min(82vh, 760px); overflow:auto; overscroll-behavior: contain; }
+.modalWrap {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  overscroll-behavior: contain;
+}
+
+.modalScrim {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, .4);
+}
+
+.modalPanel {
+  position: relative;
+  width: min(720px, calc(100vw - 32px));
+  max-height: min(82vh, 760px);
+  overflow: auto;
+  overscroll-behavior: contain;
+  background: var(--glassBg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  backdrop-filter: blur(16px);
+}
 
 /* Reduced motion */
 @media (prefers-reduced-motion: reduce) {
-  * { transition: none !important; animation: none !important; scroll-behavior: auto !important; }
+  * {
+    transition: none !important;
+    animation: none !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 /* --- Telegram-like UI layer (overrides) --- */
-:root{
+:root {
   --radius: 22px;
   --radiusSm: 16px;
-  --shadow: 0 18px 55px rgba(0,0,0,.38);
-  --shadowSoft: 0 12px 28px rgba(0,0,0,.28);
-  --glass: color-mix(in srgb, var(--bgSecondary) 78%, transparent);
-  --glass2: color-mix(in srgb, var(--bgSecondary) 88%, transparent);
+  --shadow: 0 18px 55px rgba(0, 0, 0, .38);
+  --shadowSoft: 0 12px 28px rgba(0, 0, 0, .28);
   --ring: 0 0 0 3px color-mix(in srgb, var(--accent) 26%, transparent);
 }
 
-body{
-  background:
-    radial-gradient(1000px 520px at 20% -10%, color-mix(in srgb, var(--accent) 24%, transparent), transparent 58%),
-    radial-gradient(900px 520px at 110% 0%, color-mix(in srgb, var(--lesson) 28%, transparent), transparent 60%),
-    var(--bg);
+/* Header like Telegram */
+.header {
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
 }
 
-/* Header like Telegram */
-.header{
-  border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
-  background: color-mix(in srgb, var(--bg) 78%, transparent);
-  backdrop-filter: blur(14px);
+.headerRow {
+  padding: 10px 0;
 }
-.headerRow{ padding: 10px 0; }
 
 /* Cards and surfaces */
-.card{
-  background: color-mix(in srgb, var(--bgSecondary) 20%, transparent);
+.card {
+  background: var(--glassBg);
   border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
   box-shadow: var(--shadowSoft);
 }
-.soft{
-  background: color-mix(in srgb, var(--bgSecondary) 20%, transparent);
+
+.soft {
+  background: var(--glassBg);
   border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
 }
 
 /* Buttons */
-.btn, .btn-ghost, .btn-danger{
+.btn,
+.btn-ghost,
+.btn-danger {
   letter-spacing: .01em;
 }
-.btn{
-  box-shadow: 0 10px 24px color-mix(in srgb, var(--accent) 18%, transparent);
-  border-color: color-mix(in srgb, var(--accent) 60%, transparent);
+
+.btn {
+  box-shadow: 0 10px 24px rgba(124, 92, 255, 0.15);
+  border-color: rgba(124, 92, 255, 0.25);
 }
-.btn:hover{ filter: brightness(1.02); }
-.btn-ghost{
-  background: rgba(255,255,255,.03);
+
+.btn:hover {
+  filter: brightness(1.1);
 }
-.btn-ghost:hover{ background: rgba(255,255,255,.07); }
 
 /* Inputs like Telegram */
-.input, .textarea{
-  background: rgba(255,255,255,.045);
+.input,
+.textarea {
+  background: rgba(255, 255, 255, .05);
   border-color: color-mix(in srgb, var(--border) 85%, transparent);
 }
-.input:focus, .textarea:focus{
+
+.input:focus,
+.textarea:focus {
   box-shadow: var(--ring);
 }
 
 /* Date divider like chat day pill */
-.divider{ background: color-mix(in srgb, var(--border) 80%, transparent); }
+.divider {
+  background: color-mix(in srgb, var(--border) 80%, transparent);
+}
 
 /* Feed as chat timeline */
-#feed{ gap: 14px !important; }
-#feed article.card{
+#feed {
+  gap: 14px !important;
+}
+
+#feed article.card {
   background: transparent;
   border: none;
   box-shadow: none;
@@ -313,53 +506,72 @@ body{
 }
 
 /* Bubble feel for victory/lesson blocks inside feed */
-#feed article.card .soft{
+#feed article.card .soft {
   border-radius: 22px;
   padding: 12px 14px !important;
-  box-shadow: 0 10px 22px rgba(0,0,0,.18);
-  backdrop-filter: blur(10px);
+  box-shadow: 0 10px 22px rgba(0, 0, 0, .18);
+  backdrop-filter: blur(12px);
   position: relative;
   overflow: hidden;
+  background: var(--glassBg);
 }
 
 /* Tap-to-edit affordance */
-#feed article.card .soft[data-action="entry-edit"]{
+#feed article.card .soft[data-action="entry-edit"] {
   cursor: pointer;
 }
-#feed article.card .soft[data-action="entry-edit"]:hover{
+
+#feed article.card .soft[data-action="entry-edit"]:hover {
   border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
 }
-#feed article.card .soft::before{
+
+#feed article.card .soft::before {
   content: "";
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background: radial-gradient(520px 160px at 20% 0%, rgba(255,255,255,.07), transparent 55%);
+  background: radial-gradient(520px 160px at 20% 0%, rgba(255, 255, 255, .04), transparent 55%);
   opacity: .85;
 }
-#feed article.card .soft > *{ position: relative; }
+
+#feed article.card .soft>* {
+  position: relative;
+}
 
 /* Align chat bubbles like Telegram */
-#feed article.card[data-mine="1"] .entryHead{ justify-content: flex-end; }
-#feed article.card[data-mine="1"] .entryHead > .row{ display:none; }
-#feed article.card[data-mine="1"] .entryBubbles{ justify-items: end; }
-#feed article.card[data-mine="0"] .entryBubbles{ justify-items: start; }
+#feed article.card[data-mine="1"] .entryHead {
+  justify-content: flex-end;
+}
 
-#feed article.card .entryBubbles .soft{
+#feed article.card[data-mine="1"] .entryHead>.row {
+  display: none;
+}
+
+#feed article.card[data-mine="1"] .entryBubbles {
+  justify-items: end;
+}
+
+#feed article.card[data-mine="0"] .entryBubbles {
+  justify-items: start;
+}
+
+#feed article.card .entryBubbles .soft {
   width: min(640px, 100%);
 }
-#feed article.card[data-mine="1"] .entryBubbles .soft{
+
+#feed article.card[data-mine="1"] .entryBubbles .soft {
   border-top-right-radius: 8px;
-  background: color-mix(in srgb, var(--accent) 16%, var(--bgSecondary)) !important;
+  background: rgba(124, 92, 255, 0.15) !important;
 }
-#feed article.card[data-mine="0"] .entryBubbles .soft{
+
+#feed article.card[data-mine="0"] .entryBubbles .soft {
   border-top-left-radius: 8px;
 }
 
 /* Small tail */
-#feed article.card .entryBubbles .soft::after{
-  content:"";
-  position:absolute;
+#feed article.card .entryBubbles .soft::after {
+  content: "";
+  position: absolute;
   bottom: 10px;
   width: 12px;
   height: 12px;
@@ -370,78 +582,109 @@ body{
   border-top: 0;
   opacity: .85;
 }
-#feed article.card[data-mine="1"] .entryBubbles .soft::after{ right: -6px; }
-#feed article.card[data-mine="0"] .entryBubbles .soft::after{ left: -6px; transform: rotate(225deg); }
+
+#feed article.card[data-mine="1"] .entryBubbles .soft::after {
+  right: -6px;
+}
+
+#feed article.card[data-mine="0"] .entryBubbles .soft::after {
+  left: -6px;
+  transform: rotate(225deg);
+}
 
 /* Slightly different tints */
-#feed article.card .soft[style*="var(--victory)"]{
-  background: color-mix(in srgb, var(--victory) 70%, var(--bgSecondary) 30%) !important;
-}
-#feed article.card .soft[style*="var(--lesson)"]{
-  background: color-mix(in srgb, var(--lesson) 70%, var(--bgSecondary) 30%) !important;
+#feed article.card .soft[style*="var(--victory)"] {
+  background: rgba(124, 92, 255, 0.15) !important;
 }
 
-/* Date divider */
-#feed .divider + div{ }
+#feed article.card .soft[style*="var(--lesson)"] {
+  background: rgba(46, 212, 167, 0.15) !important;
+}
 
 /* Make the date line look like Telegram chip */
-/* DateDivider is HTML, so we target its structure */
-#feed > .row{
+#feed>.row {
   margin: 2px 0 4px;
 }
-#feed > .row .textMuted{
-  background: rgba(255,255,255,.06);
+
+#feed>.row .textMuted {
+  background: rgba(255, 255, 255, .08);
   border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
   border-radius: 999px;
   padding: 6px 12px;
   letter-spacing: .14em;
+  backdrop-filter: blur(8px);
 }
 
 /* Composer: make the input area feel like a chat composer */
-#todayForm{
-  background: color-mix(in srgb, var(--bg) 20%, transparent);
+#todayForm {
+  background: var(--glassBg);
   border-radius: 26px;
   padding: 12px;
   border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
-  box-shadow: 0 16px 38px rgba(0,0,0,.22);
+  box-shadow: 0 16px 38px rgba(0, 0, 0, .22);
+  backdrop-filter: blur(16px);
 }
-@media (max-width: 820px){
-  #todayForm{
+
+@media (max-width: 820px) {
+  #todayForm {
     position: sticky;
     bottom: 10px;
     z-index: 25;
-    backdrop-filter: blur(14px);
   }
 }
-#todayForm .textarea{ min-height: 90px; }
+
+#todayForm .textarea {
+  min-height: 90px;
+}
 
 /* Sidebar: smooth */
-.sidebar{ backdrop-filter: blur(16px); }
-.sidebar-scrim{ background: rgba(0,0,0,.62); }
+.sidebar {
+  backdrop-filter: blur(20px);
+}
+
+.sidebar-scrim {
+  background: rgba(0, 0, 0, .4);
+}
 
 /* Modal polish */
-.modalPanel{ box-shadow: var(--shadow); }
+.modalPanel {
+  box-shadow: var(--shadow);
+}
 
 /* AI button: sleek */
-.ai-btn{
-  background: rgba(255,255,255,.05);
+.ai-btn {
+  background: rgba(255, 255, 255, .08);
   border-color: color-mix(in srgb, var(--border) 70%, transparent);
+  backdrop-filter: blur(12px);
 }
-.ai-btn:hover{
+
+.ai-btn:hover {
   border-color: color-mix(in srgb, var(--accent) 52%, var(--border));
 }
 
 /* Scrollbar (webkit) */
-@supports selector(::-webkit-scrollbar){
-  ::-webkit-scrollbar{ height: 10px; width: 10px; }
-  ::-webkit-scrollbar-thumb{ background: rgba(255,255,255,.10); border-radius: 999px; border: 2px solid rgba(0,0,0,0); background-clip: padding-box; }
-  ::-webkit-scrollbar-thumb:hover{ background: rgba(255,255,255,.16); border: 2px solid rgba(0,0,0,0); background-clip: padding-box; }
+@supports selector(::-webkit-scrollbar) {
+  ::-webkit-scrollbar {
+    height: 10px;
+    width: 10px;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, .10);
+    border-radius: 999px;
+    border: 2px solid rgba(0, 0, 0, 0);
+    background-clip: padding-box;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, .16);
+    border: 2px solid rgba(0, 0, 0, 0);
+    background-clip: padding-box;
+  }
 }
 
-/* --- Telegram Ultra polish (final layer) --- */
-
-/* --- Synchronization / Lunar stars layer (enabled only when html.l00m-stars-on) --- */
-:root{
+/* --- Synchronization / Lunar stars layer --- */
+:root {
   --lunar-bg-deep: #0a0a0f;
   --lunar-bg: #0d0d14;
   --lunar-bg-raised: #14141f;
@@ -459,11 +702,12 @@ body{
 
 /* When stars canvas is active - let canvas draw the night */
 html.l00m-stars-on,
-html.l00m-stars-on body{
+html.l00m-stars-on body {
   background: transparent !important;
 }
-html.l00m-stars-on body::before{
-  opacity: 0 !important; /* disable dotted pattern while stars are on */
+
+html.l00m-stars-on body::before {
+  opacity: 0 !important;
 }
 
 /* Ensure stars appear behind all elements */
@@ -471,7 +715,7 @@ html.l00m-stars-on body::before{
   z-index: -1 !important;
 }
 
-.stars-bg{
+.stars-bg {
   position: fixed;
   top: 0;
   left: 0;
@@ -480,7 +724,8 @@ html.l00m-stars-on body::before{
   pointer-events: none;
   z-index: -1;
 }
-#starsCanvas{
+
+#starsCanvas {
   position: absolute;
   top: 0;
   left: 0;
@@ -491,8 +736,12 @@ html.l00m-stars-on body::before{
 }
 
 /* Landing-only subtle crystal canvas overlay */
-#cosmosRoot{ position: relative; overflow: visible; }
-#crystalCanvas{
+#cosmosRoot {
+  position: relative;
+  overflow: visible;
+}
+
+#crystalCanvas {
   position: absolute;
   inset: -70px;
   width: calc(100% + 140px);
@@ -502,99 +751,101 @@ html.l00m-stars-on body::before{
   mix-blend-mode: screen;
   opacity: .55;
 }
-#cosmosRoot > *:not(#crystalCanvas){ position: relative; z-index: 2; }
 
-@media (prefers-reduced-motion: reduce){
-  #starsCanvas, #crystalCanvas{ display:none !important; }
+#cosmosRoot>*:not(#crystalCanvas) {
+  position: relative;
+  z-index: 2;
 }
 
-/* --- Telegram Ultra polish (final layer) --- */
+@media (prefers-reduced-motion: reduce) {
+
+  #starsCanvas,
+  #crystalCanvas {
+    display: none !important;
+  }
+}
 
 /* Safe-area support (iOS/Android gesture bars) */
-:root{
+:root {
   --safeTop: env(safe-area-inset-top, 0px);
   --safeBottom: env(safe-area-inset-bottom, 0px);
   --safeLeft: env(safe-area-inset-left, 0px);
   --safeRight: env(safe-area-inset-right, 0px);
 }
 
-body{
+body {
   padding-left: var(--safeLeft);
   padding-right: var(--safeRight);
 }
 
-/* Subtle Telegram-like chat pattern */
-body::before{
-  content:"";
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  opacity: .35;
-  mix-blend-mode: overlay;
-  background-image:
-    radial-gradient(circle at 10px 10px, rgba(255,255,255,.035) 1px, transparent 1px),
-    radial-gradient(circle at 26px 26px, rgba(255,255,255,.02) 1px, transparent 1px);
-  background-size: 44px 44px;
-  mask-image: radial-gradient(900px 560px at 30% 10%, rgba(0,0,0,1), rgba(0,0,0,0));
+/* Disabled the dotted pattern to show stars better */
+body::before {
+  display: none;
 }
 
 /* Header: more Telegram-ish proportions */
-.header{
+.header {
   padding-top: var(--safeTop);
 }
-.headerRow{
+
+.headerRow {
   min-height: 52px;
 }
 
 /* Icon-like ghost buttons */
-.btn-ghost{
+.btn-ghost {
   border-radius: 14px;
   padding: 10px 12px;
 }
 
 /* Feed bubbles typography */
-#feed article.card .soft{
+#feed article.card .soft {
   line-height: 1.45;
   font-size: 14px;
 }
-#feed article.card .soft > div:first-child{
+
+#feed article.card .soft>div:first-child {
   opacity: .92;
 }
 
-/* More “chat bubble” maximum width on large screens */
-#feed article.card .entryBubbles .soft{
+/* More "chat bubble" maximum width on large screens */
+#feed article.card .entryBubbles .soft {
   width: min(560px, 100%);
 }
 
-/* Make my bubbles slightly more “telegram-blue” tinted by accent */
-#feed article.card[data-mine="1"] .entryBubbles .soft{
-  box-shadow: 0 14px 30px color-mix(in srgb, var(--accent) 12%, rgba(0,0,0,0));
+/* Make my bubbles slightly more "telegram-blue" tinted by accent */
+#feed article.card[data-mine="1"] .entryBubbles .soft {
+  box-shadow: 0 14px 30px rgba(124, 92, 255, 0.1);
 }
 
 /* Composer as real bottom bar on mobile */
-@media (max-width: 820px){
-  #todayForm{
+@media (max-width: 820px) {
+  #todayForm {
     bottom: calc(10px + var(--safeBottom));
     margin-bottom: calc(8px + var(--safeBottom));
   }
-  /* keep last items visible above sticky composer */
-  #feedSentinel{ height: 24px; }
-  #feedStatus{ padding-bottom: calc(22px + var(--safeBottom)); }
+
+  #feedSentinel {
+    height: 24px;
+  }
+
+  #feedStatus {
+    padding-bottom: calc(22px + var(--safeBottom));
+  }
 }
 
 /* Textareas: make them feel like Telegram compose fields */
-#todayForm .textarea{
+#todayForm .textarea {
   border-radius: 18px;
   padding-top: 12px;
 }
 
 /* AI button looks like an in-field action */
-.ai-btn{
-  backdrop-filter: blur(10px);
+.ai-btn {
+  backdrop-filter: blur(12px);
 }
 
 /* Toast: slightly higher on mobile to avoid gesture bar */
-.toast{
+.toast {
   bottom: calc(22px + var(--safeBottom));
 }
-

@@ -53,15 +53,39 @@ function themeById(id){
 // --- Stars + landing crystal background (battery-friendly)
 function shouldAnimateNow(){
   try {
-    // Respect reduced motion: do not animate.
-    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return false;
-
     const inFocus = !document.hidden && (typeof document.hasFocus !== 'function' || document.hasFocus());
     if (!inFocus) return false;
 
     // Only animate when a route exists (SPA mounted)
     const p = APP.state?.route?.path || parseRoute().path;
     return !!p;
+  } catch { return false; }
+}
+
+function shouldAnimateBlackHoles(){
+  try {
+    // Even with reduced motion, we still want to show black holes (with reduced intensity)
+    const prefersReducedMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    
+    const inFocus = !document.hidden && (typeof document.hasFocus !== 'function' || document.hasFocus());
+    if (!inFocus) return false;
+
+    // Only animate when a route exists (SPA mounted)
+    const p = APP.state?.route?.path || parseRoute().path;
+    return !!p && !prefersReducedMotion; // Only animate black holes if not reduced motion
+  } catch { return false; }
+}
+
+function shouldAnimateWithReducedIntensity(){
+  try {
+    const prefersReducedMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    
+    const inFocus = !document.hidden && (typeof document.hasFocus !== 'function' || document.hasFocus());
+    if (!inFocus) return false;
+
+    // Only animate when a route exists (SPA mounted)
+    const p = APP.state?.route?.path || parseRoute().path;
+    return !!p && prefersReducedMotion; // Return true only if reduced motion is preferred but other conditions are met
   } catch { return false; }
 }
 
@@ -350,15 +374,22 @@ function StarsEngine(canvas){
     const ctx = this.ctx;
     if (!this.holes?.length) return;
 
+    // Check if we should animate black holes specifically
+    if (!shouldAnimateBlackHoles() && !shouldAnimateWithReducedIntensity()) return;
+
     ctx.save();
     ctx.globalCompositeOperation = 'source-over';
     for (const h of this.holes) {
-      h.ph += 0.006 * h.spin;
+      // Adjust rotation speed based on reduced motion preference
+      const rotationSpeed = shouldAnimateWithReducedIntensity() ? 0.002 * h.spin : 0.006 * h.spin; // Slower rotation for reduced motion
+      h.ph += rotationSpeed;
 
       // soft gravity well
       const g1 = ctx.createRadialGradient(h.x, h.y, 0, h.x, h.y, h.r * 2.6);
-      g1.addColorStop(0.00, 'rgba(0,0,0,0.55)');
-      g1.addColorStop(0.35, 'rgba(0,0,0,0.22)');
+      // Reduce opacity for reduced motion
+      const opacityFactor = shouldAnimateWithReducedIntensity() ? 0.6 : 1.0;
+      g1.addColorStop(0.00, `rgba(0,0,0,${0.55 * opacityFactor})`);
+      g1.addColorStop(0.35, `rgba(0,0,0,${0.22 * opacityFactor})`);
       g1.addColorStop(1.00, 'rgba(0,0,0,0)');
       ctx.fillStyle = g1;
       ctx.beginPath();
@@ -373,11 +404,11 @@ function StarsEngine(canvas){
       const ringR = h.r * 1.55;
       const ringW = h.r * 0.42;
       const g3 = ctx.createRadialGradient(0,0,ringR-ringW,0,0,ringR+ringW);
-      g3.addColorStop(0.00,'rgba(255,255,255,0)');
-      g3.addColorStop(0.45,'rgba(190,215,255,0.12)');
-      g3.addColorStop(0.55,'rgba(255,190,225,0.18)');
-      g3.addColorStop(0.75,'rgba(255,255,255,0.06)');
-      g3.addColorStop(1.00,'rgba(255,255,255,0)');
+      g3.addColorStop(0.00,`rgba(255,255,255,0)`);
+      g3.addColorStop(0.45,`rgba(190,215,255,${0.12 * opacityFactor})`);
+      g3.addColorStop(0.55,`rgba(255,190,225,${0.18 * opacityFactor})`);
+      g3.addColorStop(0.75,`rgba(255,255,255,${0.06 * opacityFactor})`);
+      g3.addColorStop(1.00,`rgba(255,255,255,0)`);
       ctx.strokeStyle = g3;
       ctx.lineWidth = Math.max(1, h.r*0.16);
       ctx.beginPath();
@@ -494,7 +525,11 @@ function StarsEngine(canvas){
   };
 
   this._loop = (ts)=>{
-    if (!shouldAnimateNow()) {
+    // Check if we should run the full animation or just black holes
+    const fullAnimation = shouldAnimateNow();
+    const blackHoleAnimation = shouldAnimateBlackHoles() || shouldAnimateWithReducedIntensity();
+    
+    if (!fullAnimation && !blackHoleAnimation) {
       this._raf = requestAnimationFrame(this._loop);
       return;
     }
@@ -502,7 +537,7 @@ function StarsEngine(canvas){
     const now = ts;
 
     // refresh ghost constellations if page height changes (SPA / infinite feed)
-    if (!this._ghostCheckAt || (now - this._ghostCheckAt) > 1800) {
+    if (fullAnimation && (!this._ghostCheckAt || (now - this._ghostCheckAt) > 1800)) {
       this._ghostCheckAt = now;
       const dh = this.getDocHeight();
       if (Math.abs(dh - (this._lastDocH || 0)) > 80) {
@@ -510,18 +545,25 @@ function StarsEngine(canvas){
       }
     }
 
-    // spawn comets sometimes
-    if (!this._lastCometAt) this._lastCometAt = now;
-    if ((now - this._lastCometAt) > (2600 + Math.random()*1200)) {
-      this.spawnComet();
-      // rare double-comet
-      if (Math.random() < 0.18) {
-        setTimeout(()=>{ try { this.spawnComet(); } catch {} }, 220);
+    // spawn comets sometimes - only if full animation is enabled
+    if (fullAnimation) {
+      if (!this._lastCometAt) this._lastCometAt = now;
+      if ((now - this._lastCometAt) > (2600 + Math.random()*1200)) {
+        this.spawnComet();
+        // rare double-comet
+        if (Math.random() < 0.18) {
+          setTimeout(()=>{ try { this.spawnComet(); } catch {} }, 220);
+        }
+        this._lastCometAt = now;
       }
-      this._lastCometAt = now;
     }
 
-    this.updateComets();
+    // update comets only if full animation is enabled
+    if (fullAnimation) {
+      this.updateComets();
+    }
+    
+    // Render frame - always render if either animation is enabled
     this.renderFrame(ts/1000);
     this._raf = requestAnimationFrame(this._loop);
   };
@@ -673,39 +715,47 @@ function CrystalEngine(){
     ctx.clearRect(0,0,st.W,st.H);
 
     // holes
-    ctx.save();
-    ctx.globalCompositeOperation = 'source-over';
-    for (const h of st.holes) {
-      h.ph += 0.006*h.spin;
-      const g1 = ctx.createRadialGradient(h.x,h.y,0,h.x,h.y,h.r*2.6);
-      g1.addColorStop(0.00,'rgba(0,0,0,0.55)');
-      g1.addColorStop(0.35,'rgba(0,0,0,0.22)');
-      g1.addColorStop(1.00,'rgba(0,0,0,0)');
-      ctx.fillStyle = g1;
-      ctx.beginPath();
-      ctx.arc(h.x,h.y,h.r*2.6,0,Math.PI*2);
-      ctx.fill();
-
+    // Check if we should animate black holes specifically
+    if (shouldAnimateBlackHoles() || shouldAnimateWithReducedIntensity()) {
       ctx.save();
-      ctx.globalCompositeOperation = 'lighter';
-      ctx.translate(h.x,h.y);
-      ctx.rotate(h.ph);
-      const ringR = h.r*1.55;
-      const ringW = h.r*0.42;
-      const g3 = ctx.createRadialGradient(0,0,ringR-ringW,0,0,ringR+ringW);
-      g3.addColorStop(0.00,'rgba(255,255,255,0)');
-      g3.addColorStop(0.45,'rgba(190,215,255,0.12)');
-      g3.addColorStop(0.55,'rgba(255,190,225,0.18)');
-      g3.addColorStop(0.75,'rgba(255,255,255,0.06)');
-      g3.addColorStop(1.00,'rgba(255,255,255,0)');
-      ctx.strokeStyle = g3;
-      ctx.lineWidth = Math.max(1, h.r*0.16);
-      ctx.beginPath();
-      ctx.ellipse(0,0,ringR,ringR*0.72,0,0,Math.PI*2);
-      ctx.stroke();
+      ctx.globalCompositeOperation = 'source-over';
+      for (const h of st.holes) {
+        // Adjust rotation speed based on reduced motion preference
+        const rotationSpeed = shouldAnimateWithReducedIntensity() ? 0.002*h.spin : 0.006*h.spin; // Slower rotation for reduced motion
+        h.ph += rotationSpeed;
+        
+        const g1 = ctx.createRadialGradient(h.x,h.y,0,h.x,h.y,h.r*2.6);
+        // Reduce opacity for reduced motion
+        const opacityFactor = shouldAnimateWithReducedIntensity() ? 0.6 : 1.0;
+        g1.addColorStop(0.00,`rgba(0,0,0,${0.55 * opacityFactor})`);
+        g1.addColorStop(0.35,`rgba(0,0,0,${0.22 * opacityFactor})`);
+        g1.addColorStop(1.00,`rgba(0,0,0,0)`);
+        ctx.fillStyle = g1;
+        ctx.beginPath();
+        ctx.arc(h.x,h.y,h.r*2.6,0,Math.PI*2);
+        ctx.fill();
+
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.translate(h.x,h.y);
+        ctx.rotate(h.ph);
+        const ringR = h.r*1.55;
+        const ringW = h.r*0.42;
+        const g3 = ctx.createRadialGradient(0,0,ringR-ringW,0,0,ringR+ringW);
+        g3.addColorStop(0.00,`rgba(255,255,255,0)`);
+        g3.addColorStop(0.45,`rgba(190,215,255,${0.12 * opacityFactor})`);
+        g3.addColorStop(0.55,`rgba(255,190,225,${0.18 * opacityFactor})`);
+        g3.addColorStop(0.75,`rgba(255,255,255,${0.06 * opacityFactor})`);
+        g3.addColorStop(1.00,`rgba(255,255,255,0)`);
+        ctx.strokeStyle = g3;
+        ctx.lineWidth = Math.max(1, h.r*0.16);
+        ctx.beginPath();
+        ctx.ellipse(0,0,ringR,ringR*0.72,0,0,Math.PI*2);
+        ctx.stroke();
+        ctx.restore();
+      }
       ctx.restore();
     }
-    ctx.restore();
 
     // links
     ctx.save();
@@ -780,27 +830,40 @@ function CrystalEngine(){
   };
 
   this._loop = (now)=>{
-    if (!shouldAnimateNow()) { this._raf = requestAnimationFrame(this._loop); return; }
+    // Check if we should run the full animation or just black holes
+    const fullAnimation = shouldAnimateNow();
+    const blackHoleAnimation = shouldAnimateBlackHoles() || shouldAnimateWithReducedIntensity();
+    
+    if (!fullAnimation && !blackHoleAnimation) {
+      this._raf = requestAnimationFrame(this._loop);
+      return;
+    }
+    
     const st = this._state;
     if (st) {
-      if (now - st.lastCometAt > 2600) { this._spawnComet(); st.lastCometAt = now; }
-      for (const s of st.stars){
-        this._applyHoles(s, st);
-        s.x += s.vx; s.y += s.vy;
-        s.vx *= 0.985; s.vy *= 0.985;
-        s.ph += s.phs;
-        if (s.x < -30) s.x = st.W + 30;
-        if (s.x > st.W + 30) s.x = -30;
-        if (s.y < -30) s.y = st.H + 30;
-        if (s.y > st.H + 30) s.y = -30;
+      // Only update comets and stars if full animation is enabled
+      if (fullAnimation) {
+        if (now - st.lastCometAt > 2600) { this._spawnComet(); st.lastCometAt = now; }
+        for (const s of st.stars){
+          this._applyHoles(s, st);
+          s.x += s.vx; s.y += s.vy;
+          s.vx *= 0.985; s.vy *= 0.985;
+          s.ph += s.phs;
+          if (s.x < -30) s.x = st.W + 30;
+          if (s.x > st.W + 30) s.x = -30;
+          if (s.y < -30) s.y = st.H + 30;
+          if (s.y > st.H + 30) s.y = -30;
+        }
+        for (let i=st.comets.length-1;i>=0;i--){
+          const c=st.comets[i];
+          c.x += c.vx; c.y += c.vy;
+          c.life -= 1;
+          c.sparkle += 0.08;
+          if (c.life<=0 || c.x<-260 || c.x>st.W+260 || c.y<-260 || c.y>st.H+260) st.comets.splice(i,1);
+        }
       }
-      for (let i=st.comets.length-1;i>=0;i--){
-        const c=st.comets[i];
-        c.x += c.vx; c.y += c.vy;
-        c.life -= 1;
-        c.sparkle += 0.08;
-        if (c.life<=0 || c.x<-260 || c.x>st.W+260 || c.y<-260 || c.y>st.H+260) st.comets.splice(i,1);
-      }
+      
+      // Always render if either animation is enabled
       this._render(now*0.001);
     }
     this._raf = requestAnimationFrame(this._loop);

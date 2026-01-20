@@ -2,6 +2,7 @@ import type { DB } from '../db';
 import { ROLE_META, THEMES, defaultThemeForRole } from '../themes';
 import { authErrorToResponse, clearSessionCookieHeaders, createSession, requireAuth, setSessionCookieHeaders } from '../auth';
 import { error, json, nowISO, randomInviteCode, readJson, sanitizeLogin, todayYMD, validateEmail, validateLogin, validatePassword } from '../utils';
+import { getVapidPublicKeyB64Url, sendWebPush } from '../push';
 
 function themeAllowed(role: string, theme: string){
   return THEMES.some(t => t.id === theme && t.role === role);
@@ -501,6 +502,43 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
       return json({ ok: true, text: rewritten });
     }
 
+    // --- Push
+    if (req.method === 'GET' && path === '/api/push/vapidPublicKey') {
+      const { } = requireAuth(db, req);
+      const key = await getVapidPublicKeyB64Url();
+      return json({ ok: true, publicKey: key });
+    }
+
+    if (req.method === 'POST' && path === '/api/push/subscribe') {
+      const { user } = requireAuth(db, req);
+      const body = await readJson(req);
+      const endpoint = String(body?.endpoint || '').trim();
+      const p256dh = String(body?.keys?.p256dh || '').trim();
+      const auth = String(body?.keys?.auth || '').trim();
+      if (!endpoint || !p256dh || !auth) return error('Неверная подписка.');
+
+      // Upsert by endpoint
+      db.run(
+        'INSERT INTO push_subscriptions (user_id, endpoint, p256dh, auth, created_at, last_seen_at) VALUES (?,?,?,?,?,?) ' +
+        'ON CONFLICT(endpoint) DO UPDATE SET user_id=excluded.user_id, p256dh=excluded.p256dh, auth=excluded.auth, last_seen_at=excluded.last_seen_at',
+        [user.id, endpoint, p256dh, auth, nowISO(), nowISO()]
+      );
+
+      return json({ ok: true });
+    }
+
+    if (req.method === 'POST' && path === '/api/push/unsubscribe') {
+      const { user } = requireAuth(db, req);
+      const body = await readJson(req);
+      const endpoint = String(body?.endpoint || '').trim();
+      if (endpoint) {
+        db.run('DELETE FROM push_subscriptions WHERE user_id = ? AND endpoint = ?', [user.id, endpoint]);
+      } else {
+        db.run('DELETE FROM push_subscriptions WHERE user_id = ?', [user.id]);
+      }
+      return json({ ok: true });
+    }
+
     // --- Stats
     if (req.method === 'GET' && path === '/api/stats') {
       const { user } = requireAuth(db, req);
@@ -669,6 +707,46 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
       return json({ entries: mapped, nextCursor, nextBefore });
     }
 
+    // --- Live helper: fetch NEW entries after a cursor (date+id).
+    // Returns count + newest items (limited). Excludes the requesting user's own entries.
+    if (req.method === 'GET' && path === '/api/entries/new') {
+      const { user } = requireAuth(db, req);
+      const afterDate = String(url.searchParams.get('afterDate') || '').trim();
+      const afterId = Number(url.searchParams.get('afterId') || '0');
+      const limit = Math.max(1, Math.min(10, Number(url.searchParams.get('limit') || '3')));
+
+      if (!afterDate || !afterId) {
+        return json({ ok: true, count: 0, entries: [] });
+      }
+
+      const where = 'u.team_id = ? AND e.user_id != ? AND (e.date > ? OR (e.date = ? AND e.id > ?))';
+      const args: any[] = [user.team_id, user.id, afterDate, afterDate, afterId];
+
+      const countRow = db.query(
+        `SELECT COUNT(*) AS c
+         FROM entries e
+         JOIN users u ON u.id = e.user_id
+         WHERE ${where}`
+      ).get(...args) as any;
+
+      const rows = db.query(
+        `SELECT e.id, e.user_id, e.date, e.victory, e.lesson, e.created_at
+         FROM entries e
+         JOIN users u ON u.id = e.user_id
+         WHERE ${where}
+         ORDER BY e.date DESC, e.id DESC
+         LIMIT ?`
+      ).all(...args, limit) as any[];
+
+      const mapped = rows.map(e => ({
+        ...e,
+        victory: e.victory ? Buffer.from(e.victory).toString('base64') : null,
+        lesson: e.lesson ? Buffer.from(e.lesson).toString('base64') : null,
+      }));
+
+      return json({ ok: true, count: Number(countRow?.c || 0), entries: mapped });
+    }
+
     if (req.method === 'POST' && path === '/api/entries') {
       const { user } = requireAuth(db, req);
       const body = await readJson(req);
@@ -678,14 +756,59 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
 
       // Infinite path: allow multiple entries per day.
       const date = todayYMD();
+      const createdAt = nowISO();
       const vblob = gzipText(victory);
       const lblob = gzipText(lesson);
 
       db.run('INSERT INTO entries (user_id, date, victory, lesson, created_at) VALUES (?,?,?,?,?)', [
-        user.id, date, vblob, lblob, nowISO(),
+        user.id, date, vblob, lblob, createdAt,
       ]);
       const row = db.query('SELECT last_insert_rowid() AS id').get() as any;
-      return json({ ok: true, id: Number(row.id), created: true });
+      const entryId = Number(row.id);
+
+      // Web Push (best-effort): notify teammates (exclude author)
+      try {
+        const authorName = String(user.name || 'Спутник');
+        const preview = (victory && victory.trim())
+          ? victory.trim().split(/\r?\n/)[0].slice(0, 140)
+          : (lesson && lesson.trim())
+            ? lesson.trim().split(/\r?\n/)[0].slice(0, 140)
+            : '';
+
+        const subs = db.query(
+          `SELECT ps.id, ps.endpoint, ps.p256dh, ps.auth, ps.user_id
+           FROM push_subscriptions ps
+           JOIN users u ON u.id = ps.user_id
+           WHERE u.team_id = ? AND ps.user_id != ?`
+        ).all(user.team_id, user.id) as any[];
+
+        const subject = String(process.env.PARITER_VAPID_SUBJECT || 'mailto:admin@pariter.local');
+        const payloadJson = {
+          type: 'entry',
+          entry: { id: entryId, date, created_at: createdAt },
+          author: { id: user.id, name: authorName, role: String(user.role || '') },
+          preview,
+        };
+
+        const results = await Promise.allSettled(subs.map(async (s)=>{
+          const res = await sendWebPush({
+            subscription: { endpoint: String(s.endpoint), p256dh: String(s.p256dh), auth: String(s.auth) },
+            payloadJson,
+            subject,
+          });
+          // Remove dead subscriptions
+          if (res.status === 404 || res.status === 410) {
+            db.run('DELETE FROM push_subscriptions WHERE id = ?', [Number(s.id)]);
+          }
+          return res.status;
+        }));
+        // ignore results
+        void results;
+      } catch {
+        // ignore push errors
+      }
+
+      return json({ ok: true, id: entryId, created: true });
     }
 
     if (req.method === 'PUT' && path.startsWith('/api/entries/')) {

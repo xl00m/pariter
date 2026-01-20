@@ -60,6 +60,18 @@ export function migrate(db: DB){
     FOREIGN KEY(user_id) REFERENCES users(id)
   );`);
 
+  // Web Push subscriptions
+  db.run(`CREATE TABLE IF NOT EXISTS push_subscriptions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    endpoint TEXT NOT NULL,
+    p256dh TEXT NOT NULL,
+    auth TEXT NOT NULL,
+    created_at TEXT,
+    last_seen_at TEXT,
+    FOREIGN KEY(user_id) REFERENCES users(id)
+  );`);
+
   // AI memory: persistent compressed context per user (to keep context under 100KB)
   // last_entry_id tracks up to which entry the compressed summary includes.
   db.run(`CREATE TABLE IF NOT EXISTS ai_memory (
@@ -85,6 +97,8 @@ export function migrate(db: DB){
 
   db.run('CREATE INDEX IF NOT EXISTS idx_invites_code ON invites(code);');
   db.run('CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at);');
+  db.run('CREATE UNIQUE INDEX IF NOT EXISTS idx_push_endpoint_unique ON push_subscriptions(endpoint);');
+  db.run('CREATE INDEX IF NOT EXISTS idx_push_user ON push_subscriptions(user_id);');
 
   // ensure created_at for existing nulls
   const ts = nowISO();

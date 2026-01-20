@@ -61,7 +61,7 @@ export function layout({ title, description, body, themeId, bootstrap }: { title
       try {
         if ('serviceWorker' in navigator) {
           window.addEventListener('load', function(){
-            navigator.serviceWorker.register('/static/sw.js').catch(function(){});
+            navigator.serviceWorker.register('/static/sw.js', { scope: '/' }).catch(function(){});
           });
         }
       } catch {}

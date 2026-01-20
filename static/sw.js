@@ -81,3 +81,70 @@ self.addEventListener('fetch', (event) => {
     })());
   }
 });
+
+// Push notifications
+self.addEventListener('push', (event) => {
+  event.waitUntil((async ()=>{
+    try {
+      let data: any = null;
+      try {
+        data = event.data ? event.data.json() : null;
+      } catch {
+        // Some push services can deliver non-JSON payloads; fallback to text.
+        const t = event.data ? event.data.text() : '';
+        data = { type: 'text', text: String(t || '').trim() };
+      }
+
+      if (!data || typeof data !== 'object') return;
+
+      if (data.type === 'entry') {
+        const authorName = data?.author?.name || 'Спутник';
+        const preview = String(data?.preview || '').trim();
+        const title = `Новый шаг: ${authorName}`;
+        const body = preview ? preview.slice(0, 160) : 'Открой Pariter, чтобы посмотреть.';
+        const tag = data?.entry?.id ? `pariter_entry_${data.entry.id}` : 'pariter_entry';
+
+        await self.registration.showNotification(title, {
+          body,
+          tag,
+          renotify: false,
+          data: { url: '/path' },
+        });
+        return;
+      }
+
+      // Fallback: show whatever text we got
+      if (data.type === 'text' && data.text) {
+        await self.registration.showNotification('Pariter', {
+          body: String(data.text).slice(0, 160),
+          tag: 'pariter_text',
+          renotify: false,
+          data: { url: '/path' },
+        });
+      }
+    } catch {
+      // ignore
+    }
+  })());
+});
+
+// Notifications: focus/open the app on click.
+self.addEventListener('notificationclick', (event) => {
+  try { event.notification.close(); } catch {}
+  const url = (event.notification && event.notification.data && event.notification.data.url) ? event.notification.data.url : '/path';
+  event.waitUntil((async ()=>{
+    try {
+      const all = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+      for (const c of all) {
+        try {
+          if ('focus' in c) {
+            await c.focus();
+            if ('navigate' in c) await c.navigate(url);
+            return;
+          }
+        } catch {}
+      }
+      if (self.clients.openWindow) await self.clients.openWindow(url);
+    } catch {}
+  })());
+});

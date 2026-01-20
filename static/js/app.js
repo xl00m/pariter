@@ -14,7 +14,7 @@ const APP = {
     route: { path: '/', params: {} },
     feed: { cursor: null, loading: false, done: false, lastRenderedDate: null, renderedCount: 0 },
     cache: { entryText: new Map() },
-    live: { topKey: null, pending: false },
+    live: { topKey: null, pending: false, unread: 0, lastNotifiedKey: null, prompted: false },
   }
 };
 
@@ -307,6 +307,15 @@ const api = {
     }
     return apiFetch('/api/entries?' + p.toString());
   },
+  entriesNew: ({after, limit=3}={})=>{
+    const p = new URLSearchParams();
+    if (after?.date && after?.id) {
+      p.set('afterDate', after.date);
+      p.set('afterId', String(after.id));
+    }
+    p.set('limit', String(limit));
+    return apiFetch('/api/entries/new?' + p.toString());
+  },
   entryCreate: ({victory, lesson})=> apiFetch('/api/entries', { method:'POST', body: { victory, lesson } }),
   // legacy name (kept for older code paths)
   entryUpsertToday: ({victory, lesson})=> apiFetch('/api/entries', { method:'POST', body: { victory, lesson } }),
@@ -317,6 +326,11 @@ const api = {
   import: ({data, defaultPassword})=> apiFetch('/api/import', { method:'POST', body: { data, defaultPassword } }),
   stats: ()=> apiFetch('/api/stats'),
   aiRewrite: ({field, text})=> apiFetch('/api/ai/rewrite', { method:'POST', body: { field, text } }),
+
+  // Push
+  pushVapidKey: ()=> apiFetch('/api/push/vapidPublicKey'),
+  pushSubscribe: ({ endpoint, keys })=> apiFetch('/api/push/subscribe', { method:'POST', body: { endpoint, keys } }),
+  pushUnsubscribe: ({ endpoint=null }={})=> apiFetch('/api/push/unsubscribe', { method:'POST', body: { endpoint } }),
 };
 
 // server returns base64(Bun.gzipSync(text)) in entry.victory / entry.lesson
@@ -386,7 +400,10 @@ function setDocumentTitle(routePath){
   else if (routePath === '/path') t = `Путь — ${base}`;
   else if (routePath === '/invite') t = `Спутники — ${base}`;
   else if (routePath === '/settings') t = `Настройки — ${base}`;
-  try { document.title = t; } catch {}
+
+  const n = Number(APP?.state?.live?.unread || 0);
+  const prefix = (n > 0) ? `(${Math.min(n, 99)}) ` : '';
+  try { document.title = prefix + t; } catch {}
 }
 
 function nav(path){
@@ -564,17 +581,17 @@ function DateDivider(label){
 }
 
 function EntryCard({entry, author, meId}){
-  const isMine = entry.user_id === meId;
+  const isMine = Number(entry.user_id) === Number(meId);
   const roleEmoji = ROLE_META[author?.role]?.emoji || '✦';
   const authorName = author?.name || 'Неизвестный';
   const dateLabel = ruDateLabel(entry.date);
   const timeLabel = entry?.created_at ? ruTimeLabel(entry.created_at) : '';
 
   return `
-    <article class="card" style="padding: 14px;">
-      <div class="rowBetween">
+    <article class="card" data-mine="${isMine ? '1' : '0'}" style="padding: 0;">
+      <div class="rowBetween entryHead" style="padding: 10px 10px 0; align-items: flex-start;">
         <div class="row" style="gap:10px; min-width:0">
-          <div style="width:40px;height:40px;border-radius:999px;display:grid;place-items:center;border:1px solid var(--border);background:rgba(255,255,255,.03)">${roleEmoji}</div>
+          <div style="width:38px;height:38px;border-radius:999px;display:grid;place-items:center;border:1px solid var(--border);background:rgba(255,255,255,.03)">${roleEmoji}</div>
           <div style="min-width:0">
             <div style="font-weight: 900; white-space: nowrap; overflow:hidden; text-overflow: ellipsis;">${escapeHTML(authorName)}</div>
             <div class="textMuted" style="font-size: 12px">${escapeHTML(dateLabel)}${timeLabel ? ` <span aria-hidden="true">·</span> ${escapeHTML(timeLabel)}` : ''}</div>
@@ -588,7 +605,7 @@ function EntryCard({entry, author, meId}){
         ` : ''}
       </div>
 
-      <div class="grid" style="margin-top: 12px;">
+      <div class="grid entryBubbles" style="margin-top: 10px; padding: 0 10px 12px;">
         <div class="soft" style="padding: 12px; background: var(--victory)">
           <div style="font-size: 12px; font-weight: 900; letter-spacing:.16em">⚔️ VICTORIA</div>
           <div style="margin-top: 6px; white-space: pre-wrap; word-break: break-word;" data-entry-text="victory" data-id="${entry.id}">…</div>
@@ -804,7 +821,7 @@ function pagePath(){
       <div style="margin-top: 18px;">
         <div id="liveBar" class="hidden" style="position: sticky; top: 62px; z-index: 30; margin-bottom: 10px;">
           <div class="soft" style="padding: 10px 12px; display:flex; align-items:center; justify-content: space-between; gap: 10px; background: color-mix(in srgb, var(--accent) 10%, transparent); border-color: color-mix(in srgb, var(--accent) 40%, var(--border));">
-            <div style="font-weight: 800">Новые шаги</div>
+            <div style="font-weight: 800">Новые шаги <span id="liveCount" class="textMuted" style="font-weight:700"></span></div>
             <div class="row" style="gap: 8px">
               <button type="button" class="btn-ghost" style="padding: 10px 12px" data-action="live-dismiss">Скрыть</button>
               <button type="button" class="btn" style="padding: 10px 14px" data-action="live-refresh">Обновить</button>
@@ -891,6 +908,25 @@ function pageSettings(){
           <div class="row" style="margin-top: 10px; flex-wrap: wrap">
             <button type="button" class="btn" data-action="pwa-install" id="pwaInstallBtn" disabled>Установить</button>
             <span class="pill textMuted" id="pwaStatus" style="font-size: 12px">проверяю…</span>
+          </div>
+        </div>
+
+        <div class="soft" style="padding: 14px; margin-top: 14px">
+          <div style="font-weight: 900">Уведомления</div>
+          <div class="textMuted" style="margin-top: 6px; font-size: 12px; line-height: 1.45">
+            Когда спутник делает новый шаг, Pariter может показать уведомление и поставить индикатор на иконке приложения.
+            Для Android/desktop «как в мессенджерах» нужен Push (работает по HTTPS).
+          </div>
+
+          <div class="row" style="margin-top: 10px; flex-wrap: wrap">
+            <button type="button" class="btn" data-action="notif-enable" id="notifBtn">Разрешить уведомления</button>
+            <span class="pill textMuted" id="notifStatus" style="font-size: 12px">проверяю…</span>
+          </div>
+
+          <div class="row" style="margin-top: 10px; flex-wrap: wrap">
+            <button type="button" class="btn" data-action="push-enable" id="pushBtn">Включить push</button>
+            <button type="button" class="btn-ghost hidden" data-action="push-disable" id="pushOffBtn">Выключить</button>
+            <span class="pill textMuted" id="pushStatus" style="font-size: 12px">проверяю…</span>
           </div>
         </div>
 
@@ -1025,8 +1061,8 @@ async function render(){
     hydrateFeed._io = null;
   }
 
-  // Live updates: run only on /path and only when authed.
-  if (route === '/path' && APP.state.user) liveStart();
+  // Live updates: run while authed. Feed auto-refresh happens only on /path.
+  if (APP.state.user) liveStart();
   else liveStop();
 
   let html = '';
@@ -1043,8 +1079,10 @@ async function render(){
   bindHandlers();
 
   if (route === '/settings' && APP.state.user) {
-    // ensure PWA UI reflects current installability
+    // ensure installability/notifications UI reflects current browser state
     setTimeout(()=>{ try { updatePwaUI(); } catch {} }, 0);
+    setTimeout(()=>{ try { updateNotifUI(); } catch {} }, 0);
+    setTimeout(()=>{ try { updatePushUI(); } catch {} }, 0);
   }
 
   if ((route === '/' || route === '/login' || route === '/register' || route === '/join') && !APP.state.user) {
@@ -1054,6 +1092,10 @@ async function render(){
 
   if (route === '/join' && !APP.state.user) await hydrateJoin();
   if (route === '/path' && APP.state.user) {
+    // entering /path means user is likely to read the feed
+    APP.state.live.unread = 0;
+    updateAttentionIndicators();
+
     await hydratePathStats();
     await hydrateTodayForm();
     await hydrateFeed(true);
@@ -1091,6 +1133,37 @@ function bindHandlers(){
   // Prevents duplicate listeners when feed/invite blocks are re-rendered.
   if (!bindHandlers._delegated) {
     bindHandlers._delegated = true;
+
+    // Keep app badge/title in sync when user returns to the tab.
+    document.addEventListener('visibilitychange', ()=>{
+      try {
+        if (!document.hidden && APP.state.user && APP.state.route?.path === '/path') {
+          // if user is at top, consider them caught up
+          const nearTop = (window.scrollY || document.documentElement.scrollTop || 0) < 220;
+          if (nearTop) {
+            APP.state.live.unread = 0;
+            updateAttentionIndicators();
+            liveBarHide();
+          }
+        }
+      } catch {}
+    });
+
+    // Auto-apply new steps when user scrolls back to the top.
+    window.addEventListener('scroll', ()=>{
+      try {
+        if (!APP.state.user) return;
+        if (APP.state.route?.path !== '/path') return;
+        if (!APP.state.live.unread) return;
+        const nearTop = (window.scrollY || document.documentElement.scrollTop || 0) < 220;
+        if (!nearTop) return;
+
+        clearTimeout(bindHandlers._scrollT);
+        bindHandlers._scrollT = setTimeout(()=>{
+          liveApplyIfNeeded({ force: true });
+        }, 120);
+      } catch {}
+    }, { passive: true });
 
     document.addEventListener('click', async (e)=>{
       // Let modal handle its own buttons.
@@ -1162,6 +1235,59 @@ function bindHandlers(){
           else toast('Отменено.');
         } catch {
           toast('Не удалось запустить установку.');
+        }
+        return;
+      }
+
+      // Notifications permission
+      if (action === 'notif-enable') {
+        try {
+          if (typeof Notification === 'undefined') {
+            toast('Уведомления не поддерживаются в этом браузере.');
+            updateNotifUI();
+            return;
+          }
+          const p = await Notification.requestPermission();
+          updateNotifUI();
+          if (p === 'granted') {
+            toast('Уведомления включены.');
+            // small confirmation (best-effort)
+            try {
+              await notifyNewEntry({ id: 0, date: todayYMD(), user_id: APP.state.user?.id || 0, victory: null, lesson: null, created_at: nowISO() });
+            } catch {}
+          } else if (p === 'denied') {
+            toast('Уведомления запрещены в браузере.');
+          } else {
+            toast('Уведомления не включены.');
+          }
+        } catch {
+          toast('Не удалось запросить разрешение на уведомления.');
+        }
+        return;
+      }
+
+      // Push (Android/desktop messenger-like notifications)
+      if (action === 'push-enable') {
+        try {
+          await enablePush();
+          toast('Push включен.');
+        } catch (err) {
+          toast(err.message || 'Не удалось включить push.');
+        } finally {
+          try { updateNotifUI(); } catch {}
+          try { updatePushUI(); } catch {}
+        }
+        return;
+      }
+
+      if (action === 'push-disable') {
+        try {
+          await disablePush();
+          toast('Push выключен.');
+        } catch {
+          toast('Не удалось выключить push.');
+        } finally {
+          try { updatePushUI(); } catch {}
         }
         return;
       }
@@ -1903,18 +2029,102 @@ function liveKeyOf(entry){
 function liveBarShow(){
   const el = $('#liveBar');
   if (!el) return;
+  const c = document.getElementById('liveCount');
+  if (c) {
+    const n = Number(APP.state.live.unread || 0);
+    c.textContent = n > 0 ? `(${Math.min(n, 99)})` : '';
+  }
   el.classList.remove('hidden');
 }
 
 function liveBarHide(){
   const el = $('#liveBar');
   if (!el) return;
+  const c = document.getElementById('liveCount');
+  if (c) c.textContent = '';
   el.classList.add('hidden');
+}
+
+function updateAttentionIndicators(){
+  const n = Math.max(0, Number(APP.state.live.unread || 0));
+  // Taskbar/app badge (Chrome/Edge, Android, some desktop PWAs)
+  try {
+    if (typeof navigator !== 'undefined' && 'setAppBadge' in navigator) {
+      // @ts-ignore
+      if (n > 0) navigator.setAppBadge(Math.min(n, 99));
+      // @ts-ignore
+      else navigator.clearAppBadge();
+    }
+  } catch {}
+  // Title prefix
+  try { setDocumentTitle(APP.state.route?.path || parseRoute().path); } catch {}
+}
+
+async function notifyNewEntry(entry){
+  try {
+    if (typeof Notification === 'undefined') return;
+    if (Notification.permission !== 'granted') {
+      if (Notification.permission === 'default' && !APP.state.live.prompted) {
+        APP.state.live.prompted = true;
+        toast('Разреши уведомления в настройках, чтобы видеть новые шаги.');
+      }
+      return;
+    }
+
+    // Do not spam when user is actively reading the app.
+    const shouldNotify = document.hidden || (typeof document.hasFocus === 'function' && !document.hasFocus());
+    if (!shouldNotify) return;
+
+    const map = teamUserMap();
+    const author = map.get(entry.user_id);
+    const authorName = author?.name || 'Спутник';
+
+    let body = '';
+    try {
+      const v = await gunzipB64(entry.victory);
+      const l = await gunzipB64(entry.lesson);
+      const pick = (v && v.trim()) ? v.trim() : (l && l.trim()) ? l.trim() : '';
+      body = pick ? pick.split(/\r?\n/)[0].slice(0, 140) : '';
+    } catch {}
+
+    // Aggregation hint: if we got a batch, show “and more”.
+    const extra = Math.max(0, Number(entry._extraCount || 0));
+    if (extra > 0) {
+      body = body
+        ? `${body} (и еще ${extra})`
+        : `Новых шагов: ${extra + 1}`;
+    }
+
+    const title = `Новый шаг: ${authorName}`;
+    const tag = `pariter_${entry.date}_${entry.id}`;
+    const opts = {
+      body,
+      tag,
+      renotify: false,
+      data: { url: '/path' },
+    };
+
+    // Prefer showing notification through Service Worker for better OS integration.
+    try {
+      const reg = await navigator.serviceWorker?.getRegistration?.();
+      if (reg && reg.showNotification) {
+        await reg.showNotification(title, opts);
+        return;
+      }
+    } catch {}
+
+    try {
+      // Fallback: in-page notification
+      // @ts-ignore
+      new Notification(title, opts);
+    } catch {}
+  } catch {}
 }
 
 async function liveApplyIfNeeded({ force=false }={}){
   if (!APP.state.user) return;
   if (APP.state.feed.loading) return;
+  if (APP.state.live.pending) return;
 
   const nearTop = (window.scrollY || document.documentElement.scrollTop || 0) < 220;
   if (!force && !nearTop) {
@@ -1922,32 +2132,77 @@ async function liveApplyIfNeeded({ force=false }={}){
     return;
   }
 
-  liveBarHide();
-  // Full refresh to keep things simple and consistent.
-  await hydratePathStats();
-  await hydrateFeed(true);
+  APP.state.live.pending = true;
+  try {
+    // User is effectively "caught up".
+    APP.state.live.unread = 0;
+    updateAttentionIndicators();
+
+    liveBarHide();
+    // Full refresh to keep things simple and consistent.
+    await hydratePathStats();
+    await hydrateFeed(true);
+  } finally {
+    APP.state.live.pending = false;
+  }
 }
 
 async function liveTick(){
   if (!APP.state.user) return;
-  if (APP.state.route?.path !== '/path') return;
   if (APP.state.sidebarOpen) return;
 
   try {
-    const r = await api.entriesGet({ limit: 1, before: null });
-    const top = (r?.entries && r.entries[0]) ? r.entries[0] : null;
-    const key = liveKeyOf(top);
-    if (!key) return;
-
+    // Prime baseline if missing: latest entry in team feed.
     if (!APP.state.live.topKey) {
-      APP.state.live.topKey = key;
+      const r0 = await api.entriesGet({ limit: 1, before: null });
+      const top0 = (r0?.entries && r0.entries[0]) ? r0.entries[0] : null;
+      const k0 = liveKeyOf(top0);
+      if (k0) {
+        APP.state.live.topKey = k0;
+        APP.state.live.lastNotifiedKey = k0;
+      }
       return;
     }
 
-    if (APP.state.live.topKey !== key) {
-      APP.state.live.topKey = key;
-      await liveApplyIfNeeded({ force:false });
+    const cur = APP.state.live.topKey;
+    const [afterDate, afterIdStr] = String(cur).split('#');
+    const afterId = Number(afterIdStr || '0');
+    if (!afterDate || !afterId) return;
+
+    const r = await api.entriesNew({ after: { date: afterDate, id: afterId }, limit: 3 });
+    const count = Number(r?.count || 0);
+    const newest = (Array.isArray(r?.entries) && r.entries.length) ? r.entries[0] : null;
+
+    if (!count || !newest) return;
+
+    const newKey = liveKeyOf(newest);
+    if (!newKey) return;
+
+    // Advance our baseline to the newest known entry (so next tick is incremental).
+    APP.state.live.topKey = newKey;
+
+    const route = APP.state.route?.path;
+    const nearTop = (window.scrollY || document.documentElement.scrollTop || 0) < 220;
+
+    if (route === '/path' && nearTop) {
+      // user is looking at the top, auto-refresh
+      APP.state.live.unread = 0;
+      updateAttentionIndicators();
+      await liveApplyIfNeeded({ force: true });
+      return;
     }
+
+    // user is not at the top (or not on /path): accumulate unread precisely
+    APP.state.live.unread = Math.min(99, Number(APP.state.live.unread || 0) + Math.min(99, count));
+    updateAttentionIndicators();
+    if (route === '/path') liveBarShow();
+
+    // Notifications: one per newKey (aggregated)
+    if (APP.state.live.lastNotifiedKey !== newKey) {
+      APP.state.live.lastNotifiedKey = newKey;
+      await notifyNewEntry({ ...newest, _extraCount: Math.max(0, count - 1) });
+    }
+
   } catch {
     // ignore network errors in live mode
   }
@@ -1966,7 +2221,10 @@ function liveStop(){
     liveStart._timer = null;
   }
   APP.state.live.topKey = null;
+  APP.state.live.lastNotifiedKey = null;
+  APP.state.live.unread = 0;
   liveBarHide();
+  updateAttentionIndicators();
 }
 
 async function hydrateFeed(reset=false){
@@ -2208,6 +2466,125 @@ function updatePwaUI(){
     btn.disabled = true;
     st.textContent = 'недоступно';
   }
+}
+
+function updateNotifUI(){
+  const btn = document.getElementById('notifBtn');
+  const st = document.getElementById('notifStatus');
+  if (!btn || !st) return;
+
+  if (typeof Notification === 'undefined') {
+    btn.disabled = true;
+    st.textContent = 'не поддерживается';
+    return;
+  }
+
+  const p = Notification.permission;
+  if (p === 'granted') {
+    btn.disabled = true;
+    st.textContent = 'разрешено';
+    return;
+  }
+  if (p === 'denied') {
+    btn.disabled = true;
+    st.textContent = 'запрещено';
+    return;
+  }
+  btn.disabled = false;
+  st.textContent = 'не разрешено';
+  // Push UI depends on notification permission too.
+  try { updatePushUI(); } catch {}
+}
+
+function b64urlToU8(b64url){
+  let s = String(b64url || '').replaceAll('-', '+').replaceAll('_', '/');
+  const pad = s.length % 4;
+  if (pad) s += '='.repeat(4 - pad);
+  const bin = atob(s);
+  const u8 = new Uint8Array(bin.length);
+  for (let i=0;i<bin.length;i++) u8[i] = bin.charCodeAt(i);
+  return u8;
+}
+
+async function updatePushUI(){
+  const btn = document.getElementById('pushBtn');
+  const off = document.getElementById('pushOffBtn');
+  const st = document.getElementById('pushStatus');
+  if (!btn || !st) return;
+
+  const hasSW = ('serviceWorker' in navigator);
+  const hasPush = (typeof PushManager !== 'undefined');
+  const isSecure = (location.protocol === 'https:' || location.hostname === 'localhost');
+
+  if (!hasSW || !hasPush) {
+    btn.disabled = true;
+    if (off) off.classList.add('hidden');
+    st.textContent = 'не поддерживается';
+    return;
+  }
+  if (!isSecure) {
+    btn.disabled = true;
+    if (off) off.classList.add('hidden');
+    st.textContent = 'нужен https';
+    return;
+  }
+
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.getSubscription();
+    const enabled = !!sub;
+
+    if (enabled) {
+      btn.disabled = true;
+      if (off) off.classList.remove('hidden');
+      st.textContent = 'включено';
+    } else {
+      btn.disabled = false;
+      if (off) off.classList.add('hidden');
+      st.textContent = 'выключено';
+    }
+  } catch {
+    btn.disabled = true;
+    if (off) off.classList.add('hidden');
+    st.textContent = 'ошибка';
+  }
+}
+
+async function enablePush(){
+  if (typeof Notification === 'undefined') throw new Error('Уведомления не поддерживаются.');
+  if (Notification.permission !== 'granted') {
+    const p = await Notification.requestPermission();
+    updateNotifUI();
+    if (p !== 'granted') throw new Error('Разрешение на уведомления не выдано.');
+  }
+
+  const reg = await navigator.serviceWorker.ready;
+
+  const { publicKey } = await api.pushVapidKey();
+  if (!publicKey) throw new Error('Push ключ не получен.');
+
+  const sub = await reg.pushManager.subscribe({
+    userVisibleOnly: true,
+    applicationServerKey: b64urlToU8(publicKey),
+  });
+
+  const json = sub.toJSON();
+  await api.pushSubscribe({ endpoint: json.endpoint, keys: json.keys });
+  try { await updatePushUI(); } catch {}
+  return true;
+}
+
+async function disablePush(){
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.getSubscription();
+    if (sub) {
+      const json = sub.toJSON();
+      await sub.unsubscribe().catch(()=>{});
+      await api.pushUnsubscribe({ endpoint: json?.endpoint || null }).catch(()=>{});
+    }
+  } catch {}
+  try { await updatePushUI(); } catch {}
 }
 
 document.addEventListener('click', (e)=>{

@@ -1577,6 +1577,7 @@ function EntryCard({entry, author, meId, meIsAdmin}){
   const roleEmoji = ROLE_META[author?.role]?.emoji || '✦';
   const authorName = author?.name || 'Неизвестный';
   const dateLabel = ruDateLabel(entry.date);
+  // Если у записи есть created_at, используем его для времени, иначе если есть дата - показываем 00:00, иначе пусто
   const timeLabel = entry?.created_at ? ruTimeLabel(entry.created_at) : (entry?.date ? '00:00' : '');
 
   // Editing is done by tapping the field (bubble). Buttons are only for delete.

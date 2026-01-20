@@ -130,7 +130,7 @@ self.addEventListener('push', (event) => {
           if (newest) {
             const authorName = String(newest?.author?.name || 'Спутник');
             const preview = String(newest?.preview || '').trim();
-            title = `Новый шаг: ${authorName}`;
+            title = authorName;
             body = preview ? preview.slice(0, 160) : body;
             url = '/path';
 
@@ -164,12 +164,41 @@ self.addEventListener('push', (event) => {
           if (data.type === 'entry') {
             const authorName = data?.author?.name || 'Спутник';
             const preview = String(data?.preview || '').trim();
-            title = `Новый шаг: ${authorName}`;
+            title = authorName;
             body = preview ? preview.slice(0, 160) : body;
           } else if (data.type === 'text' && data.text) {
             title = 'Pariter';
             body = String(data.text).slice(0, 160);
           }
+        }
+      } catch {}
+
+      // Messenger-like: keep a single pinned inbox notification.
+      // Do not spam duplicates: if we receive multiple identical pushes in a short window,
+      // ignore the repeats.
+      try {
+        const now = Date.now();
+        const sig = `${title}\n${body}`;
+        // @ts-ignore
+        const lastAt = Number(self.__pariterLastAt || 0);
+        // @ts-ignore
+        const lastSig = String(self.__pariterLastSig || '');
+        if (sig === lastSig && (now - lastAt) < 6000) {
+          return;
+        }
+        // @ts-ignore
+        self.__pariterLastAt = now;
+        // @ts-ignore
+        self.__pariterLastSig = sig;
+      } catch {}
+
+      // Close any old non-inbox notifications so tray doesn't accumulate legacy tags.
+      try {
+        const notes = await self.registration.getNotifications({});
+        for (const n of notes) {
+          try {
+            if (n?.tag && n.tag !== inboxTag) n.close();
+          } catch {}
         }
       } catch {}
 

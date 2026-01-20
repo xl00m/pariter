@@ -2201,7 +2201,12 @@ async function notifyNewEntry(entry){
         : `Новых шагов: ${extra + 1}`;
     }
 
-    const title = `Новый шаг: ${authorName}`;
+    // If server push is enabled, do not duplicate OS notifications from the in-page code.
+    try {
+      if (readPushDesired && readPushDesired()) return;
+    } catch {}
+
+    const title = `${authorName}`;
     const tag = `pariter_${entry.date}_${entry.id}`;
     const opts = {
       body,
@@ -2311,7 +2316,11 @@ async function liveTick(){
     // Notifications: one per newKey (aggregated)
     if (APP.state.live.lastNotifiedKey !== newKey) {
       APP.state.live.lastNotifiedKey = newKey;
-      await notifyNewEntry({ ...newest, _extraCount: Math.max(0, count - 1) });
+      // If push is enabled, OS notification will be shown by Service Worker.
+      // In-page notifications would duplicate it.
+      if (!(readPushDesired && readPushDesired())) {
+        await notifyNewEntry({ ...newest, _extraCount: Math.max(0, count - 1) });
+      }
       // Soft cosmic sound (messenger-like: only when app is NOT in focus)
       try { playCosmicChime(); } catch {}
     }
@@ -2650,9 +2659,16 @@ async function ensureServiceWorkerForPush(){
           const anyUrl = activeUrl || waitingUrl || installingUrl;
 
           // We want only /sw.js with scope '/'. Remove /static/sw.js and other stray scopes.
-          const badScope = scopePath.startsWith('/static');
+          // Keep only a root-scope service worker (/sw.js). Remove any legacy /static scope or wrong script.
+          const badScope = scopePath !== '/';
           const badScript = anyUrl && anyUrl !== '/sw.js';
           if (badScope || badScript) {
+            // Best-effort: unsubscribe old push subscription to stop duplicate notifications.
+            try {
+              const sub = await r.pushManager?.getSubscription?.();
+              if (sub) await sub.unsubscribe().catch(()=>{});
+            } catch {}
+
             await r.unregister().catch(()=>{});
           }
         } catch {}
@@ -3143,7 +3159,15 @@ document.addEventListener('click', (e)=>{
 
   // Best-effort: ensure root-scope Service Worker is registered early (needed for Push on Android).
   try {
-    await ensureServiceWorkerForPush();
+    const reg = await ensureServiceWorkerForPush();
+
+    // If a PushSubscription already exists, treat push as enabled.
+    // This prevents duplicate OS notifications (SW + in-page) if localStorage flag was lost.
+    try {
+      const sub = await reg.pushManager.getSubscription();
+      if (sub) writePushDesired(true);
+    } catch {}
+
     // Send stored token to SW so pushsubscriptionchange can resubscribe without cookies.
     try {
       const tok = readPushToken();

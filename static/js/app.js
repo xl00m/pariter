@@ -1354,8 +1354,23 @@ function bindHandlers(){
           const ok = !!r?.ok;
           const subs = Number(r?.subs || 0);
           const results = Array.isArray(r?.results) ? r.results : [];
+
+          const fmt = (x)=>{
+            if (!x) return 'error';
+            if (typeof x === 'string') return x;
+            if (typeof x === 'number') return String(x);
+            // server returns {host, status, error?}
+            if (typeof x === 'object') {
+              const host = String(x.host || '').trim() || 'push';
+              const st = (typeof x.status === 'number') ? String(x.status) : String(x.status || 'error');
+              const err = String(x.error || '').trim();
+              return err ? `${host}=${st} (${err.slice(0, 70)})` : `${host}=${st}`;
+            }
+            return String(x);
+          };
+
           if (ok) {
-            const tail = results.length ? ` (${results.map(x=>String(x)).join(', ')})` : '';
+            const tail = results.length ? ` (${results.map(fmt).join(', ')})` : '';
             toast(`Тест отправлен: ${subs}${tail}`);
           } else {
             toast('Не удалось отправить тест.');

@@ -74,10 +74,17 @@ export function migrate(db: DB){
     FOREIGN KEY(user_id) REFERENCES users(id)
   );`);
 
-  // Backward compatible migration: add missing columns if table existed previously.
-  // (Older installs may have push_subscriptions without token/last_seen_at.)
-  try { db.run('ALTER TABLE push_subscriptions ADD COLUMN token TEXT;'); } catch {}
-  try { db.run('ALTER TABLE push_subscriptions ADD COLUMN last_seen_at TEXT;'); } catch {}
+  // Backward compatible migration: ensure missing columns exist if table existed previously.
+  // Some older installs may have push_subscriptions without token/last_seen_at.
+  let psCols: any[] = [];
+  try { psCols = db.query('PRAGMA table_info(push_subscriptions)').all() as any[]; } catch { psCols = []; }
+  const hasCol = (name: string)=> psCols.some(c => String((c as any)?.name || '') === name);
+  if (!hasCol('token')) {
+    try { db.run('ALTER TABLE push_subscriptions ADD COLUMN token TEXT;'); } catch {}
+  }
+  if (!hasCol('last_seen_at')) {
+    try { db.run('ALTER TABLE push_subscriptions ADD COLUMN last_seen_at TEXT;'); } catch {}
+  }
 
   // AI memory: persistent compressed context per user (to keep context under 100KB)
   // last_entry_id tracks up to which entry the compressed summary includes.
@@ -123,7 +130,14 @@ export function migrate(db: DB){
   } catch {}
 
   // Unique token index (best-effort). Must run after token column exists + backfill.
-  try { db.run('CREATE UNIQUE INDEX IF NOT EXISTS idx_push_token_unique ON push_subscriptions(token);'); } catch {}
+  // On very old DBs token column may be missing; do not crash.
+  try {
+    const cols2 = db.query('PRAGMA table_info(push_subscriptions)').all() as any[];
+    const hasToken = cols2.some(c => String((c as any)?.name || '') === 'token');
+    if (hasToken) {
+      db.run('CREATE UNIQUE INDEX IF NOT EXISTS idx_push_token_unique ON push_subscriptions(token);');
+    }
+  } catch {}
 
   // ensure created_at for existing nulls
   const ts = nowISO();

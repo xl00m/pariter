@@ -595,19 +595,34 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
       // Send a "tickle" push without payload for maximum compatibility (debugging delivery).
       const payloadJson = null;
 
-      const results = await Promise.allSettled(subs.map(async (s)=>{
-        const res = await sendWebPush({
-          subscription: { endpoint: String(s.endpoint), p256dh: String(s.p256dh), auth: String(s.auth) },
-          payloadJson,
-          subject,
-        });
-        if (res.status === 404 || res.status === 410) {
-          db.run('DELETE FROM push_subscriptions WHERE id = ?', [Number(s.id)]);
+      const results = await Promise.all(subs.map(async (s)=>{
+        const endpoint = String(s.endpoint || '');
+        let host = '';
+        try { host = new URL(endpoint).host; } catch {}
+
+        try {
+          const res = await sendWebPush({
+            subscription: { endpoint, p256dh: String(s.p256dh), auth: String(s.auth) },
+            payloadJson,
+            subject,
+          });
+          const st = Number((res as any)?.status || 0);
+          if (st === 404 || st === 410) {
+            db.run('DELETE FROM push_subscriptions WHERE id = ?', [Number(s.id)]);
+          }
+          return { host, status: st || 'error' };
+        } catch (e: any) {
+          const name = String(e?.name || '');
+          const msg = String(e?.message || '');
+          const kind = (name === 'AbortError') ? 'timeout'
+            : (msg.includes('timed out') ? 'timeout'
+              : (msg.includes('ECONN') ? 'network' : (msg.includes('TLS') ? 'tls' : 'error')));
+          const safe = msg ? msg.replaceAll(endpoint, '').slice(0, 160) : '';
+          return { host, status: kind, error: safe };
         }
-        return res.status;
       }));
 
-      return json({ ok: true, subs: subs.length, results: results.map(r => (r.status === 'fulfilled' ? r.value : 'error')) });
+      return json({ ok: true, subs: subs.length, results });
     }
 
     // --- Stats

@@ -113,6 +113,16 @@ function endpointOrigin(endpoint: string){
   return `${u.protocol}//${u.host}`;
 }
 
+async function fetchWithTimeout(url: string, init: RequestInit, ms = 12000){
+  const ctrl = new AbortController();
+  const t = setTimeout(()=>{ try { ctrl.abort(); } catch {} }, ms);
+  try {
+    return await fetch(url, { ...init, signal: ctrl.signal });
+  } finally {
+    try { clearTimeout(t); } catch {}
+  }
+}
+
 async function ensureVapid(){
   if (_vapidCache) return _vapidCache;
 
@@ -266,7 +276,7 @@ export async function sendWebPush({ subscription, payloadJson, subject }:{
       'Content-Length': '0',
       'Crypto-Key': `p256ecdsa=${publicKeyB64Url}`,
     };
-    return await fetch(endpoint, { method:'POST', headers });
+    return await fetchWithTimeout(endpoint, { method:'POST', headers }, 12000);
   }
 
   // Encrypted payload (aes128gcm)
@@ -285,5 +295,5 @@ export async function sendWebPush({ subscription, payloadJson, subject }:{
     'Crypto-Key': `dh=${b64urlEncode(serverPublicRaw)}; p256ecdsa=${publicKeyB64Url}`,
   };
 
-  return await fetch(endpoint, { method:'POST', headers, body: ciphertext });
+  return await fetchWithTimeout(endpoint, { method:'POST', headers, body: ciphertext }, 12000);
 }

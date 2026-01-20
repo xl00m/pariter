@@ -2781,7 +2781,7 @@ function writePushToken(tok){
   } catch {}
 }
 
-async async function sendPushTokenToSW(token){
+async function sendPushTokenToSW(token){
   try {
     const tok = String(token || '').trim();
     if (!tok) return;

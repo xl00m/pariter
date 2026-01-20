@@ -133,6 +133,13 @@ function StarsEngine(canvas){
 
   this.W = 0; this.H = 0;
   this.stars = []; this.twinkle = []; this.ghosts = [];
+  // extra layer: comets + black holes (subtle, global)
+  this.holes = [];
+  this.comets = [];
+  this._lastCometAt = 0;
+  this._ghostCheckAt = 0;
+  this._lastDocH = 0;
+
   this._raf = 0;
   this._onResize = ()=>{ this.rebuild(); this.generateGhosts(); };
 
@@ -177,6 +184,62 @@ function StarsEngine(canvas){
       for (let n=0;n<nodes;n++) pts.push({ x: Math.random()*this.W, y: Math.random()*docH });
       this.ghosts.push(pts);
     }
+    this._lastDocH = docH;
+  };
+
+  this.generateHoles = ()=>{
+    // 1-2 subtle black holes for depth
+    this.holes = [];
+    if (!this.W || !this.H) return;
+    const n = (Math.random() > 0.55) ? 2 : 1;
+    const presets = [
+      { x: this.W*0.28, y: this.H*0.38, r: 44 },
+      { x: this.W*0.74, y: this.H*0.62, r: 58 },
+    ];
+    for (let i=0;i<n;i++) {
+      const p = presets[i] || { x: Math.random()*this.W, y: Math.random()*this.H, r: 42 + Math.random()*28 };
+      this.holes.push({
+        x: p.x,
+        y: p.y,
+        r: p.r,
+        spin: (Math.random() > 0.5 ? 1 : -1),
+        ph: Math.random()*Math.PI*2,
+      });
+    }
+    // reset comets on hole regen
+    this.comets = [];
+    this._lastCometAt = 0;
+  };
+
+  this.spawnComet = ()=>{
+    if (!this.W || !this.H) return;
+    const max = 2;
+    if (this.comets.length >= max) return;
+
+    const side = (Math.random()*4)|0;
+    let x, y;
+    if (side === 0) { x = -40; y = Math.random()*this.H; }
+    else if (side === 1) { x = this.W + 40; y = Math.random()*this.H; }
+    else if (side === 2) { x = Math.random()*this.W; y = -40; }
+    else { x = Math.random()*this.W; y = this.H + 40; }
+
+    const tx = Math.max(40, Math.min(this.W-40, this.W*(0.15 + Math.random()*0.7)));
+    const ty = Math.max(40, Math.min(this.H-40, this.H*(0.15 + Math.random()*0.7)));
+    const dx = tx - x;
+    const dy = ty - y;
+    const dist = Math.hypot(dx, dy) || 1;
+
+    const speed = 2.0 + Math.random()*1.0;
+    const vx = (dx/dist)*speed;
+    const vy = (dy/dist)*speed;
+
+    // tint: ice or pink
+    const tint = (Math.random() > 0.5)
+      ? { r: 190, g: 215, b: 255 }
+      : { r: 255, g: 190, b: 225 };
+
+    const tail = 120 + Math.random()*120;
+    this.comets.push({ x, y, vx, vy, life: 220 + Math.random()*220, tail, c: tint, sparkle: Math.random()*Math.PI*2 });
   };
 
   this.renderBase = ()=>{
@@ -249,14 +312,17 @@ function StarsEngine(canvas){
     }
 
     this.renderBase();
+    // extra layer
+    this.generateHoles();
   };
 
-  this.drawGhosts = ()=>{
+  this.drawGhosts = (t)=>{
     const ctx = this.ctx;
     const scrollY = window.pageYOffset || document.documentElement.scrollTop || 0;
-    ctx.strokeStyle = 'rgba(200,220,255,0.10)';
+    const pulse = 0.65 + 0.35 * Math.sin(t * 0.65);
+    ctx.strokeStyle = `rgba(200,220,255,${(0.10 * pulse).toFixed(3)})`;
     ctx.lineWidth = 0.5;
-    ctx.fillStyle = 'rgba(200,220,255,0.08)';
+    ctx.fillStyle = `rgba(200,220,255,${(0.08 * pulse).toFixed(3)})`;
 
     for (const pts of this.ghosts) {
       if (!pts?.length) continue;
@@ -280,12 +346,99 @@ function StarsEngine(canvas){
     }
   };
 
+  this.drawHoles = (t)=>{
+    const ctx = this.ctx;
+    if (!this.holes?.length) return;
+
+    ctx.save();
+    ctx.globalCompositeOperation = 'source-over';
+    for (const h of this.holes) {
+      h.ph += 0.006 * h.spin;
+
+      // soft gravity well
+      const g1 = ctx.createRadialGradient(h.x, h.y, 0, h.x, h.y, h.r * 2.6);
+      g1.addColorStop(0.00, 'rgba(0,0,0,0.55)');
+      g1.addColorStop(0.35, 'rgba(0,0,0,0.22)');
+      g1.addColorStop(1.00, 'rgba(0,0,0,0)');
+      ctx.fillStyle = g1;
+      ctx.beginPath();
+      ctx.arc(h.x, h.y, h.r * 2.6, 0, Math.PI*2);
+      ctx.fill();
+
+      // ring
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.translate(h.x, h.y);
+      ctx.rotate(h.ph);
+      const ringR = h.r * 1.55;
+      const ringW = h.r * 0.42;
+      const g3 = ctx.createRadialGradient(0,0,ringR-ringW,0,0,ringR+ringW);
+      g3.addColorStop(0.00,'rgba(255,255,255,0)');
+      g3.addColorStop(0.45,'rgba(190,215,255,0.12)');
+      g3.addColorStop(0.55,'rgba(255,190,225,0.18)');
+      g3.addColorStop(0.75,'rgba(255,255,255,0.06)');
+      g3.addColorStop(1.00,'rgba(255,255,255,0)');
+      ctx.strokeStyle = g3;
+      ctx.lineWidth = Math.max(1, h.r*0.16);
+      ctx.beginPath();
+      ctx.ellipse(0,0,ringR,ringR*0.72,0,0,Math.PI*2);
+      ctx.stroke();
+      ctx.restore();
+    }
+    ctx.restore();
+  };
+
+  this.drawComets = ()=>{
+    const ctx = this.ctx;
+    if (!this.comets?.length) return;
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.lineCap = 'round';
+
+    for (const c of this.comets) {
+      const speed = Math.hypot(c.vx, c.vy) || 1;
+      const nx = c.vx / speed;
+      const ny = c.vy / speed;
+      const tailLen = c.tail;
+
+      const tx = c.x - nx * tailLen;
+      const ty = c.y - ny * tailLen;
+
+      const g = ctx.createLinearGradient(c.x, c.y, tx, ty);
+      g.addColorStop(0.00, `rgba(${c.c.r},${c.c.g},${c.c.b},0.55)`);
+      g.addColorStop(0.35, `rgba(${c.c.r},${c.c.g},${c.c.b},0.22)`);
+      g.addColorStop(1.00, `rgba(${c.c.r},${c.c.g},${c.c.b},0)`);
+
+      ctx.strokeStyle = g;
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      ctx.moveTo(c.x, c.y);
+      const bend = 18 * Math.sin(c.sparkle);
+      ctx.quadraticCurveTo(
+        c.x - nx*(tailLen*0.5) + (-ny)*bend,
+        c.y - ny*(tailLen*0.5) + ( nx)*bend,
+        tx, ty
+      );
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.arc(c.x, c.y, 2.2, 0, Math.PI*2);
+      ctx.fillStyle = 'rgba(255,255,255,0.85)';
+      ctx.fill();
+    }
+
+    ctx.restore();
+  };
+
   this.renderFrame = (t)=>{
     if (!this.W || !this.H) return;
     const ctx = this.ctx;
 
     ctx.globalCompositeOperation = 'source-over';
     ctx.drawImage(this.baseCanvas, 0, 0);
+
+    // black holes beneath
+    this.drawHoles(t);
 
     // twinkle
     for (const st of this.twinkle) {
@@ -306,8 +459,38 @@ function StarsEngine(canvas){
     }
 
     ctx.globalCompositeOperation = 'lighter';
-    this.drawGhosts();
+    this.drawGhosts(t);
+    this.drawComets();
     ctx.globalCompositeOperation = 'source-over';
+  };
+
+  this.updateComets = ()=>{
+    if (!this.comets?.length) return;
+    for (let i=this.comets.length-1;i>=0;i--) {
+      const c = this.comets[i];
+
+      // subtle swirl near holes
+      for (const h of this.holes || []) {
+        const dx = h.x - c.x;
+        const dy = h.y - c.y;
+        const dist = Math.hypot(dx, dy) || 1;
+        if (dist < (h.r*4.6)) {
+          const k = 1 - dist/(h.r*4.6);
+          const swirl = 0.030 * k * h.spin;
+          c.vx += (-dy/dist) * swirl;
+          c.vy += ( dx/dist) * swirl;
+        }
+      }
+
+      c.x += c.vx;
+      c.y += c.vy;
+      c.life -= 1;
+      c.sparkle += 0.08;
+
+      if (c.life <= 0 || c.x < -260 || c.x > this.W + 260 || c.y < -260 || c.y > this.H + 260) {
+        this.comets.splice(i, 1);
+      }
+    }
   };
 
   this._loop = (ts)=>{
@@ -315,6 +498,30 @@ function StarsEngine(canvas){
       this._raf = requestAnimationFrame(this._loop);
       return;
     }
+
+    const now = ts;
+
+    // refresh ghost constellations if page height changes (SPA / infinite feed)
+    if (!this._ghostCheckAt || (now - this._ghostCheckAt) > 1800) {
+      this._ghostCheckAt = now;
+      const dh = this.getDocHeight();
+      if (Math.abs(dh - (this._lastDocH || 0)) > 80) {
+        this.generateGhosts();
+      }
+    }
+
+    // spawn comets sometimes
+    if (!this._lastCometAt) this._lastCometAt = now;
+    if ((now - this._lastCometAt) > (2600 + Math.random()*1200)) {
+      this.spawnComet();
+      // rare double-comet
+      if (Math.random() < 0.18) {
+        setTimeout(()=>{ try { this.spawnComet(); } catch {} }, 220);
+      }
+      this._lastCometAt = now;
+    }
+
+    this.updateComets();
     this.renderFrame(ts/1000);
     this._raf = requestAnimationFrame(this._loop);
   };

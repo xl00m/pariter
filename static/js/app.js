@@ -211,6 +211,15 @@ function StarsEngine(canvas){
     this._lastDocH = docH;
   };
 
+  this.CFG = {
+    holeInfluence: 260,
+    holePull: 0.020,
+    holeSwirl: 0.016,
+    maxPull: 0.15,
+    maxSwirl: 0.12,
+    eventHorizon: 40
+  };
+
   this.generateHoles = ()=>{
     // 1-2 subtle black holes for depth
     this.holes = [];
@@ -379,93 +388,63 @@ function StarsEngine(canvas){
 
     ctx.save();
     ctx.globalCompositeOperation = 'source-over';
-    for (const h of this.holes) {
-      // Adjust rotation speed based on reduced motion preference
-      const rotationSpeed = shouldAnimateWithReducedIntensity() ? 0.002 * h.spin : 0.006 * h.spin; // Slower rotation for reduced motion
-      h.ph += rotationSpeed;
 
-      // Enhanced visual effect with more realistic gradients
-      // Event horizon with intense gravitational distortion
-      const eventHorizonGradient = ctx.createRadialGradient(
-        h.x, h.y, 0,
-        h.x, h.y, h.r * 1.2
-      );
-      eventHorizonGradient.addColorStop(0.00, `rgba(0,0,0,${0.9 * (shouldAnimateWithReducedIntensity() ? 0.6 : 1.0)})`);
-      eventHorizonGradient.addColorStop(0.70, `rgba(10,5,20,${0.7 * (shouldAnimateWithReducedIntensity() ? 0.6 : 1.0)})`);
-      eventHorizonGradient.addColorStop(1.00, `rgba(20,10,40,${0.3 * (shouldAnimateWithReducedIntensity() ? 0.6 : 1.0)})`);
-      
-      ctx.fillStyle = eventHorizonGradient;
+    for (const h of this.holes) {
+      h.ph += 0.006 * h.spin;
+
+      const g1 = ctx.createRadialGradient(h.x, h.y, 0, h.x, h.y, h.r * 2.6);
+      g1.addColorStop(0.00, 'rgba(0,0,0,0.55)');
+      g1.addColorStop(0.35, 'rgba(0,0,0,0.22)');
+      g1.addColorStop(1.00, 'rgba(0,0,0,0)');
+
+      ctx.fillStyle = g1;
       ctx.beginPath();
-      ctx.arc(h.x, h.y, h.r * 1.2, 0, Math.PI*2);
+      ctx.arc(h.x, h.y, h.r * 2.6, 0, Math.PI * 2);
       ctx.fill();
 
-      // Accretion disk with rotating matter
+      const g2 = ctx.createRadialGradient(h.x, h.y, 0, h.x, h.y, h.r * 1.05);
+      g2.addColorStop(0, 'rgba(0,0,0,0.85)');
+      g2.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = g2;
+      ctx.beginPath();
+      ctx.arc(h.x, h.y, h.r * 1.05, 0, Math.PI * 2);
+      ctx.fill();
+
       ctx.save();
       ctx.globalCompositeOperation = 'lighter';
       ctx.translate(h.x, h.y);
       ctx.rotate(h.ph);
-      
-      // Create multiple rings for a more complex accretion disk
-      const ringCount = 3;
-      for (let i = 0; i < ringCount; i++) {
-        const ringRadius = h.r * (1.6 + i * 0.3);
-        const ringWidth = h.r * 0.15;
-        
-        // Gradient for each ring with different colors
-        const ringGradient = ctx.createRadialGradient(
-          0, 0, ringRadius - ringWidth,
-          0, 0, ringRadius + ringWidth
-        );
-        
-        // Different colors for each ring to simulate different temperatures/materials
-        const colors = [
-          { inner: `rgba(190,215,255,${0.15 * (shouldAnimateWithReducedIntensity() ? 0.6 : 1.0)})`, outer: `rgba(100,150,255,${0.05 * (shouldAnimateWithReducedIntensity() ? 0.6 : 1.0)})` },
-          { inner: `rgba(255,190,225,${0.18 * (shouldAnimateWithReducedIntensity() ? 0.6 : 1.0)})`, outer: `rgba(255,100,150,${0.08 * (shouldAnimateWithReducedIntensity() ? 0.6 : 1.0)})` },
-          { inner: `rgba(255,223,186,${0.12 * (shouldAnimateWithReducedIntensity() ? 0.6 : 1.0)})`, outer: `rgba(255,180,50,${0.06 * (shouldAnimateWithReducedIntensity() ? 0.6 : 1.0)})` }
-        ];
-        
-        const color = colors[i % colors.length];
-        ringGradient.addColorStop(0.0, color.inner);
-        ringGradient.addColorStop(0.5, color.outer);
-        ringGradient.addColorStop(1.0, `rgba(255,255,255,0)`);
-        
-        ctx.strokeStyle = ringGradient;
-        ctx.lineWidth = Math.max(1, h.r * 0.12);
+
+      const ringR = h.r * 1.55;
+      const ringW = h.r * 0.42;
+
+      const g3 = ctx.createRadialGradient(0, 0, ringR - ringW, 0, 0, ringR + ringW);
+      g3.addColorStop(0.00, 'rgba(255,255,255,0)');
+      g3.addColorStop(0.45, 'rgba(190,215,255,0.12)');
+      g3.addColorStop(0.55, 'rgba(255,190,225,0.18)');
+      g3.addColorStop(0.75, 'rgba(255,255,255,0.06)');
+      g3.addColorStop(1.00, 'rgba(255,255,255,0)');
+
+      ctx.strokeStyle = g3;
+      ctx.lineWidth = Math.max(1, h.r * 0.18);
+      ctx.beginPath();
+      ctx.ellipse(0, 0, ringR, ringR * 0.72, 0, 0, Math.PI * 2);
+      ctx.stroke();
+
+      for (let k = 0; k < 6; k++) {
+        const a = (k / 6) * Math.PI * 2 + t * 0.35 * h.spin;
+        const sx = Math.cos(a) * ringR;
+        const sy = Math.sin(a) * ringR * 0.72;
+
         ctx.beginPath();
-        ctx.ellipse(0, 0, ringRadius, ringRadius * 0.85, 0, 0, Math.PI * 2);
-        ctx.stroke();
+        ctx.arc(sx, sy, 1.1, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(255,255,255,0.35)';
+        ctx.fill();
       }
-      
-      // Central bright spot (photon sphere)
-      const photonSphereGradient = ctx.createRadialGradient(
-        0, 0, 0,
-        0, 0, h.r * 0.6
-      );
-      photonSphereGradient.addColorStop(0.0, `rgba(255,255,200,${0.3 * (shouldAnimateWithReducedIntensity() ? 0.6 : 1.0)})`);
-      photonSphereGradient.addColorStop(0.7, `rgba(200,180,255,${0.15 * (shouldAnimateWithReducedIntensity() ? 0.6 : 1.0)})`);
-      photonSphereGradient.addColorStop(1.0, `rgba(150,100,255,${0.05 * (shouldAnimateWithReducedIntensity() ? 0.6 : 1.0)})`);
-      
-      ctx.fillStyle = photonSphereGradient;
-      ctx.beginPath();
-      ctx.arc(0, 0, h.r * 0.6, 0, Math.PI*2);
-      ctx.fill();
-      
+
       ctx.restore();
-      
-      // Gravitational lensing effect around the black hole
-      const lensingGradient = ctx.createRadialGradient(
-        h.x, h.y, h.r * 1.2,
-        h.x, h.y, h.r * 2.6
-      );
-      lensingGradient.addColorStop(0.0, `rgba(100,80,200,${0.2 * (shouldAnimateWithReducedIntensity() ? 0.6 : 1.0)})`);
-      lensingGradient.addColorStop(0.5, `rgba(60,40,150,${0.1 * (shouldAnimateWithReducedIntensity() ? 0.6 : 1.0)})`);
-      lensingGradient.addColorStop(1.0, 'rgba(0,0,0,0)');
-      
-      ctx.fillStyle = lensingGradient;
-      ctx.beginPath();
-      ctx.arc(h.x, h.y, h.r * 2.6, 0, Math.PI*2);
-      ctx.fill();
     }
+
     ctx.restore();
   };
 
@@ -543,6 +522,33 @@ function StarsEngine(canvas){
     this.drawGhosts(t);
     this.drawComets();
     ctx.globalCompositeOperation = 'source-over';
+  };
+
+  this.applyBlackHoleForces = (p) => {
+    for (const h of this.holes) {
+      const dx = h.x - p.x;
+      const dy = h.y - p.y;
+      const dist = Math.hypot(dx, dy) || 1;
+
+      if (dist < 260) {
+        const k = 1 - dist / 260;
+
+        const pull = 0.020 * k;
+        p.vx += (dx / dist) * pull;
+        p.vy += (dy / dist) * pull;
+
+        const swirl = 0.016 * k * h.spin;
+        p.vx += (-dy / dist) * swirl;
+        p.vy += ( dx / dist) * swirl;
+
+        if (dist < h.r * 0.78) {
+          p.x = Math.random() * this.W;
+          p.y = Math.random() * this.H;
+          p.vx *= 0.2;
+          p.vy *= 0.2;
+        }
+      }
+    }
   };
 
   this.updateComets = ()=>{
@@ -625,6 +631,24 @@ function StarsEngine(canvas){
     // update comets only if full animation is enabled
     if (fullAnimation) {
       this.updateComets();
+    }
+    
+    // Apply black hole forces to stars for gravitational effects
+    for (const s of this.stars) {
+      this.applyBlackHoleForces(s);
+      
+      s.x += s.vx;
+      s.y += s.vy;
+
+      s.vx *= 0.985;
+      s.vy *= 0.985;
+
+      s.ph += s.phs;
+
+      if (s.x < -30) s.x = this.W + 30;
+      if (s.x > this.W + 30) s.x = -30;
+      if (s.y < -30) s.y = this.H + 30;
+      if (s.y > this.H + 30) s.y = -30;
     }
     
     // Render frame - always render if either animation is enabled
@@ -722,36 +746,23 @@ function CrystalEngine(){
   };
 
   this._applyHoles = (p, st)=>{
-    const CFG = {
-      influence: 260,
-      pull: 0.020,
-      swirl: 0.016,
-      maxPull: 0.15,  // Максимальная сила притяжения
-      maxSwirl: 0.12, // Максимальная сила вращения
-      eventHorizon: 40 // Радиус, внутри которого происходит уничтожение
-    };
-    
     for (const h of st.holes) {
       const dx = h.x - p.x;
       const dy = h.y - p.y;
       const dist = Math.hypot(dx, dy) || 1;
-      
-      if (dist < CFG.influence) {
-        // Коэффициент влияния зависит от расстояния
-        const k = 1 - dist / CFG.influence;
-        
-        // Сила притяжения увеличивается по мере приближения к центру
-        const pull = Math.min(CFG.maxPull, CFG.pull * k * 5.0); // Увеличиваем силу в 5 раз ближе к центру
-        p.vx += (dx/dist) * pull;
-        p.vy += (dy/dist) * pull;
-        
-        // Сила вращения (вихревое движение) также усиливается ближе к центру
-        const swirl = Math.min(CFG.maxSwirl, CFG.swirl * k * 4.0) * h.spin;
-        p.vx += (-dy/dist) * swirl;
-        p.vy += (dx/dist) * swirl;
-        
-        // Если частица попала внутрь "горизонта событий", уничтожаем её
-        if (dist < h.r * 0.78 || dist < CFG.eventHorizon) {
+
+      if (dist < 260) {
+        const k = 1 - dist / 260;
+
+        const pull = 0.020 * k;
+        p.vx += (dx / dist) * pull;
+        p.vy += (dy / dist) * pull;
+
+        const swirl = 0.016 * k * h.spin;
+        p.vx += (-dy / dist) * swirl;
+        p.vy += ( dx / dist) * swirl;
+
+        if (dist < h.r * 0.78) {
           p.x = Math.random() * st.W;
           p.y = Math.random() * st.H;
           p.vx *= 0.2;
@@ -800,91 +811,59 @@ function CrystalEngine(){
       ctx.save();
       ctx.globalCompositeOperation = 'source-over';
       for (const h of st.holes) {
-        // Adjust rotation speed based on reduced motion preference
-        const rotationSpeed = shouldAnimateWithReducedIntensity() ? 0.002*h.spin : 0.006*h.spin; // Slower rotation for reduced motion
-        h.ph += rotationSpeed;
-        
-        // Enhanced visual effect with more realistic gradients
-        // Event horizon with intense gravitational distortion
-        const eventHorizonGradient = ctx.createRadialGradient(
-          h.x, h.y, 0,
-          h.x, h.y, h.r * 1.2
-        );
-        eventHorizonGradient.addColorStop(0.00, `rgba(0,0,0,${0.9 * (shouldAnimateWithReducedIntensity() ? 0.6 : 1.0)})`);
-        eventHorizonGradient.addColorStop(0.70, `rgba(10,5,20,${0.7 * (shouldAnimateWithReducedIntensity() ? 0.6 : 1.0)})`);
-        eventHorizonGradient.addColorStop(1.00, `rgba(20,10,40,${0.3 * (shouldAnimateWithReducedIntensity() ? 0.6 : 1.0)})`);
-        
-        ctx.fillStyle = eventHorizonGradient;
+        h.ph += 0.006 * h.spin;
+
+        const g1 = ctx.createRadialGradient(h.x, h.y, 0, h.x, h.y, h.r * 2.6);
+        g1.addColorStop(0.00, 'rgba(0,0,0,0.55)');
+        g1.addColorStop(0.35, 'rgba(0,0,0,0.22)');
+        g1.addColorStop(1.00, 'rgba(0,0,0,0)');
+
+        ctx.fillStyle = g1;
         ctx.beginPath();
-        ctx.arc(h.x, h.y, h.r * 1.2, 0, Math.PI*2);
+        ctx.arc(h.x, h.y, h.r * 2.6, 0, Math.PI * 2);
         ctx.fill();
 
-        // Accretion disk with rotating matter
+        const g2 = ctx.createRadialGradient(h.x, h.y, 0, h.x, h.y, h.r * 1.05);
+        g2.addColorStop(0, 'rgba(0,0,0,0.85)');
+        g2.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = g2;
+        ctx.beginPath();
+        ctx.arc(h.x, h.y, h.r * 1.05, 0, Math.PI * 2);
+        ctx.fill();
+
         ctx.save();
         ctx.globalCompositeOperation = 'lighter';
         ctx.translate(h.x, h.y);
         ctx.rotate(h.ph);
-        
-        // Create multiple rings for a more complex accretion disk
-        const ringCount = 3;
-        for (let i = 0; i < ringCount; i++) {
-          const ringRadius = h.r * (1.6 + i * 0.3);
-          const ringWidth = h.r * 0.15;
-          
-          // Gradient for each ring with different colors
-          const ringGradient = ctx.createRadialGradient(
-            0, 0, ringRadius - ringWidth,
-            0, 0, ringRadius + ringWidth
-          );
-          
-          // Different colors for each ring to simulate different temperatures/materials
-          const colors = [
-            { inner: `rgba(190,215,255,${0.15 * (shouldAnimateWithReducedIntensity() ? 0.6 : 1.0)})`, outer: `rgba(100,150,255,${0.05 * (shouldAnimateWithReducedIntensity() ? 0.6 : 1.0)})` },
-            { inner: `rgba(255,190,225,${0.18 * (shouldAnimateWithReducedIntensity() ? 0.6 : 1.0)})`, outer: `rgba(255,100,150,${0.08 * (shouldAnimateWithReducedIntensity() ? 0.6 : 1.0)})` },
-            { inner: `rgba(255,223,186,${0.12 * (shouldAnimateWithReducedIntensity() ? 0.6 : 1.0)})`, outer: `rgba(255,180,50,${0.06 * (shouldAnimateWithReducedIntensity() ? 0.6 : 1.0)})` }
-          ];
-          
-          const color = colors[i % colors.length];
-          ringGradient.addColorStop(0.0, color.inner);
-          ringGradient.addColorStop(0.5, color.outer);
-          ringGradient.addColorStop(1.0, `rgba(255,255,255,0)`);
-          
-          ctx.strokeStyle = ringGradient;
-          ctx.lineWidth = Math.max(1, h.r * 0.12);
+
+        const ringR = h.r * 1.55;
+        const ringW = h.r * 0.42;
+
+        const g3 = ctx.createRadialGradient(0, 0, ringR - ringW, 0, 0, ringR + ringW);
+        g3.addColorStop(0.00, 'rgba(255,255,255,0)');
+        g3.addColorStop(0.45, 'rgba(190,215,255,0.12)');
+        g3.addColorStop(0.55, 'rgba(255,190,225,0.18)');
+        g3.addColorStop(0.75, 'rgba(255,255,255,0.06)');
+        g3.addColorStop(1.00, 'rgba(255,255,255,0)');
+
+        ctx.strokeStyle = g3;
+        ctx.lineWidth = Math.max(1, h.r * 0.18);
+        ctx.beginPath();
+        ctx.ellipse(0, 0, ringR, ringR * 0.72, 0, 0, Math.PI * 2);
+        ctx.stroke();
+
+        for (let k = 0; k < 6; k++) {
+          const a = (k / 6) * Math.PI * 2 + t * 0.35 * h.spin;
+          const sx = Math.cos(a) * ringR;
+          const sy = Math.sin(a) * ringR * 0.72;
+
           ctx.beginPath();
-          ctx.ellipse(0, 0, ringRadius, ringRadius * 0.85, 0, 0, Math.PI * 2);
-          ctx.stroke();
+          ctx.arc(sx, sy, 1.1, 0, Math.PI * 2);
+          ctx.fillStyle = 'rgba(255,255,255,0.35)';
+          ctx.fill();
         }
-        
-        // Central bright spot (photon sphere)
-        const photonSphereGradient = ctx.createRadialGradient(
-          0, 0, 0,
-          0, 0, h.r * 0.6
-        );
-        photonSphereGradient.addColorStop(0.0, `rgba(255,255,200,${0.3 * (shouldAnimateWithReducedIntensity() ? 0.6 : 1.0)})`);
-        photonSphereGradient.addColorStop(0.7, `rgba(200,180,255,${0.15 * (shouldAnimateWithReducedIntensity() ? 0.6 : 1.0)})`);
-        photonSphereGradient.addColorStop(1.0, `rgba(150,100,255,${0.05 * (shouldAnimateWithReducedIntensity() ? 0.6 : 1.0)})`);
-        
-        ctx.fillStyle = photonSphereGradient;
-        ctx.beginPath();
-        ctx.arc(0, 0, h.r * 0.6, 0, Math.PI*2);
-        ctx.fill();
-        
+
         ctx.restore();
-        
-        // Gravitational lensing effect around the black hole
-        const lensingGradient = ctx.createRadialGradient(
-          h.x, h.y, h.r * 1.2,
-          h.x, h.y, h.r * 2.6
-        );
-        lensingGradient.addColorStop(0.0, `rgba(100,80,200,${0.2 * (shouldAnimateWithReducedIntensity() ? 0.6 : 1.0)})`);
-        lensingGradient.addColorStop(0.5, `rgba(60,40,150,${0.1 * (shouldAnimateWithReducedIntensity() ? 0.6 : 1.0)})`);
-        lensingGradient.addColorStop(1.0, 'rgba(0,0,0,0)');
-        
-        ctx.fillStyle = lensingGradient;
-        ctx.beginPath();
-        ctx.arc(h.x, h.y, h.r * 2.6, 0, Math.PI*2);
-        ctx.fill();
       }
       ctx.restore();
     }
@@ -989,30 +968,17 @@ function CrystalEngine(){
         for (let i=st.comets.length-1;i>=0;i--){
           const c=st.comets[i];
           
-          // enhanced gravitational effects near holes for comets
+          // Apply black hole forces to comets
           for (const h of st.holes || []) {
             const dx = h.x - c.x;
             const dy = h.y - c.y;
             const dist = Math.hypot(dx, dy) || 1;
-            
-            if (dist < (h.r*4.6)) {
-              // Коэффициент влияния в зависимости от расстояния
-              const k = 1 - dist/(h.r*4.6);
-              
-              // Сила притяжения
-              const pull = 0.040 * k; // Увеличенная сила притяжения
-              c.vx += (dx/dist) * pull;
-              c.vy += (dy/dist) * pull;
-              
-              // Сила вращения (вихревое движение)
-              const swirl = 0.035 * k * h.spin; // Увеличенная сила вращения
-              c.vx += (-dy/dist) * swirl;
-              c.vy += ( dx/dist) * swirl;
-              
-              // Если комета слишком близко к центру, она может быть "поглощена"
-              if (dist < h.r * 0.8) {
-                c.life = 0; // Уничтожаем комету
-              }
+
+            if (dist < 260 * 0.9) {
+              const k = 1 - dist / (260 * 0.9);
+              const swirl = 0.030 * k * h.spin;
+              c.vx += (-dy / dist) * swirl;
+              c.vy += ( dx / dist) * swirl;
             }
           }
           

@@ -835,6 +835,7 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
       const body = await readJson(req);
       const victory = String(body.victory || '').trim();
       const lesson = String(body.lesson || '').trim();
+      const senderPushToken = String(body.pushToken || '').trim();
       if (!victory && !lesson) return error('Заполни хотя бы одну часть: победу или урок.');
 
       // Infinite path: allow multiple entries per day.
@@ -852,18 +853,20 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
       // Web Push (best-effort): notify teammates (exclude author)
       try {
         const authorName = String(user.name || 'Спутник');
-        const preview = (victory && victory.trim())
-          ? victory.trim().split(/\r?\n/)[0].slice(0, 140)
-          : (lesson && lesson.trim())
-            ? lesson.trim().split(/\r?\n/)[0].slice(0, 140)
-            : '';
+        // NOTE: delivery is “tickle push” (no payload), same as /api/push/test.
+        // UI refresh + details are handled by the client via live polling.
+        void authorName;
 
-        const subs = db.query(
-          `SELECT ps.id, ps.endpoint, ps.p256dh, ps.auth, ps.user_id
+        let subs = db.query(
+          `SELECT ps.id, ps.endpoint, ps.p256dh, ps.auth, ps.user_id, ps.token
            FROM push_subscriptions ps
            JOIN users u ON u.id = ps.user_id
-           WHERE u.team_id = ? AND ps.user_id != ?`
-        ).all(user.team_id, user.id) as any[];
+           WHERE u.team_id = ?`
+        ).all(user.team_id) as any[];
+
+        if (senderPushToken) {
+          subs = subs.filter(s => String(s.token || '') !== senderPushToken);
+        }
 
         const subject = String(process.env.PARITER_VAPID_SUBJECT || 'mailto:admin@pariter.local');
         // Send a "tickle" push without payload for maximum delivery reliability.

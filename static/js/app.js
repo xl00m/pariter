@@ -318,9 +318,9 @@ const api = {
     p.set('limit', String(limit));
     return apiFetch('/api/entries/new?' + p.toString());
   },
-  entryCreate: ({victory, lesson})=> apiFetch('/api/entries', { method:'POST', body: { victory, lesson } }),
+  entryCreate: ({victory, lesson})=> apiFetch('/api/entries', { method:'POST', body: { victory, lesson, pushToken: readPushToken() || null } }),
   // legacy name (kept for older code paths)
-  entryUpsertToday: ({victory, lesson})=> apiFetch('/api/entries', { method:'POST', body: { victory, lesson } }),
+  entryUpsertToday: ({victory, lesson})=> apiFetch('/api/entries', { method:'POST', body: { victory, lesson, pushToken: readPushToken() || null } }),
   entryUpdate: (id, {victory, lesson})=> apiFetch('/api/entries/' + Number(id), { method:'PUT', body: { victory, lesson } }),
   entryDelete: (id)=> apiFetch('/api/entries/' + Number(id), { method:'DELETE' }),
   settingsUpdate: ({name, role, theme, password})=> apiFetch('/api/settings', { method:'PUT', body: { name, role, theme, password } }),

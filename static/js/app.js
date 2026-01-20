@@ -926,8 +926,7 @@ function pageSettings(){
         <div class="soft" style="padding: 14px; margin-top: 14px">
           <div style="font-weight: 900">Уведомления</div>
           <div class="textMuted" style="margin-top: 6px; font-size: 12px; line-height: 1.45">
-            Когда спутник делает новый шаг, Pariter может показать уведомление и поставить индикатор на иконке приложения.
-            Для Android/desktop «как в мессенджерах» нужен Push (работает по HTTPS).
+            Push работает на HTTPS, включает уведомления и индикатор на иконке.
           </div>
 
           <div class="row" style="margin-top: 10px; flex-wrap: wrap">
@@ -938,7 +937,6 @@ function pageSettings(){
           <div class="row" style="margin-top: 10px; flex-wrap: wrap">
             <button type="button" class="btn" data-action="push-enable" id="pushBtn">Включить push</button>
             <button type="button" class="btn-ghost hidden" data-action="push-disable" id="pushOffBtn">Выключить</button>
-            <button type="button" class="btn-ghost" data-action="push-test" id="pushTestBtn">Тест</button>
             <span class="pill textMuted" id="pushStatus" style="font-size: 12px">проверяю…</span>
           </div>
 
@@ -988,6 +986,8 @@ function pageSettings(){
           <div class="textMuted" style="font-size: 12px; line-height: 1.5">
             Импорт доступен администратору. Данные будут добавлены/обновлены внутри текущей команды.
           </div>
+          <div class="divider" style="margin: 10px 0"></div>
+          <button type="button" class="btn-danger" data-action="account-delete" style="padding: 10px 14px; border-radius: 12px">Удалить аккаунт</button>
         </form>
       </div>
     </main>

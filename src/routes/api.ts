@@ -94,6 +94,17 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
       return json({ ok: true, time: nowISO() });
     }
 
+    // --- Account delete (self)
+    if (req.method === 'DELETE' && path === '/api/profile') {
+      const { user } = requireAuth(db, req);
+      db.run('DELETE FROM sessions WHERE user_id = ?', [user.id]);
+      db.run('DELETE FROM push_subscriptions WHERE user_id = ?', [user.id]);
+      db.run('DELETE FROM invites WHERE created_by = ?', [user.id]);
+      db.run('DELETE FROM entries WHERE user_id = ?', [user.id]);
+      db.run('DELETE FROM users WHERE id = ?', [user.id]);
+      return json({ ok: true });
+    }
+
     // --- Auth
     if (req.method === 'POST' && path === '/api/register') {
       const body = await readJson(req);
@@ -224,6 +235,25 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
       const { user, team } = requireAuth(db, req);
       const users = db.query('SELECT id, team_id, email, name, login, role, theme, is_admin, created_at FROM users WHERE team_id = ? ORDER BY datetime(created_at) ASC').all(user.team_id) as any[];
       return json({ team, users });
+    }
+
+    if (req.method === 'DELETE' && path.startsWith('/api/team/')) {
+      const { user } = requireAuth(db, req);
+      if (Number(user.is_admin || 0) !== 1) return error('Нет прав удалять спутников.', 403);
+      const targetId = Number(path.split('/').pop());
+      if (!targetId) return error('Неверный пользователь.', 400);
+      if (targetId === Number(user.id)) return error('Себя удаляй через настройки.', 400);
+
+      const target = db.query('SELECT * FROM users WHERE id = ?').get(targetId) as any;
+      if (!target) return error('Пользователь не найден.', 404);
+      if (Number(target.team_id) !== Number(user.team_id)) return error('Нет доступа.', 403);
+
+      db.run('DELETE FROM sessions WHERE user_id = ?', [targetId]);
+      db.run('DELETE FROM push_subscriptions WHERE user_id = ?', [targetId]);
+      db.run('DELETE FROM invites WHERE created_by = ?', [targetId]);
+      db.run('DELETE FROM entries WHERE user_id = ?', [targetId]);
+      db.run('DELETE FROM users WHERE id = ?', [targetId]);
+      return json({ ok: true });
     }
 
     // --- Settings

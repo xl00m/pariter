@@ -1091,6 +1091,8 @@ async function render(){
     setTimeout(()=>{ try { updateNotifUI(); } catch {} }, 0);
     setTimeout(()=>{ try { updatePushUI(); } catch {} }, 0);
     setTimeout(()=>{ try { updateSoundUI(); } catch {} }, 0);
+    // best-effort: keep push alive without manual toggling
+    setTimeout(()=>{ try { pushAutoMaintain(); } catch {} }, 0);
   }
 
   if ((route === '/' || route === '/login' || route === '/register' || route === '/join') && !APP.state.user) {
@@ -1742,6 +1744,8 @@ function bindHandlers(){
         toast('Вход выполнен.');
         history.replaceState({}, '', '/path');
         render();
+        // best-effort: keep push alive if user enabled it before
+        try { pushAutoMaintain(); } catch {}
       } catch (err) {
         toast(err.message || 'Ошибка входа.');
       }
@@ -1786,6 +1790,7 @@ function bindHandlers(){
         toast('Команда создана. Путь начался.');
         history.replaceState({}, '', '/path');
         render();
+        try { pushAutoMaintain(); } catch {}
       } catch (err) {
         toast(err.message || 'Ошибка регистрации.');
       }
@@ -1830,6 +1835,7 @@ function bindHandlers(){
         toast('Добро пожаловать на путь.');
         history.replaceState({}, '', '/path');
         render();
+        try { pushAutoMaintain(); } catch {}
       } catch (err) {
         const reason = err?.reason;
         if (reason === 'invalid') toast('Приглашение недействительно.');
@@ -2645,6 +2651,8 @@ async function updatePushUI(){
     const sub = await reg.pushManager.getSubscription();
 
     if (sub) {
+      // If a subscription already exists, treat push as enabled (helps after SW migrations/updates).
+      try { writePushDesired(true); } catch {}
       btn.disabled = true;
       if (off) off.classList.remove('hidden');
       st.textContent = 'включено';
@@ -2660,10 +2668,18 @@ async function updatePushUI(){
   }
 }
 
+const PUSH_DESIRED_KEY = 'pariter_push_desired';
+function readPushDesired(){
+  try { return localStorage.getItem(PUSH_DESIRED_KEY) === '1'; } catch { return false; }
+}
+function writePushDesired(v){
+  try { localStorage.setItem(PUSH_DESIRED_KEY, v ? '1' : '0'); } catch {}
+}
+
 async function enablePush(){
   if (typeof Notification === 'undefined') throw new Error('Уведомления не поддерживаются.');
 
-  const isSecure = (location.protocol === 'https:' || location.hostname === 'localhost');
+  const isSecure = (window.isSecureContext || location.hostname === 'localhost');
   if (!isSecure) throw new Error('Push требует https.');
 
   if (Notification.permission !== 'granted') {
@@ -2672,7 +2688,7 @@ async function enablePush(){
     if (p !== 'granted') throw new Error('Разрешение на уведомления не выдано.');
   }
 
-  const reg = await withTimeout(ensureServiceWorkerForPush(), 4000, 'Service worker не готов');
+  const reg = await withTimeout(ensureServiceWorkerForPush(), 5000, 'Service worker не готов');
 
   const { publicKey } = await api.pushVapidKey();
   if (!publicKey) throw new Error('Push ключ не получен.');
@@ -2688,6 +2704,7 @@ async function enablePush(){
 
   const json = sub.toJSON();
   await api.pushSubscribe({ endpoint: json.endpoint, keys: json.keys });
+  writePushDesired(true);
   try { await updatePushUI(); } catch {}
   return true;
 }
@@ -2702,7 +2719,49 @@ async function disablePush(){
       await api.pushUnsubscribe({ endpoint: json?.endpoint || null }).catch(()=>{});
     }
   } catch {}
+  writePushDesired(false);
   try { await updatePushUI(); } catch {}
+}
+
+// Best-effort: keep push alive without manual re-enable.
+// - If user once enabled push (pushDesired=1), we try to (re)subscribe automatically when possible.
+// - Also "ping" server with existing subscription to refresh last_seen_at.
+async function pushAutoMaintain(){
+  try {
+    if (!APP.state.user) return;
+    if (!readPushDesired()) return;
+    if (typeof Notification === 'undefined') return;
+    if (Notification.permission !== 'granted') return;
+    if (typeof PushManager === 'undefined') return;
+    if (!(window.isSecureContext || location.hostname === 'localhost')) return;
+
+    // throttle
+    const now = Date.now();
+    if (pushAutoMaintain._last && (now - pushAutoMaintain._last < 30_000)) return;
+    pushAutoMaintain._last = now;
+
+    const reg = await ensureServiceWorkerForPush();
+    let sub = await reg.pushManager.getSubscription();
+
+    const { publicKey } = await api.pushVapidKey().catch(()=> ({ publicKey: '' }));
+    if (!publicKey) return;
+
+    if (!sub) {
+      // Auto re-subscribe (permission already granted)
+      sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: b64urlToU8(publicKey),
+      });
+    }
+
+    // Refresh server record (upsert)
+    const j = sub.toJSON();
+    if (j?.endpoint && j?.keys?.p256dh && j?.keys?.auth) {
+      await api.pushSubscribe({ endpoint: j.endpoint, keys: j.keys }).catch(()=>{});
+    }
+  } catch {
+    // ignore
+  }
 }
 
 // --- Sound (gentle cosmic chime)
@@ -2872,4 +2931,6 @@ document.addEventListener('click', (e)=>{
   // Best-effort: ensure root-scope Service Worker is registered early (needed for Push on Android).
   try { ensureServiceWorkerForPush(); } catch {}
   await render();
+  // After initial render, try to keep push subscription alive (if user enabled it before)
+  try { pushAutoMaintain(); } catch {}
 })();

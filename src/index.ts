@@ -124,6 +124,10 @@ function isStatic(pathname: string){
   return pathname.startsWith('/static/') || pathname === '/favicon.ico' || pathname === '/sw.js';
 }
 
+function isPushPath(pathname: string){
+  return pathname.startsWith('/api/push/');
+}
+
 const server = Bun.serve({
   port: Number(process.env.PORT || cfg.port || 8080),
   async fetch(req){
@@ -154,6 +158,16 @@ const server = Bun.serve({
 
     // API
     if (path.startsWith('/api/')) {
+      // Push inbox endpoint must work without cookies (Service Worker fetch).
+      // It is protected by a per-device token stored in push_subscriptions.
+      if (isPushPath(path) && (req.method === 'GET' || req.method === 'HEAD')) {
+        const auth = String(req.headers.get('authorization') || '').trim();
+        if (auth.toLowerCase().startsWith('bearer ')) {
+          // allow service-worker to pass through as-is (API will validate token)
+          return withSecurityHeaders(await handleApi(db, req));
+        }
+      }
+
       if (path === '/api/me' && req.method === 'GET') return withSecurityHeaders(meResponse(db, req));
       return withSecurityHeaders(await handleApi(db, req));
     }

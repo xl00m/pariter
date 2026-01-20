@@ -92,41 +92,91 @@ self.addEventListener('fetch', (event) => {
 self.addEventListener('push', (event) => {
   event.waitUntil((async ()=>{
     try {
-      let data = null;
-      try {
-        data = event.data ? event.data.json() : null;
-      } catch {
-        // Some push services can deliver non-JSON payloads; fallback to text.
-        const t = event.data ? event.data.text() : '';
-        data = { type: 'text', text: String(t || '').trim() };
-      }
-
       // Messenger-like: keep one “inbox” notification updated.
       // If user clears it manually, next push will re-create it.
       const inboxTag = 'pariter_inbox';
 
+      // 1) Try to enrich tickle-push with a real preview by fetching from backend.
+      // This avoids encrypted payload fragility and behaves like messengers.
       let title = 'Pariter';
       let body = 'Новый шаг. Открой Pariter, чтобы посмотреть.';
       let url = '/path';
 
-      if (data && typeof data === 'object') {
-        if (data.type === 'entry') {
-          const authorName = data?.author?.name || 'Спутник';
-          const preview = String(data?.preview || '').trim();
-          title = `Новый шаг: ${authorName}`;
-          body = preview ? preview.slice(0, 160) : body;
-          url = '/path';
-        } else if (data.type === 'text' && data.text) {
-          title = 'Pariter';
-          body = String(data.text).slice(0, 160);
+      try {
+        const lastKey = String(await idbGet('lastInboxKey') || '').trim();
+        let afterDate = '';
+        let afterId = 0;
+        if (lastKey && lastKey.includes('#')) {
+          const [d, i] = lastKey.split('#');
+          afterDate = String(d || '').trim();
+          afterId = Number(i || '0');
         }
+
+        const qp = new URLSearchParams();
+        if (afterDate && afterId) {
+          qp.set('afterDate', afterDate);
+          qp.set('afterId', String(afterId));
+        }
+        qp.set('limit', '1');
+
+        const tok = String(await idbGet('pushToken') || '').trim();
+        const headers = tok ? { 'authorization': `Bearer ${tok}` } : undefined;
+        const r = await fetch('/api/push/inbox?' + qp.toString(), { cache: 'no-store', headers }).catch(()=>null);
+        if (r && r.ok) {
+          const j = await r.json().catch(()=>null);
+          const newest = (j && typeof j === 'object' && Array.isArray(j.entries) && j.entries[0]) ? j.entries[0] : null;
+          const cnt = (j && typeof j === 'object' && 'count' in j) ? Number(j.count || 0) : 0;
+
+          if (newest) {
+            const authorName = String(newest?.author?.name || 'Спутник');
+            const preview = String(newest?.preview || '').trim();
+            title = `Новый шаг: ${authorName}`;
+            body = preview ? preview.slice(0, 160) : body;
+            url = '/path';
+
+            const nk = `${String(newest.date || '').trim()}#${Number(newest.id || 0)}`;
+            if (nk && nk.includes('#')) {
+              await idbSet('lastInboxKey', nk);
+            }
+
+            // Aggregation hint
+            if (cnt > 1) {
+              body = body ? `${body} (и еще ${cnt - 1})` : `Новых шагов: ${cnt}`;
+            }
+          }
+        }
+      } catch {
+        // fallback to generic text below
       }
+
+      // 2) If push payload exists (optional), use it as fallback.
+      // This is kept for compatibility, but main path is fetch-based enrichment.
+      try {
+        let data = null;
+        try {
+          data = event.data ? event.data.json() : null;
+        } catch {
+          const t = event.data ? event.data.text() : '';
+          data = { type: 'text', text: String(t || '').trim() };
+        }
+
+        if (data && typeof data === 'object') {
+          if (data.type === 'entry') {
+            const authorName = data?.author?.name || 'Спутник';
+            const preview = String(data?.preview || '').trim();
+            title = `Новый шаг: ${authorName}`;
+            body = preview ? preview.slice(0, 160) : body;
+          } else if (data.type === 'text' && data.text) {
+            title = 'Pariter';
+            body = String(data.text).slice(0, 160);
+          }
+        }
+      } catch {}
 
       await self.registration.showNotification(title, {
         body,
         tag: inboxTag,
         renotify: true,
-        // Messenger-like: keep a single "inbox" notification and make it sticky until the user acts.
         requireInteraction: true,
         icon: '/static/favicon.svg',
         badge: '/static/favicon.svg',
@@ -137,7 +187,7 @@ self.addEventListener('push', (event) => {
       try {
         const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
         for (const c of clients) {
-          try { c.postMessage({ type: 'push', payload: data || null }); } catch {}
+          try { c.postMessage({ type: 'push', payload: null }); } catch {}
         }
       } catch {}
 

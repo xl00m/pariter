@@ -509,6 +509,90 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
       return json({ ok: true, publicKey: key });
     }
 
+    // Push: inbox preview helper (used by Service Worker on tickle-push)
+    // Works with either cookie session OR a per-device token (so it can run even when the app isn't open).
+    // Returns newest teammate entry preview. Optional cursor afterDate/afterId to avoid duplicates.
+    if ((req.method === 'GET' || req.method === 'HEAD') && path === '/api/push/inbox') {
+      let user: any = null;
+      try {
+        user = requireAuth(db, req).user;
+      } catch {
+        // no cookie session - try token auth
+        const auth = String(req.headers.get('authorization') || '').trim();
+        const bearer = auth.toLowerCase().startsWith('bearer ') ? auth.slice(7).trim() : '';
+        const token = bearer || String(url.searchParams.get('token') || '').trim();
+        if (token) {
+          user = db.query(
+            `SELECT u.*
+             FROM push_subscriptions ps
+             JOIN users u ON u.id = ps.user_id
+             WHERE ps.token = ?`
+          ).get(token) as any;
+          if (user) {
+            // ensure token belongs to an active session-less device; ok
+            // do not expose password hash
+          }
+        }
+      }
+
+      if (!user) return error('Не авторизован.', 401);
+
+      const afterDate = String(url.searchParams.get('afterDate') || '').trim();
+      const afterId = Number(url.searchParams.get('afterId') || '0');
+      const limit = Math.max(1, Math.min(3, Number(url.searchParams.get('limit') || '1')));
+
+      let where = 'au.team_id = ? AND e.user_id != ?';
+      const args: any[] = [user.team_id, user.id];
+      if (afterDate && afterId) {
+        where += ' AND (e.date > ? OR (e.date = ? AND e.id > ?))';
+        args.push(afterDate, afterDate, afterId);
+      }
+
+      const hasCursor = !!(afterDate && afterId);
+
+      const rows = db.query(
+        `SELECT e.id, e.user_id, e.date, e.victory, e.lesson, e.created_at, au.name, au.role
+         FROM entries e
+         JOIN users au ON au.id = e.user_id
+         WHERE ${where}
+         ORDER BY e.date DESC, e.id DESC
+         LIMIT ?`
+      ).all(...args, limit) as any[];
+
+      let count = 0;
+      if (hasCursor) {
+        const countRow = db.query(
+          `SELECT COUNT(*) AS c
+           FROM entries e
+           JOIN users au ON au.id = e.user_id
+           WHERE ${where}`
+        ).get(...args) as any;
+        count = Number(countRow?.c || 0);
+      } else {
+        // No cursor - avoid showing a huge aggregated number from the entire history.
+        count = rows.length ? 1 : 0;
+      }
+
+      const mkPreview = (e: any)=>{
+        const v = gunzipText(e?.victory);
+        const l = gunzipText(e?.lesson);
+        const pick = (v && v.trim()) ? v.trim() : (l && l.trim()) ? l.trim() : '';
+        const firstLine = pick.split(/\r?\n/)[0] || '';
+        return firstLine.slice(0, 180);
+      };
+
+      const mapped = rows.map(e => ({
+        id: Number(e.id),
+        user_id: Number(e.user_id),
+        date: String(e.date),
+        created_at: String(e.created_at || ''),
+        author: { name: String(e.name || 'Спутник'), role: String(e.role || '') },
+        preview: mkPreview(e),
+      }));
+
+      return json({ ok: true, count, entries: mapped });
+    }
+
     if (req.method === 'POST' && path === '/api/push/subscribe') {
       const { user } = requireAuth(db, req);
       const body = await readJson(req);

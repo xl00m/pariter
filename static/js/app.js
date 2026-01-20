@@ -237,6 +237,7 @@ function StarsEngine(canvas){
         r: p.r,
         spin: (Math.random() > 0.5 ? 1 : -1),
         ph: Math.random()*Math.PI*2,
+        hasConstellation: i === 0, // Mark the first hole as having the constellation
       });
     }
     // reset comets on hole regen
@@ -393,8 +394,8 @@ function StarsEngine(canvas){
       h.ph += 0.006 * h.spin;
 
       const g1 = ctx.createRadialGradient(h.x, h.y, 0, h.x, h.y, h.r * 2.6);
-      g1.addColorStop(0.00, 'rgba(0,0,0,0.10)');
-      g1.addColorStop(0.35, 'rgba(0,0,0,0.04)');
+      g1.addColorStop(0.00, 'rgba(0,0,0,0.01)');
+      g1.addColorStop(0.35, 'rgba(0,0,0,0.004)');
       g1.addColorStop(1.00, 'rgba(0,0,0,0)');
 
       ctx.fillStyle = g1;
@@ -403,7 +404,7 @@ function StarsEngine(canvas){
       ctx.fill();
 
       const g2 = ctx.createRadialGradient(h.x, h.y, 0, h.x, h.y, h.r * 1.05);
-      g2.addColorStop(0, 'rgba(0,0,0,0.10)');
+      g2.addColorStop(0, 'rgba(0,0,0,0.01)');
       g2.addColorStop(1, 'rgba(0,0,0,0)');
       ctx.fillStyle = g2;
       ctx.beginPath();
@@ -442,6 +443,93 @@ function StarsEngine(canvas){
         ctx.fill();
       }
 
+      // Draw constellation elements inside the black hole that has the constellation
+      if(h.hasConstellation) { // Only draw in the hole marked to have the constellation
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        
+        // Create a linear gradient for the constellation that mimics the SVG gradient
+        const gradient = ctx.createLinearGradient(-20, 0, 20, 0);
+        gradient.addColorStop(0, 'rgba(190,215,255,0.78)');
+        gradient.addColorStop(0.5, 'rgba(255,190,225,0.78)');
+        gradient.addColorStop(1, 'rgba(255,255,255,0.70)');
+        
+        // Define constellation points that will appear inside the black hole
+        // These represent key stars of the Vega-Altair constellation
+        const constellationPoints = [
+          { x: -15, y: -8, type: 'star', size: 1.2 },
+          { x: -8, y: -15, type: 'star', size: 1.0 },
+          { x: 0, y: -20, type: 'center', size: 2.0 }, // This represents the central bright star (Vega)
+          { x: 8, y: -15, type: 'star', size: 1.0 },
+          { x: 15, y: -8, type: 'star', size: 1.2 }
+        ];
+        
+        // Draw constellation pattern inside the black hole
+        // Draw connections between main points (like in the SVG)
+        ctx.beginPath();
+        ctx.moveTo(constellationPoints[0].x, constellationPoints[0].y);
+        for (let i = 1; i < constellationPoints.length; i++) {
+          ctx.lineTo(constellationPoints[i].x, constellationPoints[i].y);
+        }
+        ctx.strokeStyle = gradient;
+        ctx.lineWidth = 0.8;
+        ctx.stroke();
+        
+        // Draw additional connection that forms the distinctive pattern
+        ctx.beginPath();
+        ctx.moveTo(constellationPoints[1].x, constellationPoints[1].y);
+        ctx.lineTo(constellationPoints[3].x, constellationPoints[3].y);
+        ctx.strokeStyle = 'rgba(190, 215, 255, 0.25)';
+        ctx.lineWidth = 0.6;
+        ctx.stroke();
+        
+        // Draw individual stars with glow effect
+        for (const pt of constellationPoints) {
+          if (pt.type === 'star') {
+            // Outer glow
+            const starGlow = ctx.createRadialGradient(pt.x, pt.y, 0, pt.x, pt.y, pt.size * 3);
+            starGlow.addColorStop(0, 'rgba(190, 215, 255, 0.4)');
+            starGlow.addColorStop(1, 'rgba(190, 215, 255, 0)');
+            
+            ctx.beginPath();
+            ctx.arc(pt.x, pt.y, pt.size * 3, 0, Math.PI * 2);
+            ctx.fillStyle = starGlow;
+            ctx.fill();
+            
+            // Star itself
+            ctx.beginPath();
+            ctx.arc(pt.x, pt.y, pt.size, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+            ctx.fill();
+          } else if (pt.type === 'center') {
+            // Draw central bright star (Vega) with stronger glow
+            const starGlow = ctx.createRadialGradient(pt.x, pt.y, 0, pt.x, pt.y, pt.size * 4);
+            starGlow.addColorStop(0, 'rgba(255, 255, 255, 0.9)');
+            starGlow.addColorStop(0.3, 'rgba(255, 190, 225, 0.6)');
+            starGlow.addColorStop(1, 'rgba(190, 215, 255, 0)');
+            
+            ctx.beginPath();
+            ctx.arc(pt.x, pt.y, pt.size * 4, 0, Math.PI * 2);
+            ctx.fillStyle = starGlow;
+            ctx.fill();
+            
+            // Central bright star
+            ctx.beginPath();
+            ctx.arc(pt.x, pt.y, pt.size, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(255, 255, 255, 1.0)';
+            ctx.fill();
+          }
+        }
+        
+        // Add a special symbol to represent the "Vega ★ Altair" text equivalent
+        ctx.font = 'bold 4px sans-serif';
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('*', 0, -5); // Representing the ★ in the constellation
+        
+        ctx.restore();
+      }
       ctx.restore();
     }
 
@@ -730,8 +818,8 @@ function CrystalEngine(){
     }
 
     const holes = [
-      { x: W*0.28, y: H*0.38, r: 44, spin: (Math.random()>0.5?1:-1), ph: Math.random()*Math.PI*2 },
-      { x: W*0.74, y: H*0.62, r: 58, spin: (Math.random()>0.5?1:-1), ph: Math.random()*Math.PI*2 },
+      { x: W*0.28, y: H*0.38, r: 44, spin: (Math.random()>0.5?1:-1), ph: Math.random()*Math.PI*2, hasConstellation: true },
+      { x: W*0.74, y: H*0.62, r: 58, spin: (Math.random()>0.5?1:-1), ph: Math.random()*Math.PI*2, hasConstellation: false },
     ];
 
     return {
@@ -814,8 +902,8 @@ function CrystalEngine(){
         h.ph += 0.006 * h.spin;
 
         const g1 = ctx.createRadialGradient(h.x, h.y, 0, h.x, h.y, h.r * 2.6);
-        g1.addColorStop(0.00, 'rgba(0,0,0,0.10)');
-        g1.addColorStop(0.35, 'rgba(0,0,0,0.04)');
+        g1.addColorStop(0.00, 'rgba(0,0,0,0.01)');
+        g1.addColorStop(0.35, 'rgba(0,0,0,0.004)');
         g1.addColorStop(1.00, 'rgba(0,0,0,0)');
 
         ctx.fillStyle = g1;
@@ -824,7 +912,7 @@ function CrystalEngine(){
         ctx.fill();
 
         const g2 = ctx.createRadialGradient(h.x, h.y, 0, h.x, h.y, h.r * 1.05);
-        g2.addColorStop(0, 'rgba(0,0,0,0.10)');
+        g2.addColorStop(0, 'rgba(0,0,0,0.01)');
         g2.addColorStop(1, 'rgba(0,0,0,0)');
         ctx.fillStyle = g2;
         ctx.beginPath();
@@ -863,6 +951,93 @@ function CrystalEngine(){
           ctx.fill();
         }
 
+        // Draw constellation elements inside the black hole that has the constellation
+        if(h.hasConstellation) { // Only draw in the hole marked to have the constellation
+          ctx.save();
+          ctx.globalCompositeOperation = 'lighter';
+          
+          // Create a linear gradient for the constellation that mimics the SVG gradient
+          const gradient = ctx.createLinearGradient(-20, 0, 20, 0);
+          gradient.addColorStop(0, 'rgba(190,215,255,0.78)');
+          gradient.addColorStop(0.5, 'rgba(255,190,225,0.78)');
+          gradient.addColorStop(1, 'rgba(255,255,255,0.70)');
+          
+          // Define constellation points that will appear inside the black hole
+          // These represent key stars of the Vega-Altair constellation
+          const constellationPoints = [
+            { x: -15, y: -8, type: 'star', size: 1.2 },
+            { x: -8, y: -15, type: 'star', size: 1.0 },
+            { x: 0, y: -20, type: 'center', size: 2.0 }, // This represents the central bright star (Vega)
+            { x: 8, y: -15, type: 'star', size: 1.0 },
+            { x: 15, y: -8, type: 'star', size: 1.2 }
+          ];
+          
+          // Draw constellation pattern inside the black hole
+          // Draw connections between main points (like in the SVG)
+          ctx.beginPath();
+          ctx.moveTo(constellationPoints[0].x, constellationPoints[0].y);
+          for (let i = 1; i < constellationPoints.length; i++) {
+            ctx.lineTo(constellationPoints[i].x, constellationPoints[i].y);
+          }
+          ctx.strokeStyle = gradient;
+          ctx.lineWidth = 0.8;
+          ctx.stroke();
+          
+          // Draw additional connection that forms the distinctive pattern
+          ctx.beginPath();
+          ctx.moveTo(constellationPoints[1].x, constellationPoints[1].y);
+          ctx.lineTo(constellationPoints[3].x, constellationPoints[3].y);
+          ctx.strokeStyle = 'rgba(190, 215, 255, 0.25)';
+          ctx.lineWidth = 0.6;
+          ctx.stroke();
+          
+          // Draw individual stars with glow effect
+          for (const pt of constellationPoints) {
+            if (pt.type === 'star') {
+              // Outer glow
+              const starGlow = ctx.createRadialGradient(pt.x, pt.y, 0, pt.x, pt.y, pt.size * 3);
+              starGlow.addColorStop(0, 'rgba(190, 215, 255, 0.4)');
+              starGlow.addColorStop(1, 'rgba(190, 215, 255, 0)');
+              
+              ctx.beginPath();
+              ctx.arc(pt.x, pt.y, pt.size * 3, 0, Math.PI * 2);
+              ctx.fillStyle = starGlow;
+              ctx.fill();
+              
+              // Star itself
+              ctx.beginPath();
+              ctx.arc(pt.x, pt.y, pt.size, 0, Math.PI * 2);
+              ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+              ctx.fill();
+            } else if (pt.type === 'center') {
+              // Draw central bright star (Vega) with stronger glow
+              const starGlow = ctx.createRadialGradient(pt.x, pt.y, 0, pt.x, pt.y, pt.size * 4);
+              starGlow.addColorStop(0, 'rgba(255, 255, 255, 0.9)');
+              starGlow.addColorStop(0.3, 'rgba(255, 190, 225, 0.6)');
+              starGlow.addColorStop(1, 'rgba(190, 215, 255, 0)');
+              
+              ctx.beginPath();
+              ctx.arc(pt.x, pt.y, pt.size * 4, 0, Math.PI * 2);
+              ctx.fillStyle = starGlow;
+              ctx.fill();
+              
+              // Central bright star
+              ctx.beginPath();
+              ctx.arc(pt.x, pt.y, pt.size, 0, Math.PI * 2);
+              ctx.fillStyle = 'rgba(255, 255, 255, 1.0)';
+              ctx.fill();
+            }
+          }
+          
+          // Add a special symbol to represent the "Vega ★ Altair" text equivalent
+          ctx.font = 'bold 4px sans-serif';
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText('*', 0, -5); // Representing the ★ in the constellation
+          
+          ctx.restore();
+        }
         ctx.restore();
       }
       ctx.restore();

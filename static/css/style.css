@@ -628,3 +628,24 @@ body::before{
 #feed article.card[data-mine="1"] .entryBubbles .soft {
   background: color-mix(in srgb, var(--accent) var(--ui-bg-mix), transparent) !important;
 }
+
+
+
+/* === Force background for OTHER users bubbles === */
+:root {
+  --ui-bg-mix: 10%;
+}
+
+/* обычные пузыри других */
+#feed article.card[data-mine="0"] .entryBubbles .soft {
+  background: color-mix(in srgb, var(--bgSecondary) var(--ui-bg-mix), transparent) !important;
+}
+
+/* если у чужих пузырей фон задаётся как victory/lesson (перебивает общий .soft) */
+#feed article.card[data-mine="0"] .entryBubbles .soft[style*="var(--victory)"] {
+  background: color-mix(in srgb, var(--victory) var(--ui-bg-mix), transparent) !important;
+}
+
+#feed article.card[data-mine="0"] .entryBubbles .soft[style*="var(--lesson)"] {
+  background: color-mix(in srgb, var(--lesson) var(--ui-bg-mix), transparent) !important;
+}

@@ -60,9 +60,8 @@ export function layout({ title, description, body, themeId, bootstrap }: { title
     (function(){
       try {
         if ('serviceWorker' in navigator) {
-          window.addEventListener('load', function(){
-            navigator.serviceWorker.register('/static/sw.js', { scope: '/' }).catch(function(){});
-          });
+          // Register ASAP to make PushManager available quickly (Android can be picky).
+          navigator.serviceWorker.register('/static/sw.js', { scope: '/' }).catch(function(){});
         }
       } catch {}
     })();

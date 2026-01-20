@@ -1269,6 +1269,7 @@ function bindHandlers(){
       // Push (Android/desktop messenger-like notifications)
       if (action === 'push-enable') {
         try {
+          toast('Включаю push…');
           await enablePush();
           toast('Push включен.');
         } catch (err) {
@@ -2506,6 +2507,14 @@ function b64urlToU8(b64url){
   return u8;
 }
 
+function withTimeout(promise, ms, msg){
+  let t;
+  const timeout = new Promise((_, rej)=>{
+    t = setTimeout(()=> rej(new Error(msg || 'Timeout')), ms);
+  });
+  return Promise.race([promise, timeout]).finally(()=>{ try { clearTimeout(t); } catch {} });
+}
+
 async function updatePushUI(){
   const btn = document.getElementById('pushBtn');
   const off = document.getElementById('pushOffBtn');
@@ -2514,7 +2523,9 @@ async function updatePushUI(){
 
   const hasSW = ('serviceWorker' in navigator);
   const hasPush = (typeof PushManager !== 'undefined');
-  const isSecure = (location.protocol === 'https:' || location.hostname === 'localhost');
+  const isSecure = (typeof window !== 'undefined' && 'isSecureContext' in window)
+    ? (window.isSecureContext === true)
+    : (location.protocol === 'https:' || location.hostname === 'localhost');
 
   if (!hasSW || !hasPush) {
     btn.disabled = true;
@@ -2529,8 +2540,13 @@ async function updatePushUI(){
     return;
   }
 
+  st.textContent = 'проверяю…';
+
   try {
-    const reg = await navigator.serviceWorker.ready;
+    // Ensure SW is registered (in case user opened settings too early).
+    try { await navigator.serviceWorker.register('/static/sw.js', { scope: '/' }); }
+    catch { throw new Error('Service Worker не зарегистрирован'); }
+    const reg = await withTimeout(navigator.serviceWorker.ready, 2500, 'Service Worker не готов');
     const sub = await reg.pushManager.getSubscription();
     const enabled = !!sub;
 
@@ -2544,21 +2560,30 @@ async function updatePushUI(){
       st.textContent = 'выключено';
     }
   } catch {
-    btn.disabled = true;
+    btn.disabled = false;
     if (off) off.classList.add('hidden');
-    st.textContent = 'ошибка';
+    st.textContent = 'не готово (обнови страницу)';
   }
 }
 
 async function enablePush(){
   if (typeof Notification === 'undefined') throw new Error('Уведомления не поддерживаются.');
+
+  const isSecure = (typeof window !== 'undefined' && 'isSecureContext' in window)
+    ? (window.isSecureContext === true)
+    : (location.protocol === 'https:' || location.hostname === 'localhost');
+  if (!isSecure) throw new Error('Push требует https.');
+
   if (Notification.permission !== 'granted') {
     const p = await Notification.requestPermission();
     updateNotifUI();
     if (p !== 'granted') throw new Error('Разрешение на уведомления не выдано.');
   }
 
-  const reg = await navigator.serviceWorker.ready;
+  // Ensure SW is registered (in case of delayed registration).
+  try { await navigator.serviceWorker.register('/static/sw.js', { scope: '/' }); }
+  catch { throw new Error('Service Worker не зарегистрирован.'); }
+  const reg = await withTimeout(navigator.serviceWorker.ready, 4000, 'Service Worker не готов. Обнови страницу.');
 
   const { publicKey } = await api.pushVapidKey();
   if (!publicKey) throw new Error('Push ключ не получен.');

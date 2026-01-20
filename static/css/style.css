@@ -466,9 +466,9 @@ html.l00m-stars-on body::before{
   opacity: 0 !important; /* disable dotted pattern while stars are on */
 }
 
-/* Ensure stars appear above all backgrounds */
+/* Ensure stars appear behind all elements */
 .stars-bg {
-  z-index: 9999 !important;
+  z-index: -1 !important;
 }
 
 .stars-bg{

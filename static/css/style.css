@@ -321,6 +321,14 @@ body{
   position: relative;
   overflow: hidden;
 }
+
+/* Tap-to-edit affordance */
+#feed article.card .soft[data-action="entry-edit"]{
+  cursor: pointer;
+}
+#feed article.card .soft[data-action="entry-edit"]:hover{
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
+}
 #feed article.card .soft::before{
   content: "";
   position: absolute;

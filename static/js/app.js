@@ -590,6 +590,13 @@ function EntryCard({entry, author, meId, meIsAdmin}){
   const dateLabel = ruDateLabel(entry.date);
   const timeLabel = entry?.created_at ? ruTimeLabel(entry.created_at) : '';
 
+  const mineStamp = isMine
+    ? `${dateLabel}${timeLabel ? ` · ${timeLabel}` : ''}`
+    : '';
+
+  // Editing is done by tapping the field (bubble). Buttons are only for delete.
+  const editAttrs = canManage ? ` data-action="entry-edit" data-id="${entry.id}"` : '';
+
   return `
     <article class="card" data-mine="${isMine ? '1' : '0'}" style="padding: 0;">
       <div class="rowBetween entryHead" style="padding: 10px 10px 0; align-items: flex-start;">
@@ -602,19 +609,18 @@ function EntryCard({entry, author, meId, meIsAdmin}){
         </div>
         ${canManage ? `
           <div class="row" style="gap: 8px; align-items:center;">
-            ${isMine && timeLabel ? `<span class="textMuted" style="font-size: 12px; margin-right: 2px">${escapeHTML(timeLabel)}</span>` : ''}
-            <button type="button" class="btn-ghost" style="padding: 10px 12px" data-action="entry-edit" data-id="${entry.id}" aria-label="Редактировать">✎</button>
+            ${isMine ? `<span class="textMuted" style="font-size: 12px; margin-right: 2px">${escapeHTML(mineStamp)}</span>` : ''}
             <button type="button" class="btn-ghost" style="padding: 10px 12px" data-action="entry-delete" data-id="${entry.id}" aria-label="Удалить">🗑️</button>
           </div>
         ` : ''}
       </div>
 
       <div class="grid entryBubbles" style="margin-top: 10px; padding: 0 10px 12px;">
-        <div class="soft" style="padding: 12px; background: var(--victory)">
+        <div class="soft" style="padding: 12px; background: var(--victory)"${editAttrs}>
           <div style="font-size: 12px; font-weight: 900; letter-spacing:.16em">⚔️ VICTORIA</div>
           <div style="margin-top: 6px; white-space: pre-wrap; word-break: break-word;" data-entry-text="victory" data-id="${entry.id}">…</div>
         </div>
-        <div class="soft" style="padding: 12px; background: var(--lesson)">
+        <div class="soft" style="padding: 12px; background: var(--lesson)"${editAttrs}>
           <div style="font-size: 12px; font-weight: 900; letter-spacing:.16em">🦉 LECTIO</div>
           <div style="margin-top: 6px; white-space: pre-wrap; word-break: break-word;" data-entry-text="lesson" data-id="${entry.id}">…</div>
         </div>
@@ -1104,17 +1110,8 @@ async function render(){
 
   if (route === '/join' && !APP.state.user) await hydrateJoin();
   if (route === '/path' && APP.state.user) {
-    // entering /path means user is likely to read the feed
-    APP.state.live.unread = 0;
-    updateAttentionIndicators();
-
-    // Clear system notification tray (messenger-like behavior).
-    try {
-      // controller is the most reliable channel when SW already controls the page
-      navigator.serviceWorker?.controller?.postMessage?.({ type: 'clear-notifications' });
-      const reg = await navigator.serviceWorker?.getRegistration?.();
-      reg?.active?.postMessage?.({ type: 'clear-notifications' });
-    } catch {}
+    // Do NOT clear unread just because we navigated to /path.
+    // Clear happens when the user is actually viewing the feed (near top) or when the tab becomes visible.
 
     await hydratePathStats();
     await hydrateTodayForm();
@@ -1157,24 +1154,29 @@ function bindHandlers(){
     // Keep app badge/title in sync when user returns to the tab.
     document.addEventListener('visibilitychange', ()=>{
       try {
-        if (!document.hidden && APP.state.user && APP.state.route?.path === '/path') {
-          // Clear system notification tray when user returns to the app.
+        // When the app becomes visible, clear old system notifications (messenger-like).
+        if (!document.hidden && APP.state.user) {
           try {
             navigator.serviceWorker?.controller?.postMessage?.({ type: 'clear-notifications' });
+            navigator.serviceWorker?.getRegistration?.().then((reg)=>{
+              try { reg?.active?.postMessage?.({ type: 'clear-notifications' }); } catch {}
+            }).catch(()=>{});
           } catch {}
 
-          // if user is at top, consider them caught up
-          const nearTop = (window.scrollY || document.documentElement.scrollTop || 0) < 220;
-          if (nearTop) {
-            APP.state.live.unread = 0;
-            updateAttentionIndicators();
-            liveBarHide();
+          // Only mark as read when user is on /path AND near the top (they are actually looking at the feed).
+          if (APP.state.route?.path === '/path') {
+            const nearTop = (window.scrollY || document.documentElement.scrollTop || 0) < 220;
+            if (nearTop) {
+              APP.state.live.unread = 0;
+              updateAttentionIndicators();
+              liveBarHide();
+            }
           }
         }
       } catch {}
     });
 
-    // Auto-apply new steps when user scrolls back to the top.
+    // Auto-apply new steps when user scrolls back to the top AND the app is in focus.
     window.addEventListener('scroll', ()=>{
       try {
         if (!APP.state.user) return;
@@ -1182,6 +1184,9 @@ function bindHandlers(){
         if (!APP.state.live.unread) return;
         const nearTop = (window.scrollY || document.documentElement.scrollTop || 0) < 220;
         if (!nearTop) return;
+
+        const inFocus = (!document.hidden) && (typeof document.hasFocus !== 'function' || document.hasFocus());
+        if (!inFocus) return;
 
         clearTimeout(bindHandlers._scrollT);
         bindHandlers._scrollT = setTimeout(()=>{
@@ -2251,8 +2256,13 @@ async function liveTick(){
     const route = APP.state.route?.path;
     const nearTop = (window.scrollY || document.documentElement.scrollTop || 0) < 220;
 
-    if (route === '/path' && nearTop) {
-      // user is looking at the top, auto-refresh
+    // Auto-apply only when the app is actually in focus.
+    // If the tab/PWA is in background (document.hidden), we must NOT silently refresh,
+    // otherwise the user will miss notifications while the app sits open on /path.
+    const inFocus = (!document.hidden) && (typeof document.hasFocus !== 'function' || document.hasFocus());
+
+    if (route === '/path' && nearTop && inFocus) {
+      // user is looking at the top and is actively using the app - auto-refresh
       APP.state.live.unread = 0;
       updateAttentionIndicators();
       await liveApplyIfNeeded({ force: true });

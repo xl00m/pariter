@@ -333,6 +333,7 @@ const api = {
   pushVapidKey: ()=> apiFetch('/api/push/vapidPublicKey'),
   pushSubscribe: ({ endpoint, keys })=> apiFetch('/api/push/subscribe', { method:'POST', body: { endpoint, keys } }),
   pushUnsubscribe: ({ endpoint=null }={})=> apiFetch('/api/push/unsubscribe', { method:'POST', body: { endpoint } }),
+  pushTest: ()=> apiFetch('/api/push/test', { method:'POST', body: {} }),
 };
 
 // server returns base64(Bun.gzipSync(text)) in entry.victory / entry.lesson
@@ -936,6 +937,7 @@ function pageSettings(){
           <div class="row" style="margin-top: 10px; flex-wrap: wrap">
             <button type="button" class="btn" data-action="push-enable" id="pushBtn">Включить push</button>
             <button type="button" class="btn-ghost hidden" data-action="push-disable" id="pushOffBtn">Выключить</button>
+            <button type="button" class="btn-ghost" data-action="push-test" id="pushTestBtn">Тест</button>
             <span class="pill textMuted" id="pushStatus" style="font-size: 12px">проверяю…</span>
           </div>
 
@@ -1341,6 +1343,18 @@ function bindHandlers(){
         } finally {
           APP._pushBusy = false;
           try { updatePushUI(); } catch {}
+        }
+        return;
+      }
+
+      if (action === 'push-test') {
+        try {
+          const r = await api.pushTest();
+          const ok = !!r?.ok;
+          if (ok) toast('Тест отправлен.');
+          else toast('Не удалось отправить тест.');
+        } catch (err) {
+          toast(err.message || 'Ошибка теста.');
         }
         return;
       }

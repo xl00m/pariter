@@ -539,6 +539,37 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
       return json({ ok: true });
     }
 
+    // --- Push: test (send a real Web Push to the current user)
+    if (req.method === 'POST' && path === '/api/push/test') {
+      const { user } = requireAuth(db, req);
+
+      const subs = db.query(
+        'SELECT id, endpoint, p256dh, auth FROM push_subscriptions WHERE user_id = ? ORDER BY datetime(created_at) DESC'
+      ).all(user.id) as any[];
+
+      if (!subs.length) return error('Нет активных push-подписок для этого пользователя.', 404);
+
+      const subject = String(process.env.PARITER_VAPID_SUBJECT || 'mailto:admin@pariter.local');
+      const payloadJson = {
+        type: 'text',
+        text: `Pariter test: ${String(user.name || 'Спутник')}`,
+      };
+
+      const results = await Promise.allSettled(subs.map(async (s)=>{
+        const res = await sendWebPush({
+          subscription: { endpoint: String(s.endpoint), p256dh: String(s.p256dh), auth: String(s.auth) },
+          payloadJson,
+          subject,
+        });
+        if (res.status === 404 || res.status === 410) {
+          db.run('DELETE FROM push_subscriptions WHERE id = ?', [Number(s.id)]);
+        }
+        return res.status;
+      }));
+
+      return json({ ok: true, subs: subs.length, results: results.map(r => (r.status === 'fulfilled' ? r.value : 'error')) });
+    }
+
     // --- Stats
     if (req.method === 'GET' && path === '/api/stats') {
       const { user } = requireAuth(db, req);

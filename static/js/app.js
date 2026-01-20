@@ -394,8 +394,8 @@ function StarsEngine(canvas){
       h.ph += 0.006 * h.spin;
 
       const g1 = ctx.createRadialGradient(h.x, h.y, 0, h.x, h.y, h.r * 2.6);
-      g1.addColorStop(0.00, 'rgba(0,0,0,0.5)');
-      g1.addColorStop(0.35, 'rgba(0,0,0,0.25)');
+      g1.addColorStop(0.00, 'rgba(0,0,0,0.01)');
+      g1.addColorStop(0.35, 'rgba(0,0,0,0.004)');
       g1.addColorStop(1.00, 'rgba(0,0,0,0)');
 
       ctx.fillStyle = g1;
@@ -404,7 +404,7 @@ function StarsEngine(canvas){
       ctx.fill();
 
       const g2 = ctx.createRadialGradient(h.x, h.y, 0, h.x, h.y, h.r * 1.05);
-      g2.addColorStop(0, 'rgba(0,0,0,0.5)');
+      g2.addColorStop(0, 'rgba(0,0,0,0.01)');
       g2.addColorStop(1, 'rgba(0,0,0,0)');
       ctx.fillStyle = g2;
       ctx.beginPath();
@@ -421,13 +421,13 @@ function StarsEngine(canvas){
 
       const g3 = ctx.createRadialGradient(0, 0, ringR - ringW, 0, 0, ringR + ringW);
       g3.addColorStop(0.00, 'rgba(255,255,255,0)');
-      g3.addColorStop(0.45, 'rgba(190,215,255,0.5)');
-      g3.addColorStop(0.55, 'rgba(255,190,225,0.6)');
-      g3.addColorStop(0.75, 'rgba(255,255,255,0.3)');
+      g3.addColorStop(0.45, 'rgba(190,215,255,0.12)');
+      g3.addColorStop(0.55, 'rgba(255,190,225,0.18)');
+      g3.addColorStop(0.75, 'rgba(255,255,255,0.06)');
       g3.addColorStop(1.00, 'rgba(255,255,255,0)');
 
       ctx.strokeStyle = g3;
-      ctx.lineWidth = Math.max(1, h.r * 0.25);
+      ctx.lineWidth = Math.max(1, h.r * 0.18);
       ctx.beginPath();
       ctx.ellipse(0, 0, ringR, ringR * 0.72, 0, 0, Math.PI * 2);
       ctx.stroke();
@@ -439,7 +439,7 @@ function StarsEngine(canvas){
 
         ctx.beginPath();
         ctx.arc(sx, sy, 1.1, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(255,255,255,0.65)';
+        ctx.fillStyle = 'rgba(255,255,255,0.35)';
         ctx.fill();
       }
 
@@ -450,9 +450,9 @@ function StarsEngine(canvas){
         
         // Create a linear gradient for the constellation that mimics the SVG gradient
         const gradient = ctx.createLinearGradient(-20, 0, 20, 0);
-        gradient.addColorStop(0, 'rgba(190,215,255,0.9)');
-        gradient.addColorStop(0.5, 'rgba(255,190,225,0.9)');
-        gradient.addColorStop(1, 'rgba(255,255,255,0.85)');
+        gradient.addColorStop(0, 'rgba(190,215,255,0.78)');
+        gradient.addColorStop(0.5, 'rgba(255,190,225,0.78)');
+        gradient.addColorStop(1, 'rgba(255,255,255,0.70)');
         
         // Define constellation points that will appear inside the black hole
         // These represent key stars of the Vega-Altair constellation
@@ -479,7 +479,7 @@ function StarsEngine(canvas){
         ctx.beginPath();
         ctx.moveTo(constellationPoints[1].x, constellationPoints[1].y);
         ctx.lineTo(constellationPoints[3].x, constellationPoints[3].y);
-        ctx.strokeStyle = 'rgba(190, 215, 255, 0.6)';
+        ctx.strokeStyle = 'rgba(190, 215, 255, 0.25)';
         ctx.lineWidth = 0.6;
         ctx.stroke();
         
@@ -488,7 +488,7 @@ function StarsEngine(canvas){
           if (pt.type === 'star') {
             // Outer glow
             const starGlow = ctx.createRadialGradient(pt.x, pt.y, 0, pt.x, pt.y, pt.size * 3);
-            starGlow.addColorStop(0, 'rgba(190, 215, 255, 0.7)');
+            starGlow.addColorStop(0, 'rgba(190, 215, 255, 0.4)');
             starGlow.addColorStop(1, 'rgba(190, 215, 255, 0)');
             
             ctx.beginPath();
@@ -504,9 +504,9 @@ function StarsEngine(canvas){
           } else if (pt.type === 'center') {
             // Draw central bright star (Vega) with stronger glow
             const starGlow = ctx.createRadialGradient(pt.x, pt.y, 0, pt.x, pt.y, pt.size * 4);
-            starGlow.addColorStop(0, 'rgba(255, 255, 255, 0.95)');
-            starGlow.addColorStop(0.3, 'rgba(255, 190, 225, 0.8)');
-            starGlow.addColorStop(1, 'rgba(190, 215, 255, 0.2)');
+            starGlow.addColorStop(0, 'rgba(255, 255, 255, 0.9)');
+            starGlow.addColorStop(0.3, 'rgba(255, 190, 225, 0.6)');
+            starGlow.addColorStop(1, 'rgba(190, 215, 255, 0)');
             
             ctx.beginPath();
             ctx.arc(pt.x, pt.y, pt.size * 4, 0, Math.PI * 2);
@@ -902,8 +902,8 @@ function CrystalEngine(){
         h.ph += 0.006 * h.spin;
 
         const g1 = ctx.createRadialGradient(h.x, h.y, 0, h.x, h.y, h.r * 2.6);
-        g1.addColorStop(0.00, 'rgba(0,0,0,0.5)');
-        g1.addColorStop(0.35, 'rgba(0,0,0,0.25)');
+        g1.addColorStop(0.00, 'rgba(0,0,0,0.01)');
+        g1.addColorStop(0.35, 'rgba(0,0,0,0.004)');
         g1.addColorStop(1.00, 'rgba(0,0,0,0)');
 
         ctx.fillStyle = g1;
@@ -912,7 +912,7 @@ function CrystalEngine(){
         ctx.fill();
 
         const g2 = ctx.createRadialGradient(h.x, h.y, 0, h.x, h.y, h.r * 1.05);
-        g2.addColorStop(0, 'rgba(0,0,0,0.5)');
+        g2.addColorStop(0, 'rgba(0,0,0,0.01)');
         g2.addColorStop(1, 'rgba(0,0,0,0)');
         ctx.fillStyle = g2;
         ctx.beginPath();
@@ -929,13 +929,13 @@ function CrystalEngine(){
 
         const g3 = ctx.createRadialGradient(0, 0, ringR - ringW, 0, 0, ringR + ringW);
         g3.addColorStop(0.00, 'rgba(255,255,255,0)');
-        g3.addColorStop(0.45, 'rgba(190,215,255,0.5)');
-        g3.addColorStop(0.55, 'rgba(255,190,225,0.6)');
-        g3.addColorStop(0.75, 'rgba(255,255,255,0.3)');
+        g3.addColorStop(0.45, 'rgba(190,215,255,0.12)');
+        g3.addColorStop(0.55, 'rgba(255,190,225,0.18)');
+        g3.addColorStop(0.75, 'rgba(255,255,255,0.06)');
         g3.addColorStop(1.00, 'rgba(255,255,255,0)');
 
         ctx.strokeStyle = g3;
-        ctx.lineWidth = Math.max(1, h.r * 0.25);
+        ctx.lineWidth = Math.max(1, h.r * 0.18);
         ctx.beginPath();
         ctx.ellipse(0, 0, ringR, ringR * 0.72, 0, 0, Math.PI * 2);
         ctx.stroke();
@@ -947,7 +947,7 @@ function CrystalEngine(){
 
           ctx.beginPath();
           ctx.arc(sx, sy, 1.1, 0, Math.PI * 2);
-          ctx.fillStyle = 'rgba(255,255,255,0.65)';
+          ctx.fillStyle = 'rgba(255,255,255,0.35)';
           ctx.fill();
         }
 
@@ -958,9 +958,9 @@ function CrystalEngine(){
           
           // Create a linear gradient for the constellation that mimics the SVG gradient
           const gradient = ctx.createLinearGradient(-20, 0, 20, 0);
-          gradient.addColorStop(0, 'rgba(190,215,255,0.9)');
-          gradient.addColorStop(0.5, 'rgba(255,190,225,0.9)');
-          gradient.addColorStop(1, 'rgba(255,255,255,0.85)');
+          gradient.addColorStop(0, 'rgba(190,215,255,0.78)');
+          gradient.addColorStop(0.5, 'rgba(255,190,225,0.78)');
+          gradient.addColorStop(1, 'rgba(255,255,255,0.70)');
           
           // Define constellation points that will appear inside the black hole
           // These represent key stars of the Vega-Altair constellation
@@ -987,7 +987,7 @@ function CrystalEngine(){
           ctx.beginPath();
           ctx.moveTo(constellationPoints[1].x, constellationPoints[1].y);
           ctx.lineTo(constellationPoints[3].x, constellationPoints[3].y);
-          ctx.strokeStyle = 'rgba(190, 215, 255, 0.6)';
+          ctx.strokeStyle = 'rgba(190, 215, 255, 0.25)';
           ctx.lineWidth = 0.6;
           ctx.stroke();
           
@@ -996,7 +996,7 @@ function CrystalEngine(){
             if (pt.type === 'star') {
               // Outer glow
               const starGlow = ctx.createRadialGradient(pt.x, pt.y, 0, pt.x, pt.y, pt.size * 3);
-              starGlow.addColorStop(0, 'rgba(190, 215, 255, 0.7)');
+              starGlow.addColorStop(0, 'rgba(190, 215, 255, 0.4)');
               starGlow.addColorStop(1, 'rgba(190, 215, 255, 0)');
               
               ctx.beginPath();
@@ -1012,9 +1012,9 @@ function CrystalEngine(){
             } else if (pt.type === 'center') {
               // Draw central bright star (Vega) with stronger glow
               const starGlow = ctx.createRadialGradient(pt.x, pt.y, 0, pt.x, pt.y, pt.size * 4);
-              starGlow.addColorStop(0, 'rgba(255, 255, 255, 0.95)');
-              starGlow.addColorStop(0.3, 'rgba(255, 190, 225, 0.8)');
-              starGlow.addColorStop(1, 'rgba(190, 215, 255, 0.2)');
+              starGlow.addColorStop(0, 'rgba(255, 255, 255, 0.9)');
+              starGlow.addColorStop(0.3, 'rgba(255, 190, 225, 0.6)');
+              starGlow.addColorStop(1, 'rgba(190, 215, 255, 0)');
               
               ctx.beginPath();
               ctx.arc(pt.x, pt.y, pt.size * 4, 0, Math.PI * 2);

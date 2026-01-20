@@ -587,3 +587,45 @@ body::before{
 .toast{
   bottom: calc(22px + var(--safeBottom));
 }
+
+/* === Make all UI surfaces ~20% opaque so stars are visible === */
+:root {
+  --ui-bg-mix: 20%;
+  /* 20% color + 80% transparent */
+  --ui-blur: 14px;
+}
+
+/* main surfaces */
+.card,
+.soft,
+.header,
+.sidebar,
+.toast,
+.modalPanel,
+#todayForm,
+.pill,
+.theme-dot,
+.input,
+.textarea,
+.pw-toggle,
+.ai-btn,
+.btn-ghost {
+  background: color-mix(in srgb, var(--bgSecondary) var(--ui-bg-mix), transparent) !important;
+  backdrop-filter: blur(var(--ui-blur));
+}
+
+/* primary / danger buttons (тоже делаем “стеклянными”) */
+.btn {
+  background: color-mix(in srgb, var(--accent) var(--ui-bg-mix), transparent) !important;
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent) !important;
+}
+
+.btn-danger {
+  background: color-mix(in srgb, var(--danger) var(--ui-bg-mix), transparent) !important;
+  border-color: color-mix(in srgb, var(--danger) 40%, transparent) !important;
+}
+
+/* chat bubble special-case (my bubble tint) */
+#feed article.card[data-mine="1"] .entryBubbles .soft {
+  background: color-mix(in srgb, var(--accent) var(--ui-bg-mix), transparent) !important;
+}

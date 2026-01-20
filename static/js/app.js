@@ -16,6 +16,7 @@ const APP = {
     feed: { cursor: null, loading: false, done: false, lastRenderedDate: null, renderedCount: 0 },
     cache: { entryText: new Map() },
     live: { topKey: null, pending: false, unread: 0, lastNotifiedKey: null, prompted: false },
+    sound: { enabled: false, lastAt: 0 },
   }
 };
 
@@ -929,6 +930,11 @@ function pageSettings(){
             <button type="button" class="btn-ghost hidden" data-action="push-disable" id="pushOffBtn">Выключить</button>
             <span class="pill textMuted" id="pushStatus" style="font-size: 12px">проверяю…</span>
           </div>
+
+          <div class="row" style="margin-top: 10px; flex-wrap: wrap">
+            <button type="button" class="btn-ghost" data-action="sound-toggle" id="soundBtn">Звук</button>
+            <span class="pill textMuted" id="soundStatus" style="font-size: 12px">проверяю…</span>
+          </div>
         </div>
 
         <form id="settingsForm" class="grid" style="margin-top: 16px; gap: 14px">
@@ -1084,6 +1090,7 @@ async function render(){
     setTimeout(()=>{ try { updatePwaUI(); } catch {} }, 0);
     setTimeout(()=>{ try { updateNotifUI(); } catch {} }, 0);
     setTimeout(()=>{ try { updatePushUI(); } catch {} }, 0);
+    setTimeout(()=>{ try { updateSoundUI(); } catch {} }, 0);
   }
 
   if ((route === '/' || route === '/login' || route === '/register' || route === '/join') && !APP.state.user) {
@@ -1297,6 +1304,20 @@ function bindHandlers(){
         } finally {
           APP._pushBusy = false;
           try { updatePushUI(); } catch {}
+        }
+        return;
+      }
+
+      // Sound toggle
+      if (action === 'sound-toggle') {
+        const next = !readSoundEnabled();
+        writeSoundEnabled(next);
+        APP.state.sound.enabled = next;
+        updateSoundUI();
+        toast(next ? 'Звук включен.' : 'Звук выключен.');
+        // Try to unlock audio on a user gesture
+        if (next) {
+          try { playCosmicChime({ quiet: true }); } catch {}
         }
         return;
       }
@@ -2210,6 +2231,8 @@ async function liveTick(){
     if (APP.state.live.lastNotifiedKey !== newKey) {
       APP.state.live.lastNotifiedKey = newKey;
       await notifyNewEntry({ ...newest, _extraCount: Math.max(0, count - 1) });
+      // Soft cosmic sound (messenger-like: only when app is NOT in focus)
+      try { playCosmicChime(); } catch {}
     }
 
   } catch {
@@ -2682,6 +2705,151 @@ async function disablePush(){
   try { await updatePushUI(); } catch {}
 }
 
+// --- Sound (gentle cosmic chime)
+const SOUND_KEY = 'pariter_sound_enabled';
+
+function readSoundEnabled(){
+  try {
+    const v = localStorage.getItem(SOUND_KEY);
+    if (v == null) return false;
+    return v === '1';
+  } catch { return false; }
+}
+
+function writeSoundEnabled(enabled){
+  try { localStorage.setItem(SOUND_KEY, enabled ? '1' : '0'); } catch {}
+}
+
+function updateSoundUI(){
+  const btn = document.getElementById('soundBtn');
+  const st = document.getElementById('soundStatus');
+  if (!btn || !st) return;
+
+  const enabled = readSoundEnabled();
+  APP.state.sound.enabled = enabled;
+
+  btn.textContent = enabled ? 'Звук: вкл' : 'Звук: выкл';
+  st.textContent = enabled ? 'включено' : 'выключено';
+}
+
+function playCosmicChime({ quiet=false }={}){
+  const enabled = readSoundEnabled();
+  if (!enabled) return;
+
+  const now = Date.now();
+  const minGap = 2000;
+  if (!quiet && (now - (APP.state.sound.lastAt || 0) < minGap)) return;
+  APP.state.sound.lastAt = now;
+
+  // Messenger-like behavior: play only when the app is NOT in focus.
+  // When the app is focused, we stay silent.
+  // Note: some browsers may restrict audio in background tabs.
+  if (!quiet) {
+    try {
+      const inFocus = !document.hidden && (typeof document.hasFocus !== 'function' || document.hasFocus());
+      if (inFocus) return;
+    } catch {}
+  }
+
+  // WebAudio synth: short "cosmic" bell (two detuned sines + soft noise)
+  const Ctx = window.AudioContext || window.webkitAudioContext;
+  if (!Ctx) return;
+  const ctx = playCosmicChime._ctx || (playCosmicChime._ctx = new Ctx());
+
+  // Some browsers require resume on user gesture.
+  if (ctx.state === 'suspended') {
+    // best-effort
+    ctx.resume().catch(()=>{});
+  }
+
+  const t0 = ctx.currentTime + 0.01;
+  const out = ctx.createGain();
+  out.gain.setValueAtTime(0.0001, t0);
+  out.gain.exponentialRampToValueAtTime(quiet ? 0.06 : 0.12, t0 + 0.02);
+  out.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.9);
+  out.connect(ctx.destination);
+
+  // Main tone
+  const o1 = ctx.createOscillator();
+  o1.type = 'sine';
+  o1.frequency.setValueAtTime(660, t0);
+  o1.frequency.exponentialRampToValueAtTime(520, t0 + 0.35);
+
+  const o2 = ctx.createOscillator();
+  o2.type = 'sine';
+  o2.frequency.setValueAtTime(660 * 1.008, t0);
+  o2.frequency.exponentialRampToValueAtTime(520 * 1.01, t0 + 0.35);
+
+  // Gentle filter
+  const lp = ctx.createBiquadFilter();
+  lp.type = 'lowpass';
+  lp.frequency.setValueAtTime(1400, t0);
+  lp.Q.setValueAtTime(0.8, t0);
+
+  const g1 = ctx.createGain();
+  g1.gain.setValueAtTime(0.0, t0);
+  g1.gain.linearRampToValueAtTime(0.9, t0 + 0.02);
+  g1.gain.exponentialRampToValueAtTime(0.001, t0 + 0.9);
+
+  const g2 = ctx.createGain();
+  g2.gain.setValueAtTime(0.0, t0);
+  g2.gain.linearRampToValueAtTime(0.6, t0 + 0.02);
+  g2.gain.exponentialRampToValueAtTime(0.001, t0 + 0.9);
+
+  o1.connect(g1);
+  o2.connect(g2);
+  g1.connect(lp);
+  g2.connect(lp);
+
+  // Tiny noise shimmer
+  const noiseBuf = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 0.12), ctx.sampleRate);
+  const ch = noiseBuf.getChannelData(0);
+  for (let i=0;i<ch.length;i++) ch[i] = (Math.random() * 2 - 1) * 0.25;
+  const noise = ctx.createBufferSource();
+  noise.buffer = noiseBuf;
+
+  const hp = ctx.createBiquadFilter();
+  hp.type = 'highpass';
+  hp.frequency.setValueAtTime(800, t0);
+
+  const ng = ctx.createGain();
+  ng.gain.setValueAtTime(0.0001, t0);
+  ng.gain.exponentialRampToValueAtTime(quiet ? 0.025 : 0.04, t0 + 0.02);
+  ng.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.18);
+
+  noise.connect(hp);
+  hp.connect(ng);
+  ng.connect(lp);
+
+  // Slight reverb-ish feel via short delay
+  const delay = ctx.createDelay(1.0);
+  delay.delayTime.setValueAtTime(0.14, t0);
+  const fb = ctx.createGain();
+  fb.gain.setValueAtTime(0.18, t0);
+  delay.connect(fb);
+  fb.connect(delay);
+
+  const wet = ctx.createGain();
+  wet.gain.setValueAtTime(0.25, t0);
+
+  lp.connect(out);
+  lp.connect(delay);
+  delay.connect(wet);
+  wet.connect(out);
+
+  o1.start(t0);
+  o2.start(t0);
+  noise.start(t0);
+
+  o1.stop(t0 + 0.95);
+  o2.stop(t0 + 0.95);
+  noise.stop(t0 + 0.22);
+}
+
+// restore sound setting early
+try { APP.state.sound.enabled = readSoundEnabled(); } catch {}
+
+
 document.addEventListener('click', (e)=>{
   // intercept plain <a href="/..."></a>
   const a = e.target?.closest?.('a');
@@ -2699,6 +2867,8 @@ document.addEventListener('click', (e)=>{
 (async function init(){
   setTheme('dark_warrior');
   ensureEntryModal();
+  // Restore sound state early
+  try { APP.state.sound.enabled = readSoundEnabled(); } catch {}
   // Best-effort: ensure root-scope Service Worker is registered early (needed for Push on Android).
   try { ensureServiceWorkerForPush(); } catch {}
   await render();

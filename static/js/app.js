@@ -1577,8 +1577,23 @@ function EntryCard({entry, author, meId, meIsAdmin}){
   const roleEmoji = ROLE_META[author?.role]?.emoji || '✦';
   const authorName = author?.name || 'Неизвестный';
   const dateLabel = ruDateLabel(entry.date);
-  // Если у записи есть created_at, используем его для времени, иначе если есть дата - показываем 00:00, иначе пусто
-  const timeLabel = entry?.created_at ? ruTimeLabel(entry.created_at) : (entry?.date ? '00:00' : '');
+  
+  // Обрабатываем created_at: если значение некорректно или отсутствует, используем фиктивное время '00:00'
+  let timeLabel = '';
+  if (entry?.created_at && String(entry.created_at).trim() !== '' && new Date(entry.created_at).getTime() > 0) {
+    timeLabel = ruTimeLabel(entry.created_at);
+  } else {
+    timeLabel = '00:00'; // фиктивное время для некорректных или отсутствующих значений
+  }
+
+  console.log('EntryCard data:', {
+    entryId: entry.id,
+    entryDate: entry.date,
+    entryCreatedAt: entry.created_at,
+    dateLabel,
+    timeLabel,
+    rawEntry: entry
+  });
 
   // Editing is done by tapping the field (bubble). Buttons are only for delete.
   const editAttrs = canManage ? ` data-action="entry-edit" data-id="${entry.id}"` : '';
@@ -1590,7 +1605,7 @@ function EntryCard({entry, author, meId, meIsAdmin}){
           <div style="width:38px;height:38px;border-radius:999px;display:grid;place-items:center;border:1px solid var(--border);background:rgba(255,255,255,.03)">${roleEmoji}</div>
           <div style="min-width:0">
             <div style="font-weight: 900; white-space: nowrap; overflow:hidden; text-overflow: ellipsis;">${escapeHTML(authorName)}</div>
-            <div class="textMuted" style="font-size: 12px">${escapeHTML(dateLabel)}${timeLabel ? ` <span aria-hidden="true">·</span> ${escapeHTML(timeLabel)}` : ''}</div>
+            <div class="textMuted" style="font-size: 12px">${escapeHTML(dateLabel)} <span aria-hidden="true">·</span> ${escapeHTML(timeLabel)}</div>
           </div>
         </div>
         ${canManage ? `
@@ -3410,6 +3425,7 @@ async function loadMoreFeed(){
     const map = teamUserMap();
 
     for (const e of entries) {
+      console.log('Processing entry in loadMoreFeed:', e);
       if (APP.state.feed.lastRenderedDate !== e.date) {
         feed.insertAdjacentHTML('beforeend', DateDivider(ruDateLabel(e.date)));
         APP.state.feed.lastRenderedDate = e.date;
@@ -3417,6 +3433,7 @@ async function loadMoreFeed(){
 
       const author = map.get(e.user_id) || null;
       const meIsAdmin = Number(APP.state.user?.is_admin || 0) === 1;
+      console.log('Calling EntryCard with:', { entry: e, author, meId: APP.state.user.id, meIsAdmin });
       feed.insertAdjacentHTML('beforeend', EntryCard({ entry: e, author, meId: APP.state.user.id, meIsAdmin }));
       APP.state.feed.renderedCount++;
     }

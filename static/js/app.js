@@ -1579,10 +1579,6 @@ function EntryCard({entry, author, meId, meIsAdmin}){
   const dateLabel = ruDateLabel(entry.date);
   const timeLabel = entry?.created_at ? ruTimeLabel(entry.created_at) : '';
 
-  const mineStamp = isMine
-    ? `${dateLabel}${timeLabel ? ` · ${timeLabel}` : ''}`
-    : '';
-
   // Editing is done by tapping the field (bubble). Buttons are only for delete.
   const editAttrs = canManage ? ` data-action="entry-edit" data-id="${entry.id}"` : '';
 
@@ -1598,7 +1594,6 @@ function EntryCard({entry, author, meId, meIsAdmin}){
         </div>
         ${canManage ? `
           <div class="row" style="gap: 8px; align-items:center;">
-            ${isMine ? `<span class="textMuted" style="font-size: 12px; margin-right: 2px">${escapeHTML(mineStamp)}</span>` : ''}
           </div>
         ` : ''}
       </div>

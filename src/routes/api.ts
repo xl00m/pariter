@@ -90,7 +90,7 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
 
   try {
     // --- Health
-    if (req.method === 'GET' && path === '/api/health') {
+    if ((req.method === 'GET' || req.method === 'HEAD') && path === '/api/health') {
       return json({ ok: true, time: nowISO() });
     }
 
@@ -503,8 +503,8 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
     }
 
     // --- Push
-    if (req.method === 'GET' && path === '/api/push/vapidPublicKey') {
-      const { } = requireAuth(db, req);
+    if ((req.method === 'GET' || req.method === 'HEAD') && path === '/api/push/vapidPublicKey') {
+      // Public key can be served without auth.
       const key = await getVapidPublicKeyB64Url();
       return json({ ok: true, publicKey: key });
     }

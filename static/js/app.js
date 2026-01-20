@@ -124,8 +124,10 @@ function StarsEngine(canvas){
   this.baseCtx = this.baseCanvas.getContext('2d');
   this.bgColor = ()=>{
     try {
-      const v = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim();
-      return v || '#0a0a0f';
+      const r = getComputedStyle(document.documentElement);
+      const lunar = r.getPropertyValue('--lunar-bg-deep').trim();
+      const v = r.getPropertyValue('--bg').trim();
+      return lunar || v || '#0a0a0f';
     } catch { return '#0a0a0f'; }
   };
 

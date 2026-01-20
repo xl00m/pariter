@@ -229,6 +229,8 @@ function StarsEngine(canvas){
       { x: this.W*0.28, y: this.H*0.38, r: 44 },
       { x: this.W*0.74, y: this.H*0.62, r: 58 },
     ];
+    // Randomly decide which hole will have the constellation
+    const constellationIndex = Math.floor(Math.random() * n);
     for (let i=0;i<n;i++) {
       const p = presets[i] || { x: Math.random()*this.W, y: Math.random()*this.H, r: 42 + Math.random()*28 };
       this.holes.push({
@@ -237,7 +239,7 @@ function StarsEngine(canvas){
         r: p.r,
         spin: (Math.random() > 0.5 ? 1 : -1),
         ph: Math.random()*Math.PI*2,
-        hasConstellation: i === 0, // Mark the first hole as having the constellation
+        hasConstellation: i === constellationIndex, // Mark the randomly selected hole as having the constellation
       });
     }
     // reset comets on hole regen
@@ -394,8 +396,8 @@ function StarsEngine(canvas){
       h.ph += 0.006 * h.spin;
 
       const g1 = ctx.createRadialGradient(h.x, h.y, 0, h.x, h.y, h.r * 2.6);
-      g1.addColorStop(0.00, 'rgba(0,0,0,0.01)');
-      g1.addColorStop(0.35, 'rgba(0,0,0,0.004)');
+      g1.addColorStop(0.00, 'rgba(0,0,0,0.005)');
+      g1.addColorStop(0.35, 'rgba(0,0,0,0.002)');
       g1.addColorStop(1.00, 'rgba(0,0,0,0)');
 
       ctx.fillStyle = g1;
@@ -817,9 +819,11 @@ function CrystalEngine(){
       });
     }
 
+    // Randomly decide which hole will have the constellation
+    const constellationIndex = Math.floor(Math.random() * 2);
     const holes = [
-      { x: W*0.28, y: H*0.38, r: 44, spin: (Math.random()>0.5?1:-1), ph: Math.random()*Math.PI*2, hasConstellation: true },
-      { x: W*0.74, y: H*0.62, r: 58, spin: (Math.random()>0.5?1:-1), ph: Math.random()*Math.PI*2, hasConstellation: false },
+      { x: W*0.28, y: H*0.38, r: 44, spin: (Math.random()>0.5?1:-1), ph: Math.random()*Math.PI*2, hasConstellation: 0 === constellationIndex },
+      { x: W*0.74, y: H*0.62, r: 58, spin: (Math.random()>0.5?1:-1), ph: Math.random()*Math.PI*2, hasConstellation: 1 === constellationIndex },
     ];
 
     return {
@@ -902,8 +906,8 @@ function CrystalEngine(){
         h.ph += 0.006 * h.spin;
 
         const g1 = ctx.createRadialGradient(h.x, h.y, 0, h.x, h.y, h.r * 2.6);
-        g1.addColorStop(0.00, 'rgba(0,0,0,0.01)');
-        g1.addColorStop(0.35, 'rgba(0,0,0,0.004)');
+        g1.addColorStop(0.00, 'rgba(0,0,0,0.005)');
+        g1.addColorStop(0.35, 'rgba(0,0,0,0.002)');
         g1.addColorStop(1.00, 'rgba(0,0,0,0)');
 
         ctx.fillStyle = g1;

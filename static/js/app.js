@@ -393,8 +393,8 @@ function StarsEngine(canvas){
       h.ph += 0.006 * h.spin;
 
       const g1 = ctx.createRadialGradient(h.x, h.y, 0, h.x, h.y, h.r * 2.6);
-      g1.addColorStop(0.00, 'rgba(0,0,0,0.55)');
-      g1.addColorStop(0.35, 'rgba(0,0,0,0.22)');
+      g1.addColorStop(0.00, 'rgba(0,0,0,0.10)');
+      g1.addColorStop(0.35, 'rgba(0,0,0,0.04)');
       g1.addColorStop(1.00, 'rgba(0,0,0,0)');
 
       ctx.fillStyle = g1;
@@ -403,7 +403,7 @@ function StarsEngine(canvas){
       ctx.fill();
 
       const g2 = ctx.createRadialGradient(h.x, h.y, 0, h.x, h.y, h.r * 1.05);
-      g2.addColorStop(0, 'rgba(0,0,0,0.85)');
+      g2.addColorStop(0, 'rgba(0,0,0,0.10)');
       g2.addColorStop(1, 'rgba(0,0,0,0)');
       ctx.fillStyle = g2;
       ctx.beginPath();
@@ -814,8 +814,8 @@ function CrystalEngine(){
         h.ph += 0.006 * h.spin;
 
         const g1 = ctx.createRadialGradient(h.x, h.y, 0, h.x, h.y, h.r * 2.6);
-        g1.addColorStop(0.00, 'rgba(0,0,0,0.55)');
-        g1.addColorStop(0.35, 'rgba(0,0,0,0.22)');
+        g1.addColorStop(0.00, 'rgba(0,0,0,0.10)');
+        g1.addColorStop(0.35, 'rgba(0,0,0,0.04)');
         g1.addColorStop(1.00, 'rgba(0,0,0,0)');
 
         ctx.fillStyle = g1;
@@ -824,7 +824,7 @@ function CrystalEngine(){
         ctx.fill();
 
         const g2 = ctx.createRadialGradient(h.x, h.y, 0, h.x, h.y, h.r * 1.05);
-        g2.addColorStop(0, 'rgba(0,0,0,0.85)');
+        g2.addColorStop(0, 'rgba(0,0,0,0.10)');
         g2.addColorStop(1, 'rgba(0,0,0,0)');
         ctx.fillStyle = g2;
         ctx.beginPath();
@@ -1644,6 +1644,149 @@ function pageLanding(){
             </div>
 
             <div style="margin-top: 12px; display:flex; justify-content:center">${HealthBadge()}</div>
+            
+            <!-- Super SVG Vega/Altair constellation -->
+            <div class="vega-altair" style="margin-top: 26px; display: grid; place-items: center;">
+              <svg class="vega-altair-svg" viewBox="0 0 900 140" role="img" aria-label="Вега и Альтаир">
+                <defs>
+                  <linearGradient id="vaGrad" x1="0" y1="0" x2="1" y2="0">
+                    <stop offset="0" stop-color="rgba(190,215,255,0.78)"/>
+                    <stop offset="0.5" stop-color="rgba(255,190,225,0.78)"/>
+                    <stop offset="1" stop-color="rgba(255,255,255,0.70)"/>
+                  </linearGradient>
+
+                  <!-- мягкое свечение как в ваших svg-блоках -->
+                  <filter id="vaGlow" x="-30%" y="-80%" width="160%" height="260%">
+                    <feGaussianBlur stdDeviation="5" result="b"/>
+                    <feColorMatrix in="b" type="matrix"
+                      values="1 0 0 0 0
+                              0 1 0 0 0
+                              0 0 1 0 0
+                              0 0 0 0.55 0" result="g"/>
+                    <feMerge>
+                      <feMergeNode in="g"/>
+                      <feMergeNode in="SourceGraphic"/>
+                    </feMerge>
+                  </filter>
+
+                  <!-- "скан" по середине -->
+                  <mask id="vaScanMask">
+                    <rect x="-260" y="0" width="260" height="140" fill="white">
+                      <animate attributeName="x" dur="8.8s" values="-260; 940; -260" repeatCount="indefinite"/>
+                    </rect>
+                  </mask>
+                </defs>
+
+                <!-- верхняя строка "✦ . ⁺   . ✦ . ⁺   . ✦" как аккуратные элементы -->
+                <g filter="url(#vaGlow)" opacity="0.92">
+                  <!-- слева -->
+                  <g transform="translate(110,34)">
+                    <g data-anim="1">
+                      <animateTransform attributeName="transform" type="rotate" from="0 0 0" to="360 0 0" dur="18s" repeatCount="indefinite"/>
+                      <path d="M0,-10 L2,-2 L10,0 L2,2 L0,10 L-2,2 L-10,0 L-2,-2 Z" fill="url(#vaGrad)" opacity="0.75"/>
+                    </g>
+                    <circle cx="34" cy="0" r="1.4" fill="rgba(255,255,255,0.55)"/>
+                    <path d="M58,-5 v10 M53,0 h10" stroke="rgba(190,215,255,0.55)" stroke-width="1.2" stroke-linecap="round"/>
+                    <circle cx="82" cy="0" r="1.2" fill="rgba(255,255,255,0.45)"/>
+                  </g>
+
+                  <!-- центр -->
+                  <g transform="translate(450,34)">
+                    <g data-anim="1">
+                      <animateTransform attributeName="transform" type="rotate" from="0 0 0" to="-360 0 0" dur="22s" repeatCount="indefinite"/>
+                      <path d="M0,-10 L2,-2 L10,0 L2,2 L0,10 L-2,2 L-10,0 L-2,-2 Z" fill="url(#vaGrad)" opacity="0.78"/>
+                    </g>
+                    <circle cx="34" cy="0" r="1.4" fill="rgba(255,255,255,0.55)"/>
+                    <path d="M58,-5 v10 M53,0 h10" stroke="rgba(255,190,225,0.50)" stroke-width="1.2" stroke-linecap="round"/>
+                    <circle cx="82" cy="0" r="1.2" fill="rgba(255,255,255,0.45)"/>
+                  </g>
+
+                  <!-- справа -->
+                  <g transform="translate(690,34)">
+                    <g data-anim="1">
+                      <animateTransform attributeName="transform" type="rotate" from="0 0 0" to="360 0 0" dur="20s" repeatCount="indefinite"/>
+                      <path d="M0,-10 L2,-2 L10,0 L2,2 L0,10 L-2,2 L-10,0 L-2,-2 Z" fill="url(#vaGrad)" opacity="0.75"/>
+                    </g>
+                    <circle cx="34" cy="0" r="1.4" fill="rgba(255,255,255,0.55)"/>
+                    <path d="M58,-5 v10 M53,0 h10" stroke="rgba(190,215,255,0.55)" stroke-width="1.2" stroke-linecap="round"/>
+                    <circle cx="82" cy="0" r="1.2" fill="rgba(255,255,255,0.45)"/>
+                  </g>
+                </g>
+
+                <!-- средняя строка -->
+                <g filter="url(#vaGlow)">
+                  <!-- боковые ". ⁺" -->
+                  <g opacity="0.65">
+                    <circle cx="160" cy="76" r="1.4" fill="rgba(255,255,255,0.55)">
+                      <animate attributeName="opacity" dur="3.2s" values="0.2;0.75;0.2" repeatCount="indefinite"/>
+                    </circle>
+                    <path d="M190,70 v12 M184,76 h12" stroke="rgba(190,215,255,0.50)" stroke-width="1.2" stroke-linecap="round">
+                      <animate attributeName="opacity" dur="2.8s" values="0.18;0.65;0.18" repeatCount="indefinite" begin="-0.6s"/>
+                    </path>
+
+                    <circle cx="740" cy="76" r="1.4" fill="rgba(255,255,255,0.55)">
+                      <animate attributeName="opacity" dur="3.6s" values="0.18;0.7;0.18" repeatCount="indefinite" begin="-1.2s"/>
+                    </circle>
+                    <path d="M710,70 v12 M704,76 h12" stroke="rgba(255,190,225,0.46)" stroke-width="1.2" stroke-linecap="round">
+                      <animate attributeName="opacity" dur="2.9s" values="0.15;0.6;0.15" repeatCount="indefinite" begin="-0.2s"/>
+                    </path>
+                  </g>
+
+                  <!-- текст "Вега ★ Альтаир" -->
+                  <g>
+                    <text x="450" y="82" text-anchor="middle"
+                          font-family="Cormorant Garamond, Georgia, serif"
+                          font-size="30" letter-spacing="1.2"
+                          fill="url(#vaGrad)" opacity="0.95">
+                      Вега ★ Альтаир
+                    </text>
+
+                    <!-- сканирующий "слой" поверх (как дорогая киноподсветка) -->
+                    <g mask="url(#vaScanMask)" opacity="0.55">
+                      <text x="450" y="82" text-anchor="middle"
+                            font-family="Cormorant Garamond, Georgia, serif"
+                            font-size="30" letter-spacing="1.2"
+                            fill="rgba(255,255,255,0.92)">
+                        Вега ★ Альтаир
+                      </text>
+                    </g>
+                  </g>
+                </g>
+
+                <!-- нижняя строка — зеркально верхней -->
+                <g filter="url(#vaGlow)" opacity="0.92" transform="translate(0,72)">
+                  <g transform="translate(130,34)">
+                    <g data-anim="1">
+                      <animateTransform attributeName="transform" type="rotate" from="0 0 0" to="-360 0 0" dur="19s" repeatCount="indefinite"/>
+                      <path d="M0,-10 L2,-2 L10,0 L2,2 L0,10 L-2,2 L-10,0 L-2,-2 Z" fill="url(#vaGrad)" opacity="0.75"/>
+                    </g>
+                    <circle cx="34" cy="0" r="1.4" fill="rgba(255,255,255,0.55)"/>
+                    <path d="M58,-5 v10 M53,0 h10" stroke="rgba(255,190,225,0.50)" stroke-width="1.2" stroke-linecap="round"/>
+                    <circle cx="82" cy="0" r="1.2" fill="rgba(255,255,255,0.45)"/>
+                  </g>
+
+                  <g transform="translate(450,34)">
+                    <g data-anim="1">
+                      <animateTransform attributeName="transform" type="rotate" from="0 0 0" to="360 0 0" dur="24s" repeatCount="indefinite"/>
+                      <path d="M0,-10 L2,-2 L10,0 L2,2 L0,10 L-2,2 L-10,0 L-2,-2 Z" fill="url(#vaGrad)" opacity="0.78"/>
+                    </g>
+                    <circle cx="34" cy="0" r="1.4" fill="rgba(255,255,255,0.55)"/>
+                    <path d="M58,-5 v10 M53,0 h10" stroke="rgba(190,215,255,0.50)" stroke-width="1.2" stroke-linecap="round"/>
+                    <circle cx="82" cy="0" r="1.2" fill="rgba(255,255,255,0.45)"/>
+                  </g>
+
+                  <g transform="translate(670,34)">
+                    <g data-anim="1">
+                      <animateTransform attributeName="transform" type="rotate" from="0 0 0" to="-360 0 0" dur="21s" repeatCount="indefinite"/>
+                      <path d="M0,-10 L2,-2 L10,0 L2,2 L0,10 L-2,2 L-10,0 L-2,-2 Z" fill="url(#vaGrad)" opacity="0.75"/>
+                    </g>
+                    <circle cx="34" cy="0" r="1.4" fill="rgba(255,255,255,0.55)"/>
+                    <path d="M58,-5 v10 M53,0 h10" stroke="rgba(255,190,225,0.50)" stroke-width="1.2" stroke-linecap="round"/>
+                    <circle cx="82" cy="0" r="1.2" fill="rgba(255,255,255,0.45)"/>
+                  </g>
+                </g>
+              </svg>
+            </div>
           </div>
         </div>
       </div>
@@ -4210,4 +4353,35 @@ document.addEventListener('click', (e)=>{
   // Also keep live polling going for badge updates even if user stays off /path.
   // (push should work in background; this is just an extra safety net while the app is open)
   setInterval(()=>{ try { liveTick(); } catch {} }, 30_000);
+})();
+
+// Initialize constellation animation when cosmosRoot element exists
+(function initConstellationAnimation() {
+  // Check if we're on the landing page and the cosmosRoot element exists
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', setupConstellation);
+  } else {
+    setupConstellation();
+  }
+  
+  function setupConstellation() {
+    const cosmosRoot = document.getElementById('cosmosRoot');
+    if (!cosmosRoot) return; // Only run on landing page
+    
+    // The SVG already contains all necessary animations via SMIL,
+    // so we just need to ensure it's properly displayed
+    const constellation = document.querySelector('.vega-altair-svg');
+    if (constellation) {
+      // Ensure animation starts if it's paused for any reason
+      try {
+        // Trigger a repaint to ensure animations start
+        constellation.style.visibility = 'hidden';
+        setTimeout(() => {
+          constellation.style.visibility = 'visible';
+        }, 10);
+      } catch(e) {
+        // If there are any issues with animation control, continue anyway
+      }
+    }
+  }
 })();

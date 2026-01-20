@@ -334,7 +334,10 @@ const api = {
   pushSubscribe: ({ endpoint, keys, token=null })=> apiFetch('/api/push/subscribe', { method:'POST', body: { endpoint, keys, token } }),
   pushResubscribe: ({ token, endpoint, keys })=> apiFetch('/api/push/resubscribe', { method:'POST', body: { token, endpoint, keys } }),
   pushUnsubscribe: ({ endpoint=null }={})=> apiFetch('/api/push/unsubscribe', { method:'POST', body: { endpoint } }),
-  pushTest: ()=> apiFetch('/api/push/test', { method:'POST', body: {} }),
+
+  // Account / Team management
+  profileDelete: ()=> apiFetch('/api/profile', { method:'DELETE' }),
+  teamDelete: (id)=> apiFetch('/api/team/' + Number(id), { method:'DELETE' }),
 };
 
 // server returns base64(Bun.gzipSync(text)) in entry.victory / entry.lesson
@@ -612,7 +615,6 @@ function EntryCard({entry, author, meId, meIsAdmin}){
         ${canManage ? `
           <div class="row" style="gap: 8px; align-items:center;">
             ${isMine ? `<span class="textMuted" style="font-size: 12px; margin-right: 2px">${escapeHTML(mineStamp)}</span>` : ''}
-            <button type="button" class="btn-ghost" style="padding: 10px 12px" data-action="entry-delete" data-id="${entry.id}" aria-label="Удалить">🗑️</button>
           </div>
         ` : ''}
       </div>
@@ -925,9 +927,6 @@ function pageSettings(){
 
         <div class="soft" style="padding: 14px; margin-top: 14px">
           <div style="font-weight: 900">Уведомления</div>
-          <div class="textMuted" style="margin-top: 6px; font-size: 12px; line-height: 1.45">
-            Push работает на HTTPS, включает уведомления и индикатор на иконке.
-          </div>
 
           <div class="row" style="margin-top: 10px; flex-wrap: wrap">
             <button type="button" class="btn" data-action="notif-enable" id="notifBtn">Разрешить уведомления</button>
@@ -1348,36 +1347,6 @@ function bindHandlers(){
         return;
       }
 
-      if (action === 'push-test') {
-        try {
-          const r = await api.pushTest();
-          const ok = !!r?.ok;
-          const subs = Number(r?.subs || 0);
-          const results = Array.isArray(r?.results) ? r.results : [];
-          if (ok) {
-            const tail = results.length
-              ? ` (${results.map(x => {
-                  try {
-                    if (x && typeof x === 'object') {
-                      const host = String(x.host || '').trim();
-                      const st = String(x.status || '').trim();
-                      return host ? `${host}:${st || 'error'}` : (st || 'error');
-                    }
-                    return String(x);
-                  } catch {
-                    return String(x);
-                  }
-                }).join(', ')})`
-              : '';
-            toast(`Тест отправлен: ${subs}${tail}`);
-          } else {
-            toast('Не удалось отправить тест.');
-          }
-        } catch (err) {
-          toast(err.message || 'Ошибка теста.');
-        }
-        return;
-      }
 
       // Sound toggle
       if (action === 'sound-toggle') {
@@ -1389,6 +1358,41 @@ function bindHandlers(){
         // Try to unlock audio on a user gesture
         if (next) {
           try { playCosmicChime({ quiet: true }); } catch {}
+        }
+        return;
+      }
+
+      // Account delete (self)
+      if (action === 'account-delete') {
+        if (!confirm('Удалить аккаунт? Это действие необратимо.')) return;
+        try {
+          await api.profileDelete();
+        } catch (err) {
+          toast(err.message || 'Не удалось удалить аккаунт.');
+          return;
+        }
+        try { await api.logout(); } catch {}
+        APP.state.user = null;
+        APP.state.team = null;
+        APP.state.teamUsers = [];
+        toast('Аккаунт удален.');
+        history.replaceState({}, '', '/');
+        render();
+        return;
+      }
+
+      // Team: delete teammate (admin)
+      if (action === 'team-user-delete') {
+        const id = Number(actionEl.getAttribute('data-id') || '0');
+        if (!id) return;
+        if (!confirm('Удалить спутника? Его записи тоже будут удалены.')) return;
+        try {
+          await api.teamDelete(id);
+          toast('Удалено.');
+          APP.state.teamUsersFetchedAt = 0;
+          await hydrateInvite();
+        } catch (err) {
+          toast(err.message || 'Не удалось удалить спутника.');
         }
         return;
       }
@@ -2482,8 +2486,11 @@ async function hydrateInvite(){
   APP.state.teamUsersFetchedAt = Date.now();
   const me = APP.state.user;
 
+  const meIsAdmin = Number(me?.is_admin || 0) === 1;
   teamList.innerHTML = users.map(u => {
     const joined = new Intl.DateTimeFormat('ru-RU', { year:'numeric', month:'short', day:'numeric' }).format(new Date(u.created_at));
+    const isMe = Number(u.id) === Number(me?.id);
+    const canDelete = meIsAdmin && !isMe;
     return `
       <div class="soft" style="padding: 10px 12px; display:flex; align-items:center; justify-content: space-between; gap: 10px">
         <div class="row" style="min-width:0; gap:10px">
@@ -2493,7 +2500,10 @@ async function hydrateInvite(){
             <div class="textMuted" style="font-size: 12px">присоединился: ${escapeHTML(joined)}</div>
           </div>
         </div>
-        <div class="textMuted" style="font-size: 12px">@${escapeHTML(u.login)}</div>
+        <div class="row" style="gap: 8px; align-items:center">
+          <div class="textMuted" style="font-size: 12px">@${escapeHTML(u.login)}</div>
+          ${canDelete ? `<button type="button" class="btn-ghost" style="padding: 10px 12px" data-action="team-user-delete" data-id="${Number(u.id)}" aria-label="Удалить спутника">🗑️</button>` : ''}
+        </div>
       </div>
     `;
   }).join('');

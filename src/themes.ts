@@ -71,6 +71,14 @@ export const THEMES: Theme[] = [
   { id: 'quiet_storm', role: 'amazon', emoji: '🦋', ru: 'Тихая буря', la: 'Tempestās Tacita', light: false, colors: {
     bg: '#0b1014', bgSecondary: '#0f1a22', text: '#eef8ff', textMuted: '#9ab3c2', accent: '#7dd3fc', accentHover: '#5ec7f8', border: 'rgba(255,255,255,.11)', victory: 'rgba(125,211,252,.14)', lesson: 'rgba(179,146,255,.10)'
   } },
+
+  // Synchronization (shared palette for both roles)
+  { id: 'sync_warrior', role: 'warrior', emoji: '🖤', ru: 'Синхронизация', la: 'Synchronizatio', light: false, colors: {
+    bg: '#0a0a0f', bgSecondary: '#14141f', text: '#d4dbe8', textMuted: '#7a8599', accent: '#8fa4c9', accentHover: '#b8c8e8', border: 'rgba(150,160,180,.12)', victory: 'rgba(143,164,201,.12)', lesson: 'rgba(255,190,225,.10)'
+  } },
+  { id: 'sync_amazon', role: 'amazon', emoji: '🖤', ru: 'Синхронизация', la: 'Synchronizatio', light: false, colors: {
+    bg: '#0a0a0f', bgSecondary: '#14141f', text: '#d4dbe8', textMuted: '#7a8599', accent: '#8fa4c9', accentHover: '#b8c8e8', border: 'rgba(150,160,180,.12)', victory: 'rgba(143,164,201,.12)', lesson: 'rgba(255,190,225,.10)'
+  } },
 ];
 
 export function themeById(id: string){

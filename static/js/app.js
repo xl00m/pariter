@@ -40,10 +40,590 @@ const THEMES = [
   { id:'clear_blade', role:'amazon', emoji:'🔮', ru:'Ясный клинок', la:'Ensis Clārus', light:true, colors:{ bg:'#f7f9ff', bgSecondary:'#ffffff', text:'#101629', textMuted:'#5f6a86', accent:'#4c6fff', accentHover:'#365cff', border:'rgba(16,22,41,.12)', victory:'rgba(76,111,255,.12)', lesson:'rgba(31,185,129,.10)' } },
   { id:'dawn_guard', role:'amazon', emoji:'🌅', ru:'Рассветная стража', la:'Custōs Aurōrae', light:false, colors:{ bg:'#140c07', bgSecondary:'#21130b', text:'#fff2e8', textMuted:'#d0ad95', accent:'#ff9f43', accentHover:'#ff8a1f', border:'rgba(255,255,255,.12)', victory:'rgba(255,159,67,.16)', lesson:'rgba(255,77,109,.10)' } },
   { id:'quiet_storm', role:'amazon', emoji:'🦋', ru:'Тихая буря', la:'Tempestās Tacita', light:false, colors:{ bg:'#0b1014', bgSecondary:'#0f1a22', text:'#eef8ff', textMuted:'#9ab3c2', accent:'#7dd3fc', accentHover:'#5ec7f8', border:'rgba(255,255,255,.11)', victory:'rgba(125,211,252,.14)', lesson:'rgba(179,146,255,.10)' } },
+
+  // Synchronization (shared palette for both roles)
+  { id:'sync_warrior', role:'warrior', emoji:'🖤', ru:'Синхронизация', la:'Synchronizatio', light:false, colors:{ bg:'#0a0a0f', bgSecondary:'#14141f', text:'#d4dbe8', textMuted:'#7a8599', accent:'#8fa4c9', accentHover:'#b8c8e8', border:'rgba(150,160,180,.12)', victory:'rgba(143,164,201,.12)', lesson:'rgba(255,190,225,.10)' } },
+  { id:'sync_amazon', role:'amazon', emoji:'🖤', ru:'Синхронизация', la:'Synchronizatio', light:false, colors:{ bg:'#0a0a0f', bgSecondary:'#14141f', text:'#d4dbe8', textMuted:'#7a8599', accent:'#8fa4c9', accentHover:'#b8c8e8', border:'rgba(150,160,180,.12)', victory:'rgba(143,164,201,.12)', lesson:'rgba(255,190,225,.10)' } },
 ];
 
 function themeById(id){
   return THEMES.find(t => t.id === id) || THEMES[0];
+}
+
+// --- Stars + landing crystal background (battery-friendly)
+function shouldAnimateNow(){
+  try {
+    // Respect reduced motion: do not animate.
+    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return false;
+
+    const inFocus = !document.hidden && (typeof document.hasFocus !== 'function' || document.hasFocus());
+    if (!inFocus) return false;
+
+    // Only animate when a route exists (SPA mounted)
+    const p = APP.state?.route?.path || parseRoute().path;
+    return !!p;
+  } catch { return false; }
+}
+
+function ensureStarsLayer(){
+  // Mount global stars canvas once
+  if (!document.getElementById('starsCanvas')) {
+    const old = document.querySelector('.stars-bg');
+    if (old) old.remove();
+
+    const bg = document.createElement('div');
+    bg.className = 'stars-bg';
+    const canvas = document.createElement('canvas');
+    canvas.id = 'starsCanvas';
+    bg.appendChild(canvas);
+    document.body.insertBefore(bg, document.body.firstChild || null);
+
+    // enable transparent html/body backgrounds
+    document.documentElement.classList.add('l00m-stars-on');
+  }
+
+  // Start animation loop (paused when app is not active)
+  if (!ensureStarsLayer._stars) ensureStarsLayer._stars = new StarsEngine(document.getElementById('starsCanvas'));
+  ensureStarsLayer._stars.start();
+
+  // Landing crystal: start/stop based on route
+  if (!ensureStarsLayer._crystal) ensureStarsLayer._crystal = new CrystalEngine();
+  ensureStarsLayer._crystal.syncToRoute();
+
+  // Pause/resume on visibility
+  if (!ensureStarsLayer._bound) {
+    ensureStarsLayer._bound = true;
+
+    const pauseAll = ()=>{
+      try { document.documentElement.classList.add('l00m-paused'); } catch {}
+      try { ensureStarsLayer._stars?.stop(); } catch {}
+      try { ensureStarsLayer._crystal?.stop(); } catch {}
+    };
+    const resumeAll = ()=>{
+      try { document.documentElement.classList.remove('l00m-paused'); } catch {}
+      try { ensureStarsLayer._stars?.start(); } catch {}
+      try { ensureStarsLayer._crystal?.syncToRoute(); } catch {}
+    };
+
+    document.addEventListener('visibilitychange', ()=>{
+      try {
+        if (document.hidden) pauseAll();
+        else resumeAll();
+      } catch {}
+    });
+
+    window.addEventListener('blur', ()=>{ try { pauseAll(); } catch {} });
+    window.addEventListener('focus', ()=>{ try { resumeAll(); } catch {} });
+  }
+}
+
+function StarsEngine(canvas){
+  this.canvas = canvas;
+  this.ctx = canvas ? canvas.getContext('2d') : null;
+  this.baseCanvas = document.createElement('canvas');
+  this.baseCtx = this.baseCanvas.getContext('2d');
+  this.bgColor = ()=>{
+    try {
+      const v = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim();
+      return v || '#0a0a0f';
+    } catch { return '#0a0a0f'; }
+  };
+
+  this.W = 0; this.H = 0;
+  this.stars = []; this.twinkle = []; this.ghosts = [];
+  this._raf = 0;
+  this._onResize = ()=>{ this.rebuild(); this.generateGhosts(); };
+
+  this.pickSpectral = ()=>{
+    const w = [
+      { sp: 'A', w: 0.40 }, { sp: 'B', w: 0.16 }, { sp: 'F', w: 0.18 },
+      { sp: 'O', w: 0.04 }, { sp: 'G', w: 0.10 }, { sp: 'K', w: 0.08 }, { sp: 'M', w: 0.04 }
+    ];
+    let x = Math.random(), acc = 0;
+    for (const it of w) { acc += it.w; if (x <= acc) return it.sp; }
+    return 'A';
+  };
+
+  this.hexToRgb = (hex)=>{
+    const h = String(hex || '').replace('#','');
+    return { r: parseInt(h.slice(0,2),16), g: parseInt(h.slice(2,4),16), b: parseInt(h.slice(4,6),16) };
+  };
+
+  this.getDocHeight = ()=>{
+    try {
+      return Math.max(
+        document.body.scrollHeight || 0,
+        document.body.offsetHeight || 0,
+        document.documentElement.clientHeight || 0,
+        document.documentElement.scrollHeight || 0,
+        document.documentElement.offsetHeight || 0
+      );
+    } catch { return this.H; }
+  };
+
+  this.generateGhosts = ()=>{
+    this.ghosts = [];
+    if (!this.W || !this.H) return;
+    let docH = this.getDocHeight();
+    if (docH < this.H) docH = this.H;
+    const screens = docH / this.H;
+    let total = Math.round(screens * (2 + Math.random() * 3));
+    total = Math.max(4, total);
+    for (let i=0;i<total;i++) {
+      const nodes = 3 + Math.floor(Math.random()*4);
+      const pts = [];
+      for (let n=0;n<nodes;n++) pts.push({ x: Math.random()*this.W, y: Math.random()*docH });
+      this.ghosts.push(pts);
+    }
+  };
+
+  this.renderBase = ()=>{
+    if (!this.W || !this.H) return;
+    const bg = this.bgColor();
+    this.baseCtx.fillStyle = bg;
+    this.baseCtx.fillRect(0,0,this.W,this.H);
+    this.baseCtx.globalCompositeOperation = 'lighter';
+    for (const st of this.stars) {
+      this.baseCtx.beginPath();
+      this.baseCtx.fillStyle = st.color;
+      this.baseCtx.arc(st.x, st.y, st.r, 0, Math.PI*2);
+      this.baseCtx.fill();
+    }
+    this.baseCtx.globalCompositeOperation = 'source-over';
+  };
+
+  this.rebuild = ()=>{
+    if (!this.canvas || !this.ctx) return;
+    this.W = window.innerWidth || document.documentElement.clientWidth || 0;
+    this.H = window.innerHeight || document.documentElement.clientHeight || 0;
+    if (!this.W || !this.H) return;
+
+    // canvas size
+    this.canvas.width = this.W;
+    this.canvas.height = this.H;
+    this.baseCanvas.width = this.W;
+    this.baseCanvas.height = this.H;
+
+    const SPECTRAL = {
+      O: '#9BBEFF', B: '#BFD7FF', A: '#F5F7FF',
+      F: '#FFF7EC', G: '#FFEDC9', K: '#FFC18A', M: '#FF9977'
+    };
+
+    this.stars = [];
+    this.twinkle = [];
+
+    const count = 900; // reduce from 1500 for battery
+    for (let i=0;i<count;i++) {
+      const sp = this.pickSpectral();
+      const fill = SPECTRAL[sp];
+      const jitter = 0.98 + Math.random()*0.04;
+      const c = this.hexToRgb(fill);
+      const rr = Math.round(c.r*jitter);
+      const gg = Math.round(c.g*jitter);
+      const bb = Math.round(c.b*jitter);
+
+      const alpha = 0.12 + Math.random()*0.62;
+      const sizeRand = Math.random();
+      const radius = (sizeRand > 0.95) ? 1.6 : (sizeRand > 0.80 ? 1.1 : 0.6);
+
+      const st = {
+        x: Math.random()*this.W,
+        y: Math.random()*this.H,
+        r: radius,
+        rr, gg, bb,
+        a0: alpha,
+        color: `rgba(${rr},${gg},${bb},${alpha.toFixed(2)})`,
+      };
+      this.stars.push(st);
+
+      if (radius >= 1.0 || alpha > 0.4 || Math.random() < 0.12) {
+        this.twinkle.push({
+          x: st.x, y: st.y, r: st.r,
+          rr: st.rr, gg: st.gg, bb: st.bb, a0: st.a0,
+          tw: 0.55 + Math.random()*1.7,
+          ph: Math.random()*Math.PI*2
+        });
+      }
+    }
+
+    this.renderBase();
+  };
+
+  this.drawGhosts = ()=>{
+    const ctx = this.ctx;
+    const scrollY = window.pageYOffset || document.documentElement.scrollTop || 0;
+    ctx.strokeStyle = 'rgba(200,220,255,0.10)';
+    ctx.lineWidth = 0.5;
+    ctx.fillStyle = 'rgba(200,220,255,0.08)';
+
+    for (const pts of this.ghosts) {
+      if (!pts?.length) continue;
+      let visible = false;
+      for (const p of pts) {
+        const sy = p.y - scrollY;
+        if (sy > -100 && sy < this.H + 100) { visible = true; break; }
+      }
+      if (!visible) continue;
+
+      ctx.beginPath();
+      ctx.moveTo(pts[0].x, pts[0].y - scrollY);
+      for (let k=1;k<pts.length;k++) ctx.lineTo(pts[k].x, pts[k].y - scrollY);
+      ctx.stroke();
+
+      for (const p of pts) {
+        ctx.beginPath();
+        ctx.arc(p.x, p.y - scrollY, 0.6, 0, Math.PI*2);
+        ctx.fill();
+      }
+    }
+  };
+
+  this.renderFrame = (t)=>{
+    if (!this.W || !this.H) return;
+    const ctx = this.ctx;
+
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.drawImage(this.baseCanvas, 0, 0);
+
+    // twinkle
+    for (const st of this.twinkle) {
+      const twk = 0.55 + 0.45 * Math.sin(t * st.tw + st.ph);
+      const a = st.a0 * twk;
+
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.beginPath();
+      ctx.fillStyle = this.bgColor();
+      ctx.arc(st.x, st.y, st.r + 0.9, 0, Math.PI*2);
+      ctx.fill();
+
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.beginPath();
+      ctx.fillStyle = `rgba(${st.rr},${st.gg},${st.bb},${a.toFixed(3)})`;
+      ctx.arc(st.x, st.y, st.r, 0, Math.PI*2);
+      ctx.fill();
+    }
+
+    ctx.globalCompositeOperation = 'lighter';
+    this.drawGhosts();
+    ctx.globalCompositeOperation = 'source-over';
+  };
+
+  this._loop = (ts)=>{
+    if (!shouldAnimateNow()) {
+      this._raf = requestAnimationFrame(this._loop);
+      return;
+    }
+    this.renderFrame(ts/1000);
+    this._raf = requestAnimationFrame(this._loop);
+  };
+
+  this.start = ()=>{
+    if (!this.canvas || !this.ctx) return;
+    if (!this.W || !this.H) { this.rebuild(); this.generateGhosts(); }
+    if (this._raf) return;
+    window.addEventListener('resize', this._onResize, { passive: true });
+    this._raf = requestAnimationFrame(this._loop);
+  };
+
+  this.stop = ()=>{
+    if (this._raf) cancelAnimationFrame(this._raf);
+    this._raf = 0;
+    try { window.removeEventListener('resize', this._onResize); } catch {}
+  };
+
+  // init
+  try { this.rebuild(); this.generateGhosts(); } catch {}
+}
+
+function CrystalEngine(){
+  this._raf = 0;
+  this._ro = null;
+  this._ctx = null;
+  this._root = null;
+  this._canvas = null;
+
+  this._state = null;
+
+  this._setSize = ()=>{
+    const root = this._root;
+    const canvas = this._canvas;
+    if (!root || !canvas) return;
+    const rect = root.getBoundingClientRect();
+    const W = Math.max(1, Math.round(rect.width + 140));
+    const H = Math.max(1, Math.round(rect.height + 140));
+    const dpr = Math.max(1, window.devicePixelRatio || 1);
+
+    canvas.width = Math.round(W * dpr);
+    canvas.height = Math.round(H * dpr);
+    canvas.style.width = W + 'px';
+    canvas.style.height = H + 'px';
+
+    const ctx = canvas.getContext('2d', { alpha: true });
+    if (!ctx) return;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    this._ctx = ctx;
+
+    // rebuild state
+    this._state = this._makeState(W, H);
+  };
+
+  this._makeState = (W,H)=>{
+    const rand = (a,b)=> a + Math.random()*(b-a);
+    const palette = [
+      { r:255,g:255,b:255 },
+      { r:190,g:215,b:255 },
+      { r:255,g:190,b:225 }
+    ];
+
+    const stars = [];
+    for (let i=0;i<56;i++) {
+      const c = palette[(Math.random()*palette.length)|0];
+      stars.push({
+        x: Math.random()*W,
+        y: Math.random()*H,
+        vx: (Math.random()-0.5)*0.18,
+        vy: (Math.random()-0.5)*0.18,
+        r: rand(0.7, 1.8),
+        c,
+        ph: Math.random()*Math.PI*2,
+        phs: rand(0.015,0.035)
+      });
+    }
+
+    const holes = [
+      { x: W*0.28, y: H*0.38, r: 44, spin: (Math.random()>0.5?1:-1), ph: Math.random()*Math.PI*2 },
+      { x: W*0.74, y: H*0.62, r: 58, spin: (Math.random()>0.5?1:-1), ph: Math.random()*Math.PI*2 },
+    ];
+
+    return {
+      W, H,
+      stars,
+      holes,
+      comets: [],
+      lastCometAt: 0,
+      palette,
+      rand,
+    };
+  };
+
+  this._applyHoles = (p, st)=>{
+    const CFG = { influence: 260, pull: 0.020, swirl: 0.016 };
+    for (const h of st.holes) {
+      const dx = h.x - p.x;
+      const dy = h.y - p.y;
+      const dist = Math.hypot(dx,dy) || 1;
+      if (dist < CFG.influence) {
+        const k = 1 - dist / CFG.influence;
+        const pull = CFG.pull * k;
+        p.vx += (dx/dist)*pull;
+        p.vy += (dy/dist)*pull;
+        const swirl = CFG.swirl * k * h.spin;
+        p.vx += (-dy/dist)*swirl;
+        p.vy += ( dx/dist)*swirl;
+        if (dist < h.r*0.78) {
+          p.x = Math.random()*st.W;
+          p.y = Math.random()*st.H;
+          p.vx *= 0.2;
+          p.vy *= 0.2;
+        }
+      }
+    }
+  };
+
+  this._spawnComet = ()=>{
+    const st = this._state;
+    if (!st) return;
+    const CFG = { cometMax: 2, speed: [2.0,2.9], tail: [120,200] };
+    if (st.comets.length >= CFG.cometMax) return;
+
+    const side = (Math.random()*4)|0;
+    let x,y;
+    if (side===0){ x=-30; y=Math.random()*st.H; }
+    else if (side===1){ x=st.W+30; y=Math.random()*st.H; }
+    else if (side===2){ x=Math.random()*st.W; y=-30; }
+    else { x=Math.random()*st.W; y=st.H+30; }
+
+    const tx = Math.max(40, Math.min(st.W-40, st.W*(0.15+Math.random()*0.7)));
+    const ty = Math.max(40, Math.min(st.H-40, st.H*(0.15+Math.random()*0.7)));
+    const dx = tx-x, dy = ty-y;
+    const dist = Math.hypot(dx,dy) || 1;
+    const speed = st.rand(CFG.speed[0], CFG.speed[1]);
+    const vx = (dx/dist)*speed;
+    const vy = (dy/dist)*speed;
+    const tint = Math.random()>0.5 ? st.palette[1] : st.palette[2];
+    const tail = st.rand(CFG.tail[0], CFG.tail[1]);
+
+    st.comets.push({ x,y,vx,vy, life: st.rand(220, 340), tail, c:tint, sparkle: Math.random()*Math.PI*2 });
+  };
+
+  this._render = (t)=>{
+    const st = this._state;
+    const ctx = this._ctx;
+    if (!st || !ctx) return;
+
+    ctx.clearRect(0,0,st.W,st.H);
+
+    // holes
+    ctx.save();
+    ctx.globalCompositeOperation = 'source-over';
+    for (const h of st.holes) {
+      h.ph += 0.006*h.spin;
+      const g1 = ctx.createRadialGradient(h.x,h.y,0,h.x,h.y,h.r*2.6);
+      g1.addColorStop(0.00,'rgba(0,0,0,0.55)');
+      g1.addColorStop(0.35,'rgba(0,0,0,0.22)');
+      g1.addColorStop(1.00,'rgba(0,0,0,0)');
+      ctx.fillStyle = g1;
+      ctx.beginPath();
+      ctx.arc(h.x,h.y,h.r*2.6,0,Math.PI*2);
+      ctx.fill();
+
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.translate(h.x,h.y);
+      ctx.rotate(h.ph);
+      const ringR = h.r*1.55;
+      const ringW = h.r*0.42;
+      const g3 = ctx.createRadialGradient(0,0,ringR-ringW,0,0,ringR+ringW);
+      g3.addColorStop(0.00,'rgba(255,255,255,0)');
+      g3.addColorStop(0.45,'rgba(190,215,255,0.12)');
+      g3.addColorStop(0.55,'rgba(255,190,225,0.18)');
+      g3.addColorStop(0.75,'rgba(255,255,255,0.06)');
+      g3.addColorStop(1.00,'rgba(255,255,255,0)');
+      ctx.strokeStyle = g3;
+      ctx.lineWidth = Math.max(1, h.r*0.16);
+      ctx.beginPath();
+      ctx.ellipse(0,0,ringR,ringR*0.72,0,0,Math.PI*2);
+      ctx.stroke();
+      ctx.restore();
+    }
+    ctx.restore();
+
+    // links
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.lineWidth = 0.6;
+    for (let i=0;i<st.stars.length;i++){
+      for (let j=i+1;j<st.stars.length;j++){
+        const a=st.stars[i], b=st.stars[j];
+        const dx=a.x-b.x, dy=a.y-b.y;
+        const dist=Math.hypot(dx,dy);
+        const linkDist=175;
+        if (dist<linkDist){
+          const k=1-dist/linkDist;
+          const alpha=0.10*k;
+          const g=ctx.createLinearGradient(a.x,a.y,b.x,b.y);
+          g.addColorStop(0,`rgba(${a.c.r},${a.c.g},${a.c.b},${alpha})`);
+          g.addColorStop(1,`rgba(${b.c.r},${b.c.g},${b.c.b},${alpha})`);
+          ctx.strokeStyle=g;
+          ctx.beginPath();
+          ctx.moveTo(a.x,a.y);
+          ctx.lineTo(b.x,b.y);
+          ctx.stroke();
+        }
+      }
+    }
+    ctx.restore();
+
+    // stars
+    ctx.save();
+    ctx.globalCompositeOperation='lighter';
+    for (const s of st.stars){
+      const tw=0.20+0.80*Math.abs(Math.sin(s.ph));
+      const a=0.22+0.55*tw;
+      const r=s.r*(0.9+0.18*tw);
+      ctx.beginPath();
+      ctx.arc(s.x,s.y,r,0,Math.PI*2);
+      ctx.fillStyle=`rgba(${s.c.r},${s.c.g},${s.c.b},${a})`;
+      ctx.fill();
+    }
+    ctx.restore();
+
+    // comets
+    ctx.save();
+    ctx.globalCompositeOperation='lighter';
+    ctx.lineCap='round';
+    for (const c of st.comets){
+      const speed=Math.hypot(c.vx,c.vy)||1;
+      const nx=c.vx/speed, ny=c.vy/speed;
+      const tailLen=c.tail;
+      const tx=c.x-nx*tailLen, ty=c.y-ny*tailLen;
+      const g=ctx.createLinearGradient(c.x,c.y,tx,ty);
+      g.addColorStop(0.00,`rgba(${c.c.r},${c.c.g},${c.c.b},0.55)`);
+      g.addColorStop(0.35,`rgba(${c.c.r},${c.c.g},${c.c.b},0.22)`);
+      g.addColorStop(1.00,`rgba(${c.c.r},${c.c.g},${c.c.b},0)`);
+      ctx.strokeStyle=g;
+      ctx.lineWidth=1.6;
+      ctx.beginPath();
+      ctx.moveTo(c.x,c.y);
+      const bend=18*Math.sin(c.sparkle);
+      ctx.quadraticCurveTo(
+        c.x-nx*(tailLen*0.5)+(-ny)*bend,
+        c.y-ny*(tailLen*0.5)+( nx)*bend,
+        tx,ty
+      );
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(c.x,c.y,2.2,0,Math.PI*2);
+      ctx.fillStyle='rgba(255,255,255,0.85)';
+      ctx.fill();
+    }
+    ctx.restore();
+  };
+
+  this._loop = (now)=>{
+    if (!shouldAnimateNow()) { this._raf = requestAnimationFrame(this._loop); return; }
+    const st = this._state;
+    if (st) {
+      if (now - st.lastCometAt > 2600) { this._spawnComet(); st.lastCometAt = now; }
+      for (const s of st.stars){
+        this._applyHoles(s, st);
+        s.x += s.vx; s.y += s.vy;
+        s.vx *= 0.985; s.vy *= 0.985;
+        s.ph += s.phs;
+        if (s.x < -30) s.x = st.W + 30;
+        if (s.x > st.W + 30) s.x = -30;
+        if (s.y < -30) s.y = st.H + 30;
+        if (s.y > st.H + 30) s.y = -30;
+      }
+      for (let i=st.comets.length-1;i>=0;i--){
+        const c=st.comets[i];
+        c.x += c.vx; c.y += c.vy;
+        c.life -= 1;
+        c.sparkle += 0.08;
+        if (c.life<=0 || c.x<-260 || c.x>st.W+260 || c.y<-260 || c.y>st.H+260) st.comets.splice(i,1);
+      }
+      this._render(now*0.001);
+    }
+    this._raf = requestAnimationFrame(this._loop);
+  };
+
+  this.start = ()=>{
+    if (this._raf) return;
+    const p = APP.state?.route?.path || parseRoute().path;
+    if (p !== '/') return; // only landing
+    this._root = document.getElementById('cosmosRoot');
+    this._canvas = document.getElementById('crystalCanvas');
+    if (!this._root || !this._canvas) return;
+    this._setSize();
+    if (typeof ResizeObserver !== 'undefined') {
+      this._ro = new ResizeObserver(()=> this._setSize());
+      this._ro.observe(this._root);
+    }
+    this._raf = requestAnimationFrame(this._loop);
+  };
+
+  this.stop = ()=>{
+    if (this._raf) cancelAnimationFrame(this._raf);
+    this._raf = 0;
+    try { this._ro?.disconnect?.(); } catch {}
+    this._ro = null;
+  };
+
+  this.syncToRoute = ()=>{
+    const p = APP.state?.route?.path || parseRoute().path;
+    if (p === '/') this.start();
+    else this.stop();
+  };
 }
 
 function defaultThemeForRole(role){
@@ -201,6 +781,12 @@ function setTheme(themeId){
     r.style.setProperty(`--${k}`, v);
     b.style.setProperty(`--${k}`, v);
   });
+
+  // If stars background is enabled, canvas draws the “night”, so we keep body transparent.
+  if (document.documentElement.classList.contains('l00m-stars-on')) {
+    b.style.background = 'transparent';
+    return;
+  }
 
   if (t.light) {
     b.style.background = `radial-gradient(1100px 560px at 20% -10%, rgba(76,111,255,.12), transparent 55%),
@@ -545,7 +1131,7 @@ function ThemeGrid({role, value, onPickAction, idsPrefix=''}={}){
   return `
     <div class="grid">
       <div style="font-size: 14px; font-weight: 800;">Выбери свой путь <span class="textMuted" style="font-weight: 700">/ Elige viam tuam</span></div>
-      <div style="display:grid; grid-template-columns: repeat(7, 44px); gap: 8px; margin-top: 6px;">${dots}</div>
+      <div style="display:grid; grid-template-columns: repeat(auto-fit, 44px); gap: 8px; margin-top: 6px;">${dots}</div>
       <div class="soft" style="padding: 12px;" id="${idsPrefix}themePreview">
         <div class="rowBetween" style="align-items: flex-start;">
           <div>
@@ -643,19 +1229,24 @@ function pageLanding(){
         <div style="margin-top: 18px; font-size: 44px; font-weight: 900;">Вместе. Наравне. Вперёд.</div>
         <div class="textMuted" style="margin-top: 6px;">Ūnā. Pariter. Porro.</div>
 
-        <div class="card" style="margin: 22px auto 0; width: min(620px, 100%); padding: 18px; text-align:left">
-          <div style="font-size:18px; font-weight: 900;">Зачем Pariter</div>
-          <div class="textMuted" style="margin-top: 10px; line-height: 1.6">
-            <div>• Фиксируй ежедневные победы над страхом.</div>
-            <div>• Забирай уроки из ошибок, не повторяя их.</div>
-            <div>• Видь записи спутников — и иди вместе.</div>
+        <div class="card" style="margin: 22px auto 0; width: min(720px, 100%); padding: 0; text-align:left">
+          <div id="cosmosRoot" style="padding: 22px;">
+            <canvas id="crystalCanvas" aria-hidden="true"></canvas>
+
+            <div style="font-size:18px; font-weight: 900;">Зачем Pariter</div>
+            <div class="textMuted" style="margin-top: 10px; line-height: 1.6">
+              <div>• Фиксируй победы над страхом.</div>
+              <div>• Забирай уроки из ошибок, не повторяя их.</div>
+              <div>• Видь шаги спутников - и иди вместе.</div>
+            </div>
+
+            <div class="row" style="margin-top: 16px; flex-wrap: wrap">
+              <button class="btn" style="flex:1" data-nav="/register">Начать путь</button>
+              <button class="btn-ghost" style="flex:1" data-nav="/login">Уже в пути? Войти</button>
+            </div>
+
+            <div style="margin-top: 12px; display:flex; justify-content:center">${HealthBadge()}</div>
           </div>
-          <div class="row" style="margin-top: 16px; flex-wrap: wrap">
-            <button class="btn" style="flex:1" data-nav="/register">Начать путь</button>
-            <button class="btn-ghost" style="flex:1" data-nav="/login">Уже в пути? Войти</button>
-          </div>
-          <div class="textMuted" style="margin-top: 10px; font-size: 12px;">Self-hosted. Open Source. Bun + SQLite.</div>
-          <div style="margin-top: 12px; display:flex; justify-content:center">${HealthBadge()}</div>
         </div>
       </div>
     </div>
@@ -1077,6 +1668,9 @@ async function render(){
     try { hydrateFeed._io.disconnect(); } catch {}
     hydrateFeed._io = null;
   }
+
+  // Background animations: only run when on-screen and in focus.
+  try { ensureStarsLayer(); } catch {}
 
   // Live updates: run while authed. Feed auto-refresh happens only on /path.
   if (APP.state.user) liveStart();
@@ -3166,6 +3760,9 @@ document.addEventListener('click', (e)=>{
   ensureEntryModal();
   // Restore sound state early
   try { APP.state.sound.enabled = readSoundEnabled(); } catch {}
+
+  // Stars + landing canvas: start only when visible to save battery.
+  try { ensureStarsLayer(); } catch {}
 
   // Best-effort: ensure root-scope Service Worker is registered early (needed for Push on Android).
   try {

@@ -38,6 +38,11 @@ export function layout({ title, description, body, themeId, bootstrap }: { title
   <title>${escapeHtml(title)}</title>
   <meta name="description" content="${escapeHtml(description)}" />
 
+  <!-- Fonts (optional aesthetic layer) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,400;1,500&family=Manrope:wght@200;300;400&family=Space+Mono&display=swap" rel="stylesheet">
+
   <!-- (Платформенное требование) Tailwind CDN подключён, но приложение не зависит от Tailwind. -->
   <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
 

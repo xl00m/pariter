@@ -440,6 +440,71 @@ body{
 
 /* --- Telegram Ultra polish (final layer) --- */
 
+/* --- Synchronization / Lunar stars layer (enabled only when html.l00m-stars-on) --- */
+:root{
+  --lunar-bg-deep: #0a0a0f;
+  --lunar-bg: #0d0d14;
+  --lunar-bg-raised: #14141f;
+  --lunar-bg-hover: #1a1a28;
+  --lunar-text: #b8c0cc;
+  --lunar-text-bright: #d4dbe8;
+  --lunar-text-muted: #7a8599;
+  --lunar-border: rgba(150, 160, 180, 0.12);
+  --lunar-accent: #8fa4c9;
+
+  --serif: "Cormorant Garamond", Georgia, serif;
+  --sans: "Manrope", system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
+
+/* When stars canvas is active - let canvas draw the night */
+html.l00m-stars-on,
+html.l00m-stars-on body{
+  background: transparent !important;
+}
+html.l00m-stars-on body::before{
+  opacity: 0 !important; /* disable dotted pattern while stars are on */
+}
+
+.stars-bg{
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+  z-index: -1;
+}
+#starsCanvas{
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  background: var(--bg);
+}
+
+/* Landing-only subtle crystal canvas overlay */
+#cosmosRoot{ position: relative; overflow: visible; }
+#crystalCanvas{
+  position: absolute;
+  inset: -70px;
+  width: calc(100% + 140px);
+  height: calc(100% + 140px);
+  z-index: 0;
+  pointer-events: none;
+  mix-blend-mode: screen;
+  opacity: .55;
+}
+#cosmosRoot > *:not(#crystalCanvas){ position: relative; z-index: 2; }
+
+@media (prefers-reduced-motion: reduce){
+  #starsCanvas, #crystalCanvas{ display:none !important; }
+}
+
+/* --- Telegram Ultra polish (final layer) --- */
+
 /* Safe-area support (iOS/Android gesture bars) */
 :root{
   --safeTop: env(safe-area-inset-top, 0px);
@@ -526,4 +591,67 @@ body::before{
 /* Toast: slightly higher on mobile to avoid gesture bar */
 .toast{
   bottom: calc(22px + var(--safeBottom));
+}
+
+/* --- Synchronization / Lunar stars layer (enabled only when html.l00m-stars-on) --- */
+:root{
+  --lunar-bg-deep: #0a0a0f;
+  --lunar-bg: #0d0d14;
+  --lunar-bg-raised: #14141f;
+  --lunar-bg-hover: #1a1a28;
+  --lunar-text: #b8c0cc;
+  --lunar-text-bright: #d4dbe8;
+  --lunar-text-muted: #7a8599;
+  --lunar-border: rgba(150, 160, 180, 0.12);
+  --lunar-accent: #8fa4c9;
+
+  --serif: "Cormorant Garamond", Georgia, serif;
+  --sans: "Manrope", system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
+
+/* When stars canvas is active - let canvas draw the night */
+html.l00m-stars-on,
+html.l00m-stars-on body{
+  background: transparent !important;
+}
+html.l00m-stars-on body::before{
+  opacity: 0 !important; /* disable dotted pattern while stars are on */
+}
+
+.stars-bg{
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+  z-index: -1;
+}
+#starsCanvas{
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  background: var(--bg);
+}
+
+/* Landing-only subtle crystal canvas overlay */
+#cosmosRoot{ position: relative; overflow: visible; }
+#crystalCanvas{
+  position: absolute;
+  inset: -70px;
+  width: calc(100% + 140px);
+  height: calc(100% + 140px);
+  z-index: 0;
+  pointer-events: none;
+  mix-blend-mode: screen;
+  opacity: .55;
+}
+#cosmosRoot > *:not(#crystalCanvas){ position: relative; z-index: 2; }
+
+@media (prefers-reduced-motion: reduce){
+  #starsCanvas, #crystalCanvas{ display:none !important; }
 }

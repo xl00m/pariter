@@ -32,7 +32,7 @@ body{
 ::selection{ background: rgba(124,92,255,.28); }
 
 .card{
-  background: color-mix(in srgb, var(--bgSecondary) 92%, transparent);
+  background: color-mix(in srgb, var(--bgSecondary) 20%, transparent);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
@@ -40,7 +40,7 @@ body{
 }
 
 .soft{
-  background: color-mix(in srgb, var(--bgSecondary) 80%, transparent);
+  background: color-mix(in srgb, var(--bgSecondary) 20%, transparent);
   border: 1px solid var(--border);
   border-radius: var(--radiusSm);
 }
@@ -80,7 +80,7 @@ body{
 
 .input, .textarea{
   width: 100%;
-  background: rgba(255,255,255,.04);
+  background: rgba(255,255,255,.20);
   border: 1px solid var(--border);
   border-radius: 14px;
   padding: 12px 12px;
@@ -104,7 +104,7 @@ body{
   height: 36px;
   border-radius: 999px;
   border: 1px solid var(--border);
-  background: rgba(255,255,255,.03);
+  background: rgba(255,255,255,.20);
   color: var(--text);
   display: grid;
   place-items: center;
@@ -123,7 +123,7 @@ body{
   height: 36px;
   border-radius: 999px;
   border: 1px solid var(--border);
-  background: rgba(255,255,255,.03);
+  background: rgba(255,255,255,.20);
   color: var(--text);
   display: grid;
   place-items: center;
@@ -165,7 +165,7 @@ body{
 
 /* Sidebar */
 .sidebar-scrim{ background: rgba(0,0,0,.55); }
-.sidebar{ background: color-mix(in srgb, var(--bgSecondary) 96%, transparent); border-right: 1px solid var(--border); }
+.sidebar{ background: color-mix(in srgb, var(--bgSecondary) 20%, transparent); border-right: 1px solid var(--border); }
 
 /* Theme chips */
 .theme-dot{
@@ -195,7 +195,7 @@ body{
   left: 50%;
   bottom: 22px;
   transform: translateX(-50%);
-  background: color-mix(in srgb, var(--bgSecondary) 92%, transparent);
+  background: color-mix(in srgb, var(--bgSecondary) 20%, transparent);
   border: 1px solid var(--border);
   padding: 10px 12px;
   border-radius: 14px;
@@ -215,7 +215,7 @@ body{
   top: 0;
   z-index: 40;
   border-bottom: 1px solid var(--border);
-  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  background: color-mix(in srgb, var(--bg) 20%, transparent);
   backdrop-filter: blur(10px);
 }
 .headerRow{ display:flex; align-items:center; justify-content: space-between; gap: 12px; padding: 12px 0; }
@@ -260,19 +260,19 @@ body{
 /* Header like Telegram */
 .header{
   border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
-  background: color-mix(in srgb, var(--bg) 78%, transparent);
+  background: color-mix(in srgb, var(--bg) 20%, transparent);
   backdrop-filter: blur(14px);
 }
 .headerRow{ padding: 10px 0; }
 
 /* Cards and surfaces */
 .card{
-  background: var(--glass2);
+  background: color-mix(in srgb, var(--bgSecondary) 20%, transparent);
   border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
   box-shadow: var(--shadowSoft);
 }
 .soft{
-  background: color-mix(in srgb, var(--bgSecondary) 72%, transparent);
+  background: color-mix(in srgb, var(--bgSecondary) 20%, transparent);
   border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
 }
 
@@ -286,13 +286,13 @@ body{
 }
 .btn:hover{ filter: brightness(1.02); }
 .btn-ghost{
-  background: rgba(255,255,255,.03);
+  background: rgba(255,255,255,.20);
 }
 .btn-ghost:hover{ background: rgba(255,255,255,.07); }
 
 /* Inputs like Telegram */
 .input, .textarea{
-  background: rgba(255,255,255,.045);
+  background: rgba(255,255,255,.20);
   border-color: color-mix(in srgb, var(--border) 85%, transparent);
 }
 .input:focus, .textarea:focus{
@@ -350,7 +350,7 @@ body{
 }
 #feed article.card[data-mine="1"] .entryBubbles .soft{
   border-top-right-radius: 8px;
-  background: color-mix(in srgb, var(--accent) 16%, var(--bgSecondary)) !important;
+  background: color-mix(in srgb, var(--accent) 16%, var(--bgSecondary) 20%, transparent) !important;
 }
 #feed article.card[data-mine="0"] .entryBubbles .soft{
   border-top-left-radius: 8px;
@@ -375,10 +375,10 @@ body{
 
 /* Slightly different tints */
 #feed article.card .soft[style*="var(--victory)"]{
-  background: color-mix(in srgb, var(--victory) 70%, var(--bgSecondary) 30%) !important;
+  background: color-mix(in srgb, var(--victory) 70%, var(--bgSecondary) 20%, transparent) !important;
 }
 #feed article.card .soft[style*="var(--lesson)"]{
-  background: color-mix(in srgb, var(--lesson) 70%, var(--bgSecondary) 30%) !important;
+  background: color-mix(in srgb, var(--lesson) 70%, var(--bgSecondary) 20%, transparent) !important;
 }
 
 /* Date divider */
@@ -390,7 +390,7 @@ body{
   margin: 2px 0 4px;
 }
 #feed > .row .textMuted{
-  background: rgba(255,255,255,.06);
+  background: rgba(255,255,255,.20);
   border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
   border-radius: 999px;
   padding: 6px 12px;
@@ -399,7 +399,7 @@ body{
 
 /* Composer: make the input area feel like a chat composer */
 #todayForm{
-  background: color-mix(in srgb, var(--bg) 78%, transparent);
+  background: color-mix(in srgb, var(--bg) 20%, transparent);
   border-radius: 26px;
   padding: 12px;
   border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
@@ -424,7 +424,7 @@ body{
 
 /* AI button: sleek */
 .ai-btn{
-  background: rgba(255,255,255,.05);
+  background: rgba(255,255,255,.20);
   border-color: color-mix(in srgb, var(--border) 70%, transparent);
 }
 .ai-btn:hover{

@@ -1,7 +1,7 @@
 // Pariter Service Worker (minimal PWA support)
 // Network-first for navigations, stale-while-revalidate for static.
 
-const VERSION = 'pariter-sw-v1';
+const VERSION = 'pariter-sw-v2';
 const CORE = [
   '/',
   '/path',
@@ -114,6 +114,15 @@ self.addEventListener('push', (event) => {
           renotify: false,
           data: { url: '/path' },
         });
+
+        // If the app is open, tell the client to refresh UI/badges immediately.
+        try {
+          const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+          for (const c of clients) {
+            try { c.postMessage({ type: 'push', payload: data }); } catch {}
+          }
+        } catch {}
+
         return;
       }
 
@@ -150,5 +159,47 @@ self.addEventListener('notificationclick', (event) => {
       }
       if (self.clients.openWindow) await self.clients.openWindow(url);
     } catch {}
+  })());
+});
+
+// Some browsers can rotate/expire push subscriptions after inactivity.
+// Try to resubscribe and re-send the new subscription to the backend automatically.
+function b64urlToU8(b64url){
+  let s = String(b64url || '').replace(/-/g, '+').replace(/_/g, '/');
+  const pad = s.length % 4;
+  if (pad) s += '='.repeat(4 - pad);
+  const bin = atob(s);
+  const u8 = new Uint8Array(bin.length);
+  for (let i=0;i<bin.length;i++) u8[i] = bin.charCodeAt(i);
+  return u8;
+}
+
+self.addEventListener('pushsubscriptionchange', (event)=>{
+  event.waitUntil((async ()=>{
+    try {
+      // Fetch current VAPID public key
+      const r = await fetch('/api/push/vapidPublicKey', { cache: 'no-store', credentials: 'include' }).catch(()=>null);
+      const j = r ? await r.json().catch(()=>null) : null;
+      const publicKey = j?.publicKey;
+      if (!publicKey) return;
+
+      const sub = await self.registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: b64urlToU8(publicKey),
+      });
+
+      const sj = sub.toJSON();
+      if (!sj?.endpoint || !sj?.keys?.p256dh || !sj?.keys?.auth) return;
+
+      await fetch('/api/push/subscribe', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ endpoint: sj.endpoint, keys: sj.keys })
+      }).catch(()=>{});
+
+    } catch {
+      // ignore
+    }
   })());
 });

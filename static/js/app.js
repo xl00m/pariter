@@ -3030,9 +3030,38 @@ document.addEventListener('click', (e)=>{
   ensureEntryModal();
   // Restore sound state early
   try { APP.state.sound.enabled = readSoundEnabled(); } catch {}
+
   // Best-effort: ensure root-scope Service Worker is registered early (needed for Push on Android).
   try { ensureServiceWorkerForPush(); } catch {}
+
+  // If a push arrives while the app is open, the SW can postMessage to update UI faster.
+  try {
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.addEventListener('message', (ev)=>{
+        try {
+          if (!ev?.data || typeof ev.data !== 'object') return;
+          if (ev.data.type !== 'push') return;
+          // Nudge live refresh quickly (do not block)
+          if (APP.state.user && APP.state.route?.path === '/path') {
+            // mark unread and refresh attention indicators
+            APP.state.live.unread = Math.min(99, Number(APP.state.live.unread || 0) + 1);
+            updateAttentionIndicators();
+            liveBarShow();
+          }
+        } catch {}
+      });
+    }
+  } catch {}
+
   await render();
+
   // After initial render, try to keep push subscription alive (if user enabled it before)
   try { pushAutoMaintain(); } catch {}
+
+  // Keep-alive while the app is open (best-effort). Helps recover after short inactivity.
+  setInterval(()=>{ try { pushAutoMaintain(); } catch {} }, 90_000);
+
+  // Also keep live polling going for badge updates even if user stays off /path.
+  // (push should work in background; this is just an extra safety net while the app is open)
+  setInterval(()=>{ try { liveTick(); } catch {} }, 30_000);
 })();

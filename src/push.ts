@@ -220,8 +220,9 @@ async function encryptWebPushPayload(payload: string, clientPublicKey: Uint8Arra
   const cek = await hkdfExpand(prk, utf8('Content-Encoding: aes128gcm\0'), 16);
   const nonce = await hkdfExpand(prk, utf8('Content-Encoding: nonce\0'), 12);
 
-  // plaintext = 0x0000 + payload
-  const pt = concatU8(new Uint8Array([0x00, 0x00]), utf8(payload));
+  // RFC8291 (aes128gcm): plaintext is payload + padding delimiter 0x02 (+ optional 0x00 padding)
+  // Using only the delimiter keeps things simple and compatible.
+  const pt = concatU8(utf8(payload), new Uint8Array([0x02]));
 
   const key = await crypto.subtle.importKey('raw', cek, { name:'AES-GCM' }, false, ['encrypt']);
   const ct = await crypto.subtle.encrypt({ name:'AES-GCM', iv: nonce }, key, pt);
@@ -256,14 +257,18 @@ export async function sendWebPush({ subscription, payloadJson, subject }:{
   const { salt, serverPublicRaw, ciphertext } = await encryptWebPushPayload(payload, clientPublicKey, clientAuthSecret);
   const { jwt, publicKeyB64Url } = await makeVapidJwt(endpoint, subject);
 
+  // Messenger-like delivery: allow the push service to retain notifications longer
+  // when the device/browser is temporarily offline/asleep.
   const headers: Record<string,string> = {
-    'TTL': '60',
+    // 24 hours
+    'TTL': '86400',
     'Content-Encoding': 'aes128gcm',
     'Content-Type': 'application/octet-stream',
     'Encryption': `salt=${b64urlEncode(salt)}`,
     'Crypto-Key': `dh=${b64urlEncode(serverPublicRaw)}; p256ecdsa=${publicKeyB64Url}`,
     'Authorization': `vapid t=${jwt}, k=${publicKeyB64Url}`,
-    'Urgency': 'normal',
+    // High urgency to behave closer to messengers (when supported by the push service)
+    'Urgency': 'high',
   };
 
   const res = await fetch(endpoint, { method:'POST', headers, body: ciphertext });

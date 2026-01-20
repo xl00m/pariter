@@ -1577,7 +1577,7 @@ function EntryCard({entry, author, meId, meIsAdmin}){
   const roleEmoji = ROLE_META[author?.role]?.emoji || '✦';
   const authorName = author?.name || 'Неизвестный';
   const dateLabel = ruDateLabel(entry.date);
-  const timeLabel = entry?.created_at ? ruTimeLabel(entry.created_at) : '';
+  const timeLabel = entry?.created_at ? ruTimeLabel(entry.created_at) : (entry?.date ? '00:00' : '');
 
   // Editing is done by tapping the field (bubble). Buttons are only for delete.
   const editAttrs = canManage ? ` data-action="entry-edit" data-id="${entry.id}"` : '';

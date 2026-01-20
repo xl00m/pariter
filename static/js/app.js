@@ -396,9 +396,9 @@ function StarsEngine(canvas){
       h.ph += 0.006 * h.spin;
 
       const g1 = ctx.createRadialGradient(h.x, h.y, 0, h.x, h.y, h.r * 2.6);
-      g1.addColorStop(0.00, 'rgba(0,0,0,0.1375)');
-      g1.addColorStop(0.35, 'rgba(0,0,0,0.055)');
-      g1.addColorStop(1.00, 'rgba(0,0,0,0)');
+      g1.addColorStop(0.00, 'rgba(0,0,0,0.00005)');
+      g1.addColorStop(0.35, 'rgba(0,0,0,0.000002)');
+      g1.addColorStop(1.00, 'rgba(0,0,0,0.000001)');
 
       ctx.fillStyle = g1;
       ctx.beginPath();
@@ -406,8 +406,8 @@ function StarsEngine(canvas){
       ctx.fill();
 
       const g2 = ctx.createRadialGradient(h.x, h.y, 0, h.x, h.y, h.r * 1.05);
-      g2.addColorStop(0, 'rgba(0,0,0,0.2125)');
-      g2.addColorStop(1, 'rgba(0,0,0,0)');
+      g2.addColorStop(0, 'rgba(0,0,0,0.00001)');
+      g2.addColorStop(1, 'rgba(0,0,0,0.000001)');
       ctx.fillStyle = g2;
       ctx.beginPath();
       ctx.arc(h.x, h.y, h.r * 1.05, 0, Math.PI * 2);
@@ -422,11 +422,11 @@ function StarsEngine(canvas){
       const ringW = h.r * 0.42;
 
       const g3 = ctx.createRadialGradient(0, 0, ringR - ringW, 0, 0, ringR + ringW);
-      g3.addColorStop(0.00, 'rgba(255,255,255,0)');
-      g3.addColorStop(0.45, 'rgba(190,215,255,0.12)');
-      g3.addColorStop(0.55, 'rgba(255,190,225,0.18)');
-      g3.addColorStop(0.75, 'rgba(255,255,255,0.06)');
-      g3.addColorStop(1.00, 'rgba(255,255,255,0)');
+      g3.addColorStop(0.00, 'rgba(255,255,255,0.80)');
+      g3.addColorStop(0.45, 'rgba(190,215,255,0.80)');
+      g3.addColorStop(0.55, 'rgba(255,190,225,0.80)');
+      g3.addColorStop(0.75, 'rgba(255,255,255,0.80)');
+      g3.addColorStop(1.00, 'rgba(255,255,255,0.80)');
 
       ctx.strokeStyle = g3;
       ctx.lineWidth = Math.max(1, h.r * 0.18);
@@ -441,7 +441,7 @@ function StarsEngine(canvas){
 
         ctx.beginPath();
         ctx.arc(sx, sy, 1.1, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(255,255,255,0.35)';
+        ctx.fillStyle = 'rgba(255,255,255,0.80)';
         ctx.fill();
       }
 
@@ -452,203 +452,83 @@ function StarsEngine(canvas){
         
         // Create a linear gradient for the constellation that mimics the SVG gradient
         const gradient = ctx.createLinearGradient(-20, 0, 20, 0);
-        gradient.addColorStop(0, 'rgba(190,215,255,0.78)');
-        gradient.addColorStop(0.5, 'rgba(255,190,225,0.78)');
-        gradient.addColorStop(1, 'rgba(255,255,255,0.70)');
+        gradient.addColorStop(0, 'rgba(190,215,255,0.30)');
+        gradient.addColorStop(0.5, 'rgba(255,190,225,0.30)');
+        gradient.addColorStop(1, 'rgba(255,255,255,0.30)');
         
-        // Draw top row of constellation elements (similar to SVG)
-        const topGroup = { x: -h.r * 0.6, y: -h.r * 0.3 };
-        ctx.save();
-        ctx.translate(topGroup.x, topGroup.y);
+        // Define constellation points that will appear inside the black hole
+        // These represent key stars of the Vega-Altair constellation
+        const constellationPoints = [
+          { x: -15, y: -8, type: 'star', size: 1.2 },
+          { x: -8, y: -15, type: 'star', size: 1.0 },
+          { x: 0, y: -20, type: 'center', size: 2.0 }, // This represents the central bright star (Vega)
+          { x: 8, y: -15, type: 'star', size: 1.0 },
+          { x: 15, y: -8, type: 'star', size: 1.2 }
+        ];
         
-        // Left group
-        ctx.save();
-        ctx.translate(0, 0);
-        // Rotating element like in SVG
-        const drawRotatingElement = (x, y, angle, scale = 1) => {
-          ctx.save();
-          ctx.translate(x, y);
-          ctx.rotate(angle);
-          ctx.scale(scale, scale);
-          const rotatingGradient = ctx.createLinearGradient(-10, -10, 10, 10);
-          rotatingGradient.addColorStop(0, 'rgba(190,215,255,0.75)');
-          rotatingGradient.addColorStop(0.5, 'rgba(255,190,225,0.75)');
-          rotatingGradient.addColorStop(1, 'rgba(255,255,255,0.6)');
-          ctx.fillStyle = rotatingGradient;
-          ctx.beginPath();
-          // Draw star-like shape
-          ctx.moveTo(0, -10);
-          ctx.lineTo(2, -2);
-          ctx.lineTo(10, 0);
-          ctx.lineTo(2, 2);
-          ctx.lineTo(0, 10);
-          ctx.lineTo(-2, 2);
-          ctx.lineTo(-10, 0);
-          ctx.lineTo(-2, -2);
-          ctx.closePath();
-          ctx.fill();
-          ctx.restore();
-        };
-        
-        drawRotatingElement(0, 0, t * 0.35); // Like the animated rotating element in SVG
-        
-        // Additional stars in top group
+        // Draw constellation pattern inside the black hole
+        // Draw connections between main points (like in the SVG)
         ctx.beginPath();
-        ctx.arc(34, 0, 1.4, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(255,255,255,0.55)';
-        ctx.fill();
-        
-        ctx.beginPath();
-        ctx.moveTo(58, -5);
-        ctx.lineTo(58, 5);
-        ctx.moveTo(53, 0);
-        ctx.lineTo(63, 0);
-        ctx.strokeStyle = 'rgba(190,215,255,0.55)';
-        ctx.lineWidth = 1.2;
+        ctx.moveTo(constellationPoints[0].x, constellationPoints[0].y);
+        for (let i = 1; i < constellationPoints.length; i++) {
+          ctx.lineTo(constellationPoints[i].x, constellationPoints[i].y);
+        }
+        ctx.strokeStyle = gradient;
+        ctx.lineWidth = 0.8;
         ctx.stroke();
         
+        // Draw additional connection that forms the distinctive pattern
         ctx.beginPath();
-        ctx.arc(82, 0, 1.2, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(255,255,255,0.45)';
-        ctx.fill();
-        
-        ctx.restore();
-        
-        // Center group
-        ctx.save();
-        ctx.translate(h.r * 0.6, 0);
-        drawRotatingElement(0, 0, -t * 0.35); // Counter-rotating element
-        
-        ctx.beginPath();
-        ctx.arc(34, 0, 1.4, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(255,255,255,0.55)';
-        ctx.fill();
-        
-        ctx.beginPath();
-        ctx.moveTo(58, -5);
-        ctx.lineTo(58, 5);
-        ctx.moveTo(53, 0);
-        ctx.lineTo(63, 0);
-        ctx.strokeStyle = 'rgba(255,190,225,0.50)';
-        ctx.lineWidth = 1.2;
+        ctx.moveTo(constellationPoints[1].x, constellationPoints[1].y);
+        ctx.lineTo(constellationPoints[3].x, constellationPoints[3].y);
+        ctx.strokeStyle = 'rgba(190, 215, 255, 0.30)';
+        ctx.lineWidth = 0.6;
         ctx.stroke();
         
-        ctx.beginPath();
-        ctx.arc(82, 0, 1.2, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(255,255,255,0.45)';
-        ctx.fill();
+        // Draw individual stars with glow effect
+        for (const pt of constellationPoints) {
+          if (pt.type === 'star') {
+            // Outer glow
+            const starGlow = ctx.createRadialGradient(pt.x, pt.y, 0, pt.x, pt.y, pt.size * 3);
+            starGlow.addColorStop(0, 'rgba(190, 215, 255, 0.3)');
+            starGlow.addColorStop(1, 'rgba(190, 215, 255, 0.0)');
+            
+            ctx.beginPath();
+            ctx.arc(pt.x, pt.y, pt.size * 3, 0, Math.PI * 2);
+            ctx.fillStyle = starGlow;
+            ctx.fill();
+            
+            // Star itself
+            ctx.beginPath();
+            ctx.arc(pt.x, pt.y, pt.size, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+            ctx.fill();
+          } else if (pt.type === 'center') {
+            // Draw central bright star (Vega) with stronger glow
+            const starGlow = ctx.createRadialGradient(pt.x, pt.y, 0, pt.x, pt.y, pt.size * 4);
+            starGlow.addColorStop(0, 'rgba(255, 255, 255, 0.3)');
+            starGlow.addColorStop(0.3, 'rgba(255, 190, 225, 0.3)');
+            starGlow.addColorStop(1, 'rgba(190, 215, 255, 0.0)');
+            
+            ctx.beginPath();
+            ctx.arc(pt.x, pt.y, pt.size * 4, 0, Math.PI * 2);
+            ctx.fillStyle = starGlow;
+            ctx.fill();
+            
+            // Central bright star
+            ctx.beginPath();
+            ctx.arc(pt.x, pt.y, pt.size, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+            ctx.fill();
+          }
+        }
         
-        ctx.restore();
-        
-        ctx.restore();
-        
-        // Draw middle row elements
-        ctx.save();
-        ctx.translate(0, 0); // Middle of the black hole
-        
-        // Side elements like in SVG
-        ctx.save();
-        ctx.globalAlpha = 0.65;
-        ctx.beginPath();
-        ctx.arc(-h.r * 0.4, 0, 1.4, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(255,255,255,0.55)';
-        ctx.fill();
-        
-        // Animated line
-        ctx.beginPath();
-        ctx.moveTo(-h.r * 0.3, -6);
-        ctx.lineTo(-h.r * 0.3, 6);
-        ctx.moveTo(-h.r * 0.3 - 6, 0);
-        ctx.lineTo(-h.r * 0.3 + 6, 0);
-        ctx.strokeStyle = 'rgba(190,215,255,0.50)';
-        ctx.lineWidth = 1.2;
-        ctx.stroke();
-        ctx.restore();
-        
-        ctx.save();
-        ctx.globalAlpha = 0.65;
-        ctx.beginPath();
-        ctx.arc(h.r * 0.4, 0, 1.4, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(255,255,255,0.55)';
-        ctx.fill();
-        
-        ctx.beginPath();
-        ctx.moveTo(h.r * 0.3, -6);
-        ctx.lineTo(h.r * 0.3, 6);
-        ctx.moveTo(h.r * 0.3 - 6, 0);
-        ctx.lineTo(h.r * 0.3 + 6, 0);
-        ctx.strokeStyle = 'rgba(255,190,225,0.46)';
-        ctx.lineWidth = 1.2;
-        ctx.stroke();
-        ctx.restore();
-        
-        // "Vega ★ Altair" text equivalent
-        ctx.font = 'bold 12px sans-serif';
-        ctx.fillStyle = gradient;
+        // Add a special symbol to represent the "Vega ★ Altair" text equivalent
+        ctx.font = 'bold 4px sans-serif';
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.globalAlpha = 0.95;
-        ctx.fillText('Vega ★ Altair', 0, 0);
-        
-        ctx.restore();
-        
-        // Draw bottom row elements
-        ctx.save();
-        ctx.translate(-h.r * 0.5, h.r * 0.3);
-        
-        // Left group in bottom row
-        ctx.save();
-        ctx.translate(h.r * 0.2, 0);
-        drawRotatingElement(0, 0, -t * 0.35); // Counter-rotating
-        
-        ctx.beginPath();
-        ctx.arc(34, 0, 1.4, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(255,255,255,0.55)';
-        ctx.fill();
-        
-        ctx.beginPath();
-        ctx.moveTo(58, -5);
-        ctx.lineTo(58, 5);
-        ctx.moveTo(53, 0);
-        ctx.lineTo(63, 0);
-        ctx.strokeStyle = 'rgba(255,190,225,0.50)';
-        ctx.lineWidth = 1.2;
-        ctx.stroke();
-        
-        ctx.beginPath();
-        ctx.arc(82, 0, 1.2, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(255,255,255,0.45)';
-        ctx.fill();
-        
-        ctx.restore();
-        
-        // Center group in bottom row
-        ctx.save();
-        ctx.translate(h.r * 0.8, 0);
-        drawRotatingElement(0, 0, t * 0.35); // Regular rotation
-        
-        ctx.beginPath();
-        ctx.arc(34, 0, 1.4, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(255,255,255,0.55)';
-        ctx.fill();
-        
-        ctx.beginPath();
-        ctx.moveTo(58, -5);
-        ctx.lineTo(58, 5);
-        ctx.moveTo(53, 0);
-        ctx.lineTo(63, 0);
-        ctx.strokeStyle = 'rgba(190,215,255,0.50)';
-        ctx.lineWidth = 1.2;
-        ctx.stroke();
-        
-        ctx.beginPath();
-        ctx.arc(82, 0, 1.2, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(255,255,255,0.45)';
-        ctx.fill();
-        
-        ctx.restore();
-        
-        ctx.restore();
+        ctx.fillText('*', 0, -5); // Representing the ★ in the constellation
         
         ctx.restore();
       }
@@ -1026,9 +906,9 @@ function CrystalEngine(){
         h.ph += 0.006 * h.spin;
 
         const g1 = ctx.createRadialGradient(h.x, h.y, 0, h.x, h.y, h.r * 2.6);
-        g1.addColorStop(0.00, 'rgba(0,0,0,0.1375)');
-        g1.addColorStop(0.35, 'rgba(0,0,0,0.055)');
-        g1.addColorStop(1.00, 'rgba(0,0,0,0)');
+        g1.addColorStop(0.00, 'rgba(0,0,0,0.00005)');
+        g1.addColorStop(0.35, 'rgba(0,0,0,0.000002)');
+        g1.addColorStop(1.00, 'rgba(0,0,0,0.000001)');
 
         ctx.fillStyle = g1;
         ctx.beginPath();
@@ -1036,8 +916,8 @@ function CrystalEngine(){
         ctx.fill();
 
         const g2 = ctx.createRadialGradient(h.x, h.y, 0, h.x, h.y, h.r * 1.05);
-        g2.addColorStop(0, 'rgba(0,0,0,0.2125)');
-        g2.addColorStop(1, 'rgba(0,0,0,0)');
+        g2.addColorStop(0, 'rgba(0,0,0,0.00001)');
+        g2.addColorStop(1, 'rgba(0,0,0,0.000001)');
         ctx.fillStyle = g2;
         ctx.beginPath();
         ctx.arc(h.x, h.y, h.r * 1.05, 0, Math.PI * 2);
@@ -1052,11 +932,11 @@ function CrystalEngine(){
         const ringW = h.r * 0.42;
 
         const g3 = ctx.createRadialGradient(0, 0, ringR - ringW, 0, 0, ringR + ringW);
-        g3.addColorStop(0.00, 'rgba(255,255,255,0)');
-        g3.addColorStop(0.45, 'rgba(190,215,255,0.12)');
-        g3.addColorStop(0.55, 'rgba(255,190,225,0.18)');
-        g3.addColorStop(0.75, 'rgba(255,255,255,0.06)');
-        g3.addColorStop(1.00, 'rgba(255,255,255,0)');
+        g3.addColorStop(0.00, 'rgba(255,255,255,0.80)');
+        g3.addColorStop(0.45, 'rgba(190,215,255,0.80)');
+        g3.addColorStop(0.55, 'rgba(255,190,225,0.80)');
+        g3.addColorStop(0.75, 'rgba(255,255,255,0.80)');
+        g3.addColorStop(1.00, 'rgba(255,255,255,0.80)');
 
         ctx.strokeStyle = g3;
         ctx.lineWidth = Math.max(1, h.r * 0.18);
@@ -1071,7 +951,7 @@ function CrystalEngine(){
 
           ctx.beginPath();
           ctx.arc(sx, sy, 1.1, 0, Math.PI * 2);
-          ctx.fillStyle = 'rgba(255,255,255,0.35)';
+          ctx.fillStyle = 'rgba(255,255,255,0.80)';
           ctx.fill();
         }
 
@@ -1082,203 +962,83 @@ function CrystalEngine(){
           
           // Create a linear gradient for the constellation that mimics the SVG gradient
           const gradient = ctx.createLinearGradient(-20, 0, 20, 0);
-          gradient.addColorStop(0, 'rgba(190,215,255,0.78)');
-          gradient.addColorStop(0.5, 'rgba(255,190,225,0.78)');
-          gradient.addColorStop(1, 'rgba(255,255,255,0.70)');
+          gradient.addColorStop(0, 'rgba(190,215,255,0.80)');
+          gradient.addColorStop(0.5, 'rgba(255,190,225,0.80)');
+          gradient.addColorStop(1, 'rgba(255,255,255,0.80)');
           
-          // Draw top row of constellation elements (similar to SVG)
-          const topGroup = { x: -h.r * 0.6, y: -h.r * 0.3 };
-          ctx.save();
-          ctx.translate(topGroup.x, topGroup.y);
+          // Define constellation points that will appear inside the black hole
+          // These represent key stars of the Vega-Altair constellation
+          const constellationPoints = [
+            { x: -15, y: -8, type: 'star', size: 1.2 },
+            { x: -8, y: -15, type: 'star', size: 1.0 },
+            { x: 0, y: -20, type: 'center', size: 2.0 }, // This represents the central bright star (Vega)
+            { x: 8, y: -15, type: 'star', size: 1.0 },
+            { x: 15, y: -8, type: 'star', size: 1.2 }
+          ];
           
-          // Left group
-          ctx.save();
-          ctx.translate(0, 0);
-          // Rotating element like in SVG
-          const drawRotatingElement = (x, y, angle, scale = 1) => {
-            ctx.save();
-            ctx.translate(x, y);
-            ctx.rotate(angle);
-            ctx.scale(scale, scale);
-            const rotatingGradient = ctx.createLinearGradient(-10, -10, 10, 10);
-            rotatingGradient.addColorStop(0, 'rgba(190,215,255,0.75)');
-            rotatingGradient.addColorStop(0.5, 'rgba(255,190,225,0.75)');
-            rotatingGradient.addColorStop(1, 'rgba(255,255,255,0.6)');
-            ctx.fillStyle = rotatingGradient;
-            ctx.beginPath();
-            // Draw star-like shape
-            ctx.moveTo(0, -10);
-            ctx.lineTo(2, -2);
-            ctx.lineTo(10, 0);
-            ctx.lineTo(2, 2);
-            ctx.lineTo(0, 10);
-            ctx.lineTo(-2, 2);
-            ctx.lineTo(-10, 0);
-            ctx.lineTo(-2, -2);
-            ctx.closePath();
-            ctx.fill();
-            ctx.restore();
-          };
-          
-          drawRotatingElement(0, 0, t * 0.35); // Like the animated rotating element in SVG
-          
-          // Additional stars in top group
+          // Draw constellation pattern inside the black hole
+          // Draw connections between main points (like in the SVG)
           ctx.beginPath();
-          ctx.arc(34, 0, 1.4, 0, Math.PI * 2);
-          ctx.fillStyle = 'rgba(255,255,255,0.55)';
-          ctx.fill();
-          
-          ctx.beginPath();
-          ctx.moveTo(58, -5);
-          ctx.lineTo(58, 5);
-          ctx.moveTo(53, 0);
-          ctx.lineTo(63, 0);
-          ctx.strokeStyle = 'rgba(190,215,255,0.55)';
-          ctx.lineWidth = 1.2;
+          ctx.moveTo(constellationPoints[0].x, constellationPoints[0].y);
+          for (let i = 1; i < constellationPoints.length; i++) {
+            ctx.lineTo(constellationPoints[i].x, constellationPoints[i].y);
+          }
+          ctx.strokeStyle = gradient;
+          ctx.lineWidth = 0.8;
           ctx.stroke();
           
+          // Draw additional connection that forms the distinctive pattern
           ctx.beginPath();
-          ctx.arc(82, 0, 1.2, 0, Math.PI * 2);
-          ctx.fillStyle = 'rgba(255,255,255,0.45)';
-          ctx.fill();
-          
-          ctx.restore();
-          
-          // Center group
-          ctx.save();
-          ctx.translate(h.r * 0.6, 0);
-          drawRotatingElement(0, 0, -t * 0.35); // Counter-rotating element
-          
-          ctx.beginPath();
-          ctx.arc(34, 0, 1.4, 0, Math.PI * 2);
-          ctx.fillStyle = 'rgba(255,255,255,0.55)';
-          ctx.fill();
-          
-          ctx.beginPath();
-          ctx.moveTo(58, -5);
-          ctx.lineTo(58, 5);
-          ctx.moveTo(53, 0);
-          ctx.lineTo(63, 0);
-          ctx.strokeStyle = 'rgba(255,190,225,0.50)';
-          ctx.lineWidth = 1.2;
+          ctx.moveTo(constellationPoints[1].x, constellationPoints[1].y);
+          ctx.lineTo(constellationPoints[3].x, constellationPoints[3].y);
+          ctx.strokeStyle = 'rgba(190, 215, 255, 0.80)';
+          ctx.lineWidth = 0.6;
           ctx.stroke();
           
-          ctx.beginPath();
-          ctx.arc(82, 0, 1.2, 0, Math.PI * 2);
-          ctx.fillStyle = 'rgba(255,255,255,0.45)';
-          ctx.fill();
+          // Draw individual stars with glow effect
+          for (const pt of constellationPoints) {
+            if (pt.type === 'star') {
+              // Outer glow
+              const starGlow = ctx.createRadialGradient(pt.x, pt.y, 0, pt.x, pt.y, pt.size * 3);
+              starGlow.addColorStop(0, 'rgba(190, 215, 255, 0.8)');
+              starGlow.addColorStop(1, 'rgba(190, 215, 255, 0.0)');
+              
+              ctx.beginPath();
+              ctx.arc(pt.x, pt.y, pt.size * 3, 0, Math.PI * 2);
+              ctx.fillStyle = starGlow;
+              ctx.fill();
+              
+              // Star itself
+              ctx.beginPath();
+              ctx.arc(pt.x, pt.y, pt.size, 0, Math.PI * 2);
+              ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+              ctx.fill();
+            } else if (pt.type === 'center') {
+              // Draw central bright star (Vega) with stronger glow
+              const starGlow = ctx.createRadialGradient(pt.x, pt.y, 0, pt.x, pt.y, pt.size * 4);
+              starGlow.addColorStop(0, 'rgba(255, 255, 255, 0.8)');
+              starGlow.addColorStop(0.3, 'rgba(255, 190, 225, 0.8)');
+              starGlow.addColorStop(1, 'rgba(190, 215, 255, 0.0)');
+              
+              ctx.beginPath();
+              ctx.arc(pt.x, pt.y, pt.size * 4, 0, Math.PI * 2);
+              ctx.fillStyle = starGlow;
+              ctx.fill();
+              
+              // Central bright star
+              ctx.beginPath();
+              ctx.arc(pt.x, pt.y, pt.size, 0, Math.PI * 2);
+              ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+              ctx.fill();
+            }
+          }
           
-          ctx.restore();
-          
-          ctx.restore();
-          
-          // Draw middle row elements
-          ctx.save();
-          ctx.translate(0, 0); // Middle of the black hole
-          
-          // Side elements like in SVG
-          ctx.save();
-          ctx.globalAlpha = 0.65;
-          ctx.beginPath();
-          ctx.arc(-h.r * 0.4, 0, 1.4, 0, Math.PI * 2);
-          ctx.fillStyle = 'rgba(255,255,255,0.55)';
-          ctx.fill();
-          
-          // Animated line
-          ctx.beginPath();
-          ctx.moveTo(-h.r * 0.3, -6);
-          ctx.lineTo(-h.r * 0.3, 6);
-          ctx.moveTo(-h.r * 0.3 - 6, 0);
-          ctx.lineTo(-h.r * 0.3 + 6, 0);
-          ctx.strokeStyle = 'rgba(190,215,255,0.50)';
-          ctx.lineWidth = 1.2;
-          ctx.stroke();
-          ctx.restore();
-          
-          ctx.save();
-          ctx.globalAlpha = 0.65;
-          ctx.beginPath();
-          ctx.arc(h.r * 0.4, 0, 1.4, 0, Math.PI * 2);
-          ctx.fillStyle = 'rgba(255,255,255,0.55)';
-          ctx.fill();
-          
-          ctx.beginPath();
-          ctx.moveTo(h.r * 0.3, -6);
-          ctx.lineTo(h.r * 0.3, 6);
-          ctx.moveTo(h.r * 0.3 - 6, 0);
-          ctx.lineTo(h.r * 0.3 + 6, 0);
-          ctx.strokeStyle = 'rgba(255,190,225,0.46)';
-          ctx.lineWidth = 1.2;
-          ctx.stroke();
-          ctx.restore();
-          
-          // "Vega ★ Altair" text equivalent
-          ctx.font = 'bold 12px sans-serif';
-          ctx.fillStyle = gradient;
+          // Add a special symbol to represent the "Vega ★ Altair" text equivalent
+          ctx.font = 'bold 4px sans-serif';
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
-          ctx.globalAlpha = 0.95;
-          ctx.fillText('Vega ★ Altair', 0, 0);
-          
-          ctx.restore();
-          
-          // Draw bottom row elements
-          ctx.save();
-          ctx.translate(-h.r * 0.5, h.r * 0.3);
-          
-          // Left group in bottom row
-          ctx.save();
-          ctx.translate(h.r * 0.2, 0);
-          drawRotatingElement(0, 0, -t * 0.35); // Counter-rotating
-          
-          ctx.beginPath();
-          ctx.arc(34, 0, 1.4, 0, Math.PI * 2);
-          ctx.fillStyle = 'rgba(255,255,255,0.55)';
-          ctx.fill();
-          
-          ctx.beginPath();
-          ctx.moveTo(58, -5);
-          ctx.lineTo(58, 5);
-          ctx.moveTo(53, 0);
-          ctx.lineTo(63, 0);
-          ctx.strokeStyle = 'rgba(255,190,225,0.50)';
-          ctx.lineWidth = 1.2;
-          ctx.stroke();
-          
-          ctx.beginPath();
-          ctx.arc(82, 0, 1.2, 0, Math.PI * 2);
-          ctx.fillStyle = 'rgba(255,255,255,0.45)';
-          ctx.fill();
-          
-          ctx.restore();
-          
-          // Center group in bottom row
-          ctx.save();
-          ctx.translate(h.r * 0.8, 0);
-          drawRotatingElement(0, 0, t * 0.35); // Regular rotation
-          
-          ctx.beginPath();
-          ctx.arc(34, 0, 1.4, 0, Math.PI * 2);
-          ctx.fillStyle = 'rgba(255,255,255,0.55)';
-          ctx.fill();
-          
-          ctx.beginPath();
-          ctx.moveTo(58, -5);
-          ctx.lineTo(58, 5);
-          ctx.moveTo(53, 0);
-          ctx.lineTo(63, 0);
-          ctx.strokeStyle = 'rgba(190,215,255,0.50)';
-          ctx.lineWidth = 1.2;
-          ctx.stroke();
-          
-          ctx.beginPath();
-          ctx.arc(82, 0, 1.2, 0, Math.PI * 2);
-          ctx.fillStyle = 'rgba(255,255,255,0.45)';
-          ctx.fill();
-          
-          ctx.restore();
-          
-          ctx.restore();
+          ctx.fillText('*', 0, -5); // Representing the ★ in the constellation
           
           ctx.restore();
         }

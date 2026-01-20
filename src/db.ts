@@ -74,6 +74,11 @@ export function migrate(db: DB){
     FOREIGN KEY(user_id) REFERENCES users(id)
   );`);
 
+  // Backward compatible migration: add missing columns if table existed previously.
+  // (Older installs may have push_subscriptions without token/last_seen_at.)
+  try { db.run('ALTER TABLE push_subscriptions ADD COLUMN token TEXT;'); } catch {}
+  try { db.run('ALTER TABLE push_subscriptions ADD COLUMN last_seen_at TEXT;'); } catch {}
+
   // AI memory: persistent compressed context per user (to keep context under 100KB)
   // last_entry_id tracks up to which entry the compressed summary includes.
   db.run(`CREATE TABLE IF NOT EXISTS ai_memory (
@@ -101,7 +106,6 @@ export function migrate(db: DB){
   db.run('CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at);');
   db.run('CREATE UNIQUE INDEX IF NOT EXISTS idx_push_endpoint_unique ON push_subscriptions(endpoint);');
   db.run('CREATE INDEX IF NOT EXISTS idx_push_user ON push_subscriptions(user_id);');
-  db.run('CREATE UNIQUE INDEX IF NOT EXISTS idx_push_token_unique ON push_subscriptions(token);');
 
   // Backfill token for existing rows that might have been created before token was introduced.
   try {
@@ -117,6 +121,9 @@ export function migrate(db: DB){
       db.run('UPDATE push_subscriptions SET token = ? WHERE id = ?', [tok, Number(r.id)]);
     }
   } catch {}
+
+  // Unique token index (best-effort). Must run after token column exists + backfill.
+  try { db.run('CREATE UNIQUE INDEX IF NOT EXISTS idx_push_token_unique ON push_subscriptions(token);'); } catch {}
 
   // ensure created_at for existing nulls
   const ts = nowISO();

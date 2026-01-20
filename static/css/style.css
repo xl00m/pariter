@@ -590,9 +590,8 @@ body::before{
 
 /* === Make all UI surfaces ~20% opaque so stars are visible === */
 :root {
-  --ui-bg-mix: 20%;
-  /* 20% color + 80% transparent */
-  --ui-blur: 14px;
+  --ui-bg-mix: 10%;
+  --ui-blur: 0px;
 }
 
 /* main surfaces */

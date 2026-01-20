@@ -1354,23 +1354,21 @@ function bindHandlers(){
           const ok = !!r?.ok;
           const subs = Number(r?.subs || 0);
           const results = Array.isArray(r?.results) ? r.results : [];
-
-          const fmt = (x)=>{
-            if (!x) return 'error';
-            if (typeof x === 'string') return x;
-            if (typeof x === 'number') return String(x);
-            // server returns {host, status, error?}
-            if (typeof x === 'object') {
-              const host = String(x.host || '').trim() || 'push';
-              const st = (typeof x.status === 'number') ? String(x.status) : String(x.status || 'error');
-              const err = String(x.error || '').trim();
-              return err ? `${host}=${st} (${err.slice(0, 70)})` : `${host}=${st}`;
-            }
-            return String(x);
-          };
-
           if (ok) {
-            const tail = results.length ? ` (${results.map(fmt).join(', ')})` : '';
+            const tail = results.length
+              ? ` (${results.map(x => {
+                  try {
+                    if (x && typeof x === 'object') {
+                      const host = String(x.host || '').trim();
+                      const st = String(x.status || '').trim();
+                      return host ? `${host}:${st || 'error'}` : (st || 'error');
+                    }
+                    return String(x);
+                  } catch {
+                    return String(x);
+                  }
+                }).join(', ')})`
+              : '';
             toast(`Тест отправлен: ${subs}${tail}`);
           } else {
             toast('Не удалось отправить тест.');

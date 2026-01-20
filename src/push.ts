@@ -191,6 +191,13 @@ export async function getVapidPublicKeyB64Url(){
   return v.publicKeyB64Url;
 }
 
+function ecdsaSigToJose(sig: Uint8Array){
+  // Some runtimes return raw 64-byte (r||s), others return DER. Support both.
+  if (sig.length === 64) return sig;
+  if (sig.length > 8 && sig[0] === 0x30) return derToJose(sig);
+  throw new Error('Bad ECDSA signature');
+}
+
 async function makeVapidJwt(endpoint: string, subject: string){
   const v = await ensureVapid();
   const header = { typ: 'JWT', alg: 'ES256' };
@@ -200,8 +207,8 @@ async function makeVapidJwt(endpoint: string, subject: string){
   const enc = (obj: any)=> b64urlEncode(utf8(JSON.stringify(obj)));
   const toSign = `${enc(header)}.${enc(payload)}`;
 
-  const sigDer = await crypto.subtle.sign({ name:'ECDSA', hash:'SHA-256' }, v.privateKey, utf8(toSign));
-  const sigJose = derToJose(new Uint8Array(sigDer));
+  const sigAny = new Uint8Array(await crypto.subtle.sign({ name:'ECDSA', hash:'SHA-256' }, v.privateKey, utf8(toSign)));
+  const sigJose = ecdsaSigToJose(sigAny);
   const jwt = `${toSign}.${b64urlEncode(sigJose)}`;
 
   return { jwt, publicKeyB64Url: v.publicKeyB64Url };

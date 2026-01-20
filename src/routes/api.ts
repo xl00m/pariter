@@ -614,11 +614,8 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
         } catch (e: any) {
           const name = String(e?.name || '');
           const msg = String(e?.message || '');
-          const kind = (name === 'AbortError') ? 'timeout'
-            : (msg.includes('timed out') ? 'timeout'
-              : (msg.includes('ECONN') ? 'network' : (msg.includes('TLS') ? 'tls' : 'error')));
-          const safe = msg ? msg.replaceAll(endpoint, '').slice(0, 160) : '';
-          return { host, status: kind, error: safe };
+          const kind = (name === 'AbortError') ? 'timeout' : (msg.includes('timed out') ? 'timeout' : 'error');
+          return { host, status: kind };
         }
       }));
 

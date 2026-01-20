@@ -135,6 +135,8 @@ export function migrate(db: DB){
     const cols2 = db.query('PRAGMA table_info(push_subscriptions)').all() as any[];
     const hasToken = cols2.some(c => String((c as any)?.name || '') === 'token');
     if (hasToken) {
+      // If this DB existed before token was added, the CREATE TABLE statement above does not
+      // retroactively add the column; so we guard index creation.
       db.run('CREATE UNIQUE INDEX IF NOT EXISTS idx_push_token_unique ON push_subscriptions(token);');
     }
   } catch {}

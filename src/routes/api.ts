@@ -796,8 +796,8 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
             payloadJson,
             subject,
           });
-          // Remove dead subscriptions
-          if (res.status === 404 || res.status === 410) {
+          // Remove dead or invalid subscriptions
+          if (res.status === 404 || res.status === 410 || res.status === 401 || res.status === 403) {
             db.run('DELETE FROM push_subscriptions WHERE id = ?', [Number(s.id)]);
           }
           return res.status;

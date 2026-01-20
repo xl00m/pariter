@@ -1176,6 +1176,21 @@ function bindHandlers(){
     }, { passive: true });
 
     document.addEventListener('click', async (e)=>{
+      // Best-effort: if VAPID rotated, resubscribe on the next user gesture (no manual steps).
+      try {
+        if (APP.state.user && readPushDesired() && Notification?.permission === 'granted') {
+          const need = readPushNeedsResub();
+          if (need) {
+            // Use a soft guard to avoid looping.
+            if (!pushResubscribeIfNeeded._busy) {
+              pushResubscribeIfNeeded._busy = true;
+              setTimeout(()=>{ pushResubscribeIfNeeded._busy = false; }, 5000);
+              pushResubscribeIfNeeded().catch(()=>{});
+            }
+          }
+        }
+      } catch {}
+
       // Let modal handle its own buttons.
       if (e.target?.closest?.('#entryModal')) return;
 
@@ -2669,11 +2684,29 @@ async function updatePushUI(){
 }
 
 const PUSH_DESIRED_KEY = 'pariter_push_desired';
+const PUSH_VAPID_KEY_KEY = 'pariter_push_vapid_public_key';
+const PUSH_NEEDS_RESUB_KEY = 'pariter_push_needs_resub';
+
 function readPushDesired(){
   try { return localStorage.getItem(PUSH_DESIRED_KEY) === '1'; } catch { return false; }
 }
 function writePushDesired(v){
   try { localStorage.setItem(PUSH_DESIRED_KEY, v ? '1' : '0'); } catch {}
+}
+function readVapidPublicKey(){
+  try { return String(localStorage.getItem(PUSH_VAPID_KEY_KEY) || ''); } catch { return ''; }
+}
+function writeVapidPublicKey(k){
+  try { localStorage.setItem(PUSH_VAPID_KEY_KEY, String(k || '')); } catch {}
+}
+function readPushNeedsResub(){
+  try { return String(localStorage.getItem(PUSH_NEEDS_RESUB_KEY) || ''); } catch { return ''; }
+}
+function writePushNeedsResub(k){
+  try {
+    if (!k) localStorage.removeItem(PUSH_NEEDS_RESUB_KEY);
+    else localStorage.setItem(PUSH_NEEDS_RESUB_KEY, String(k));
+  } catch {}
 }
 
 async function enablePush(){
@@ -2693,8 +2726,22 @@ async function enablePush(){
   const { publicKey } = await api.pushVapidKey();
   if (!publicKey) throw new Error('Push ключ не получен.');
 
-  // Subscribe (idempotent-ish: if already subscribed, reuse)
+  // Detect VAPID key rotation and schedule resubscribe if needed.
+  const prev = readVapidPublicKey();
+  if (prev && prev !== publicKey) {
+    writePushNeedsResub(publicKey);
+  }
+
+  // Subscribe (idempotent-ish)
   let sub = await reg.pushManager.getSubscription();
+
+  // If server VAPID key changed, rotate subscription on a user gesture (this function is called from a click).
+  const need = readPushNeedsResub();
+  if (sub && need && need === publicKey) {
+    try { await sub.unsubscribe(); } catch {}
+    sub = null;
+  }
+
   if (!sub) {
     sub = await reg.pushManager.subscribe({
       userVisibleOnly: true,
@@ -2704,7 +2751,11 @@ async function enablePush(){
 
   const json = sub.toJSON();
   await api.pushSubscribe({ endpoint: json.endpoint, keys: json.keys });
+
   writePushDesired(true);
+  writeVapidPublicKey(publicKey);
+  writePushNeedsResub('');
+
   try { await updatePushUI(); } catch {}
   return true;
 }
@@ -2720,7 +2771,40 @@ async function disablePush(){
     }
   } catch {}
   writePushDesired(false);
+  writePushNeedsResub('');
   try { await updatePushUI(); } catch {}
+}
+
+// Resubscribe when VAPID key rotates (runs on user gesture, so no manual "unregister" needed).
+async function pushResubscribeIfNeeded(){
+  const need = readPushNeedsResub();
+  if (!need) return false;
+  if (!readPushDesired()) return false;
+  if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return false;
+  if (typeof PushManager === 'undefined') return false;
+  if (!(window.isSecureContext || location.hostname === 'localhost')) return false;
+
+  const reg = await ensureServiceWorkerForPush();
+  const { publicKey } = await api.pushVapidKey().catch(()=> ({ publicKey: '' }));
+  if (!publicKey || publicKey !== need) return false;
+
+  let sub = await reg.pushManager.getSubscription();
+  if (sub) {
+    try { await sub.unsubscribe(); } catch {}
+  }
+
+  sub = await reg.pushManager.subscribe({
+    userVisibleOnly: true,
+    applicationServerKey: b64urlToU8(publicKey),
+  });
+
+  const j = sub.toJSON();
+  await api.pushSubscribe({ endpoint: j.endpoint, keys: j.keys }).catch(()=>{});
+
+  writeVapidPublicKey(publicKey);
+  writePushNeedsResub('');
+  try { updatePushUI(); } catch {}
+  return true;
 }
 
 // Best-effort: keep push alive without manual re-enable.
@@ -2746,12 +2830,30 @@ async function pushAutoMaintain(){
     const { publicKey } = await api.pushVapidKey().catch(()=> ({ publicKey: '' }));
     if (!publicKey) return;
 
+    // If server VAPID key rotated, mark that we need resubscribe.
+    const prev = readVapidPublicKey();
+    if (prev && prev !== publicKey) {
+      writePushNeedsResub(publicKey);
+    }
+
+    // We do NOT unsubscribe/resubscribe automatically here to avoid breaking push in browsers
+    // that require a user gesture for subscribe(). The actual rotation happens on the next
+    // user gesture (any click) via pushResubscribeIfNeeded().
+
     if (!sub) {
-      // Auto re-subscribe (permission already granted)
-      sub = await reg.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: b64urlToU8(publicKey),
-      });
+      // Auto re-subscribe (permission already granted) - usually allowed without gesture.
+      try {
+        sub = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: b64urlToU8(publicKey),
+        });
+        writeVapidPublicKey(publicKey);
+        writePushNeedsResub('');
+      } catch {
+        // Can't subscribe silently. Wait for a user gesture.
+        writePushNeedsResub(publicKey);
+        return;
+      }
     }
 
     // Refresh server record (upsert)

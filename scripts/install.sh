@@ -275,6 +275,7 @@ if [[ -d "$APP_DIR_DEFAULT" && -f "$APP_DIR_DEFAULT/config.json" && -f /etc/syst
     cp -f "$APP_DIR_DEFAULT/pariter.db-wal" "$PRESERVE_DIR/" 2>/dev/null || true
     cp -f "$APP_DIR_DEFAULT/pariter.db-shm" "$PRESERVE_DIR/" 2>/dev/null || true
     cp -f "$APP_DIR_DEFAULT/.env" "$PRESERVE_DIR/" 2>/dev/null || true
+    cp -f "$APP_DIR_DEFAULT/vapid.json" "$PRESERVE_DIR/" 2>/dev/null || true
     if [[ -d "$APP_DIR_DEFAULT/backups" ]]; then
       mv "$APP_DIR_DEFAULT/backups" "$PRESERVE_DIR/backups" 2>/dev/null || true
     fi
@@ -295,6 +296,9 @@ if [[ -d "$APP_DIR_DEFAULT" && -f "$APP_DIR_DEFAULT/config.json" && -f /etc/syst
     [[ -f "$PRESERVE_DIR/pariter.db-shm" ]] && cp -f "$PRESERVE_DIR/pariter.db-shm" "$APP_DIR_DEFAULT/pariter.db-shm" || true
     if [[ -f "$PRESERVE_DIR/.env" ]]; then
       cp -f "$PRESERVE_DIR/.env" "$APP_DIR_DEFAULT/.env"
+    fi
+    if [[ -f "$PRESERVE_DIR/vapid.json" ]]; then
+      cp -f "$PRESERVE_DIR/vapid.json" "$APP_DIR_DEFAULT/vapid.json"
     fi
 
     # Ensure .env exists (AI key, etc). Do NOT overwrite existing .env.

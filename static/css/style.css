@@ -655,31 +655,3 @@ html.l00m-stars-on body::before{
 @media (prefers-reduced-motion: reduce){
   #starsCanvas, #crystalCanvas{ display:none !important; }
 }
-
-/* ===== Super SVG Vega/Altair constellation ===== */
-.vega-altair{
-  margin-top: 26px;
-  display: grid;
-  place-items: center;
-}
-.vega-altair-svg{
-  width: min(720px, 100%);
-  height: auto;
-  opacity: 0.98;
-  filter: drop-shadow(0 0 18px rgba(190,215,255,0.10));
-  mix-blend-mode: screen;
-}
-
-/* Responsive */
-@media (max-width: 820px){
-  .vega-altair-svg{
-    width: min(90vw, 720px);
-  }
-}
-
-/* Disable animations for reduced motion */
-@media (prefers-reduced-motion: reduce){
-  .vega-altair-svg [data-anim="1"] {
-    animation: none !important;
-  }
-}

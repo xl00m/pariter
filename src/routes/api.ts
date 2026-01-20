@@ -814,9 +814,20 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
     if (req.method === 'PUT' && path.startsWith('/api/entries/')) {
       const { user } = requireAuth(db, req);
       const id = Number(path.split('/').pop());
-      const e = db.query('SELECT * FROM entries WHERE id = ?').get(id) as any;
+
+      // Admin can edit any entry within their team.
+      const e = db.query(
+        `SELECT e.*, u.team_id AS team_id
+         FROM entries e
+         JOIN users u ON u.id = e.user_id
+         WHERE e.id = ?`
+      ).get(id) as any;
+
       if (!e) return error('Запись не найдена.', 404);
-      if (e.user_id !== user.id) return error('Можно редактировать только свои записи.', 403);
+      const isMine = Number(e.user_id) === Number(user.id);
+      const isAdmin = Number(user.is_admin || 0) === 1;
+      const sameTeam = Number(e.team_id) === Number(user.team_id);
+      if (!isMine && !(isAdmin && sameTeam)) return error('Нет доступа.', 403);
 
       const body = await readJson(req);
       const victory = String(body.victory || '').trim();
@@ -830,9 +841,21 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
     if (req.method === 'DELETE' && path.startsWith('/api/entries/')) {
       const { user } = requireAuth(db, req);
       const id = Number(path.split('/').pop());
-      const e = db.query('SELECT * FROM entries WHERE id = ?').get(id) as any;
+
+      // Admin can delete any entry within their team.
+      const e = db.query(
+        `SELECT e.*, u.team_id AS team_id
+         FROM entries e
+         JOIN users u ON u.id = e.user_id
+         WHERE e.id = ?`
+      ).get(id) as any;
+
       if (!e) return error('Запись не найдена.', 404);
-      if (e.user_id !== user.id) return error('Можно удалить только свою запись.', 403);
+      const isMine = Number(e.user_id) === Number(user.id);
+      const isAdmin = Number(user.is_admin || 0) === 1;
+      const sameTeam = Number(e.team_id) === Number(user.team_id);
+      if (!isMine && !(isAdmin && sameTeam)) return error('Нет доступа.', 403);
+
       db.run('DELETE FROM entries WHERE id = ?', [id]);
       return json({ ok: true });
     }

@@ -582,8 +582,9 @@ function DateDivider(label){
   `;
 }
 
-function EntryCard({entry, author, meId}){
+function EntryCard({entry, author, meId, meIsAdmin}){
   const isMine = Number(entry.user_id) === Number(meId);
+  const canManage = !!(isMine || meIsAdmin);
   const roleEmoji = ROLE_META[author?.role]?.emoji || '✦';
   const authorName = author?.name || 'Неизвестный';
   const dateLabel = ruDateLabel(entry.date);
@@ -599,9 +600,10 @@ function EntryCard({entry, author, meId}){
             <div class="textMuted" style="font-size: 12px">${escapeHTML(dateLabel)}${timeLabel ? ` <span aria-hidden="true">·</span> ${escapeHTML(timeLabel)}` : ''}</div>
           </div>
         </div>
-        ${isMine ? `
-          <div class="row" style="gap: 8px;">
-            <button type="button" class="btn-ghost" style="padding: 10px 12px" data-action="entry-edit" data-id="${entry.id}">✎</button>
+        ${canManage ? `
+          <div class="row" style="gap: 8px; align-items:center;">
+            ${isMine && timeLabel ? `<span class="textMuted" style="font-size: 12px; margin-right: 2px">${escapeHTML(timeLabel)}</span>` : ''}
+            <button type="button" class="btn-ghost" style="padding: 10px 12px" data-action="entry-edit" data-id="${entry.id}" aria-label="Редактировать">✎</button>
             <button type="button" class="btn-ghost" style="padding: 10px 12px" data-action="entry-delete" data-id="${entry.id}" aria-label="Удалить">🗑️</button>
           </div>
         ` : ''}
@@ -1106,6 +1108,14 @@ async function render(){
     APP.state.live.unread = 0;
     updateAttentionIndicators();
 
+    // Clear system notification tray (messenger-like behavior).
+    try {
+      // controller is the most reliable channel when SW already controls the page
+      navigator.serviceWorker?.controller?.postMessage?.({ type: 'clear-notifications' });
+      const reg = await navigator.serviceWorker?.getRegistration?.();
+      reg?.active?.postMessage?.({ type: 'clear-notifications' });
+    } catch {}
+
     await hydratePathStats();
     await hydrateTodayForm();
     await hydrateFeed(true);
@@ -1148,6 +1158,11 @@ function bindHandlers(){
     document.addEventListener('visibilitychange', ()=>{
       try {
         if (!document.hidden && APP.state.user && APP.state.route?.path === '/path') {
+          // Clear system notification tray when user returns to the app.
+          try {
+            navigator.serviceWorker?.controller?.postMessage?.({ type: 'clear-notifications' });
+          } catch {}
+
           // if user is at top, consider them caught up
           const nearTop = (window.scrollY || document.documentElement.scrollTop || 0) < 220;
           if (nearTop) {
@@ -1967,7 +1982,8 @@ async function hydratePathStats(){
     const bits = [];
     bits.push(`Серия: <span style="color: var(--text); font-weight: 900">${Number(s.streak || 0)}</span>`);
     bits.push(`Шагов сегодня: <span style="color: var(--text); font-weight: 900">${Number(s.userTodaySteps || 0)}</span>`);
-    bits.push(`Команда сегодня: <span style="color: var(--text); font-weight: 900">${Number(s.teamToday || 0)}</span>`);
+    bits.push(`Спутников сегодня: <span style="color: var(--text); font-weight: 900">${Number(s.teamToday || 0)}</span>`);
+    bits.push(`Шагов в команде сегодня: <span style="color: var(--text); font-weight: 900">${Number(s.teamTodaySteps || 0)}</span>`);
     bits.push(`Всего шагов в команде: <span style="color: var(--text); font-weight: 900">${Number(s.teamTotal || 0)}</span>`);
     el.innerHTML = bits.join(' · ');
   } catch {
@@ -2355,7 +2371,8 @@ async function loadMoreFeed(){
       }
 
       const author = map.get(e.user_id) || null;
-      feed.insertAdjacentHTML('beforeend', EntryCard({ entry: e, author, meId: APP.state.user.id }));
+      const meIsAdmin = Number(APP.state.user?.is_admin || 0) === 1;
+      feed.insertAdjacentHTML('beforeend', EntryCard({ entry: e, author, meId: APP.state.user.id, meIsAdmin }));
       APP.state.feed.renderedCount++;
     }
 

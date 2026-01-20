@@ -162,6 +162,24 @@ self.addEventListener('notificationclick', (event) => {
   })());
 });
 
+// App-open hygiene: clear existing notifications when the client tells us the app is active.
+self.addEventListener('message', (event)=>{
+  try {
+    const data = event?.data;
+    if (!data || typeof data !== 'object') return;
+    if (data.type !== 'clear-notifications') return;
+
+    event.waitUntil((async ()=>{
+      try {
+        const notes = await self.registration.getNotifications({});
+        for (const n of notes) {
+          try { n.close(); } catch {}
+        }
+      } catch {}
+    })());
+  } catch {}
+});
+
 // Some browsers can rotate/expire push subscriptions after inactivity.
 // Try to resubscribe and re-send the new subscription to the backend automatically.
 function b64urlToU8(b64url){

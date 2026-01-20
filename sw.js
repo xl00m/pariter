@@ -1,4 +1,5 @@
 // Pariter Service Worker (minimal PWA support)
+// NOTE: This file is served from /sw.js to allow scope '/'
 // Network-first for navigations, stale-while-revalidate for static.
 
 const VERSION = 'pariter-sw-v1';
@@ -37,7 +38,7 @@ function isNavigationRequest(req){
 }
 
 function isStaticRequest(url){
-  return url.pathname.startsWith('/static/');
+  return url.pathname.startsWith('/static/') || url.pathname === '/sw.js';
 }
 
 self.addEventListener('fetch', (event) => {
@@ -87,11 +88,10 @@ self.addEventListener('fetch', (event) => {
 self.addEventListener('push', (event) => {
   event.waitUntil((async ()=>{
     try {
-      let data: any = null;
+      let data = null;
       try {
         data = event.data ? event.data.json() : null;
       } catch {
-        // Some push services can deliver non-JSON payloads; fallback to text.
         const t = event.data ? event.data.text() : '';
         data = { type: 'text', text: String(t || '').trim() };
       }
@@ -114,7 +114,6 @@ self.addEventListener('push', (event) => {
         return;
       }
 
-      // Fallback: show whatever text we got
       if (data.type === 'text' && data.text) {
         await self.registration.showNotification('Pariter', {
           body: String(data.text).slice(0, 160),

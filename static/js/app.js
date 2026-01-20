@@ -2544,7 +2544,7 @@ async function updatePushUI(){
 
   try {
     // Ensure SW is registered (in case user opened settings too early).
-    try { await navigator.serviceWorker.register('/static/sw.js', { scope: '/' }); }
+    try { await navigator.serviceWorker.register('/sw.js', { scope: '/' }); }
     catch { throw new Error('Service Worker не зарегистрирован'); }
     const reg = await withTimeout(navigator.serviceWorker.ready, 2500, 'Service Worker не готов');
     const sub = await reg.pushManager.getSubscription();
@@ -2581,7 +2581,7 @@ async function enablePush(){
   }
 
   // Ensure SW is registered (in case of delayed registration).
-  try { await navigator.serviceWorker.register('/static/sw.js', { scope: '/' }); }
+  try { await navigator.serviceWorker.register('/sw.js', { scope: '/' }); }
   catch { throw new Error('Service Worker не зарегистрирован.'); }
   const reg = await withTimeout(navigator.serviceWorker.ready, 4000, 'Service Worker не готов. Обнови страницу.');
 

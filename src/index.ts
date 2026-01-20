@@ -120,7 +120,7 @@ async function serveFile(pathname: string){
 }
 
 function isStatic(pathname: string){
-  return pathname.startsWith('/static/') || pathname === '/favicon.ico';
+  return pathname.startsWith('/static/') || pathname === '/favicon.ico' || pathname === '/sw.js';
 }
 
 const server = Bun.serve({
@@ -147,6 +147,7 @@ const server = Bun.serve({
         }
         return withSecurityHeaders(new Response('not found', { status: 404 }));
       }
+
       return withSecurityHeaders(await serveFile(path));
     }
 

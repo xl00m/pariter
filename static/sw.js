@@ -18,9 +18,12 @@ const CORE = [
 
 self.addEventListener('install', (event) => {
   event.waitUntil((async ()=>{
-    const cache = await caches.open(VERSION);
-    await cache.addAll(CORE).catch(()=>{});
-    self.skipWaiting();
+    try {
+      const cache = await caches.open(VERSION);
+      await cache.addAll(CORE).catch(()=>{});
+    } finally {
+      self.skipWaiting();
+    }
   })());
 });
 

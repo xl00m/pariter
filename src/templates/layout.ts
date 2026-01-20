@@ -60,7 +60,8 @@ export function layout({ title, description, body, themeId, bootstrap }: { title
     (function(){
       try {
         if ('serviceWorker' in navigator) {
-          // Register ASAP to make PushManager available quickly (Android can be picky).
+          // Register ASAP (do not wait for load). Keep scope '/'
+          // so Push works app-wide on Android.
           navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(function(){});
         }
       } catch {}

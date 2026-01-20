@@ -4,6 +4,7 @@ const APP = {
   _authRedirectScheduled: false,
   _rendering: false,
   _rerenderRequested: false,
+  _pushBusy: false,
   pwa: { deferredPrompt: null, installed: false },
   state: {
     user: null,
@@ -1268,6 +1269,9 @@ function bindHandlers(){
 
       // Push (Android/desktop messenger-like notifications)
       if (action === 'push-enable') {
+        // Prevent double-click storms (Android can be slow)
+        if (APP._pushBusy) return;
+        APP._pushBusy = true;
         try {
           toast('Включаю push…');
           await enablePush();
@@ -1275,6 +1279,7 @@ function bindHandlers(){
         } catch (err) {
           toast(err.message || 'Не удалось включить push.');
         } finally {
+          APP._pushBusy = false;
           try { updateNotifUI(); } catch {}
           try { updatePushUI(); } catch {}
         }
@@ -1282,12 +1287,15 @@ function bindHandlers(){
       }
 
       if (action === 'push-disable') {
+        if (APP._pushBusy) return;
+        APP._pushBusy = true;
         try {
           await disablePush();
           toast('Push выключен.');
         } catch {
           toast('Не удалось выключить push.');
         } finally {
+          APP._pushBusy = false;
           try { updatePushUI(); } catch {}
         }
         return;
@@ -2515,19 +2523,65 @@ function withTimeout(promise, ms, msg){
   return Promise.race([promise, timeout]).finally(()=>{ try { clearTimeout(t); } catch {} });
 }
 
+// --- Push helpers (Android/desktop messenger-like notifications)
+// Important: do NOT rely on navigator.serviceWorker.ready for Push.
+// On Android it may not resolve until the SW controls the page.
+// PushManager works with the registration returned by register().
+async function ensureServiceWorkerForPush(){
+  if (ensureServiceWorkerForPush._p) return ensureServiceWorkerForPush._p;
+
+  ensureServiceWorkerForPush._p = (async ()=>{
+    if (!('serviceWorker' in navigator)) throw new Error('Service Worker не поддерживается.');
+
+    // Auto-clean old/incorrect registrations (no manual "unregister" needed).
+    try {
+      const regs = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.map(async (r)=>{
+        try {
+          const scopePath = new URL(r.scope).pathname;
+          const activeUrl = r.active?.scriptURL ? new URL(r.active.scriptURL).pathname : '';
+          const installingUrl = r.installing?.scriptURL ? new URL(r.installing.scriptURL).pathname : '';
+          const waitingUrl = r.waiting?.scriptURL ? new URL(r.waiting.scriptURL).pathname : '';
+          const anyUrl = activeUrl || waitingUrl || installingUrl;
+
+          // We want only /sw.js with scope '/'. Remove /static/sw.js and other stray scopes.
+          const badScope = scopePath.startsWith('/static');
+          const badScript = anyUrl && anyUrl !== '/sw.js';
+          if (badScope || badScript) {
+            await r.unregister().catch(()=>{});
+          }
+        } catch {}
+      }));
+    } catch {}
+
+    // Register root-scope SW.
+    let reg = null;
+    try {
+      reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+      try { await reg.update(); } catch {}
+    } catch {
+      throw new Error('Service worker не зарегистрирован');
+    }
+
+    return reg;
+  })().finally(()=>{
+    // allow re-try on next call if we failed
+    // (but keep cache if resolved)
+  });
+
+  return ensureServiceWorkerForPush._p;
+}
+
 async function updatePushUI(){
   const btn = document.getElementById('pushBtn');
   const off = document.getElementById('pushOffBtn');
   const st = document.getElementById('pushStatus');
   if (!btn || !st) return;
 
-  const hasSW = ('serviceWorker' in navigator);
   const hasPush = (typeof PushManager !== 'undefined');
-  const isSecure = (typeof window !== 'undefined' && 'isSecureContext' in window)
-    ? (window.isSecureContext === true)
-    : (location.protocol === 'https:' || location.hostname === 'localhost');
+  const isSecure = (location.protocol === 'https:' || location.hostname === 'localhost');
 
-  if (!hasSW || !hasPush) {
+  if (!hasPush || !('serviceWorker' in navigator)) {
     btn.disabled = true;
     if (off) off.classList.add('hidden');
     st.textContent = 'не поддерживается';
@@ -2543,14 +2597,10 @@ async function updatePushUI(){
   st.textContent = 'проверяю…';
 
   try {
-    // Ensure SW is registered (in case user opened settings too early).
-    try { await navigator.serviceWorker.register('/sw.js', { scope: '/' }); }
-    catch { throw new Error('Service Worker не зарегистрирован'); }
-    const reg = await withTimeout(navigator.serviceWorker.ready, 2500, 'Service Worker не готов');
+    const reg = await withTimeout(ensureServiceWorkerForPush(), 2500, 'Service worker не готов');
     const sub = await reg.pushManager.getSubscription();
-    const enabled = !!sub;
 
-    if (enabled) {
+    if (sub) {
       btn.disabled = true;
       if (off) off.classList.remove('hidden');
       st.textContent = 'включено';
@@ -2559,39 +2609,38 @@ async function updatePushUI(){
       if (off) off.classList.add('hidden');
       st.textContent = 'выключено';
     }
-  } catch {
+  } catch (e) {
     btn.disabled = false;
     if (off) off.classList.add('hidden');
-    st.textContent = 'не готово (обнови страницу)';
+    st.textContent = 'не готово';
   }
 }
 
 async function enablePush(){
   if (typeof Notification === 'undefined') throw new Error('Уведомления не поддерживаются.');
 
-  const isSecure = (typeof window !== 'undefined' && 'isSecureContext' in window)
-    ? (window.isSecureContext === true)
-    : (location.protocol === 'https:' || location.hostname === 'localhost');
+  const isSecure = (location.protocol === 'https:' || location.hostname === 'localhost');
   if (!isSecure) throw new Error('Push требует https.');
 
   if (Notification.permission !== 'granted') {
     const p = await Notification.requestPermission();
-    updateNotifUI();
+    try { updateNotifUI(); } catch {}
     if (p !== 'granted') throw new Error('Разрешение на уведомления не выдано.');
   }
 
-  // Ensure SW is registered (in case of delayed registration).
-  try { await navigator.serviceWorker.register('/sw.js', { scope: '/' }); }
-  catch { throw new Error('Service Worker не зарегистрирован.'); }
-  const reg = await withTimeout(navigator.serviceWorker.ready, 4000, 'Service Worker не готов. Обнови страницу.');
+  const reg = await withTimeout(ensureServiceWorkerForPush(), 4000, 'Service worker не готов');
 
   const { publicKey } = await api.pushVapidKey();
   if (!publicKey) throw new Error('Push ключ не получен.');
 
-  const sub = await reg.pushManager.subscribe({
-    userVisibleOnly: true,
-    applicationServerKey: b64urlToU8(publicKey),
-  });
+  // Subscribe (idempotent-ish: if already subscribed, reuse)
+  let sub = await reg.pushManager.getSubscription();
+  if (!sub) {
+    sub = await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: b64urlToU8(publicKey),
+    });
+  }
 
   const json = sub.toJSON();
   await api.pushSubscribe({ endpoint: json.endpoint, keys: json.keys });
@@ -2601,7 +2650,7 @@ async function enablePush(){
 
 async function disablePush(){
   try {
-    const reg = await navigator.serviceWorker.ready;
+    const reg = await ensureServiceWorkerForPush();
     const sub = await reg.pushManager.getSubscription();
     if (sub) {
       const json = sub.toJSON();

@@ -1123,7 +1123,8 @@ function ensureEntryModal(){
         await hydratePathStats();
         await hydrateFeed(true);
       } catch (err) {
-        toast(err.message || 'Ошибка обновления.');
+        const errorMessage = err?.message || (typeof err === 'string' ? err : 'Ошибка обновления.');
+        toast(errorMessage);
       }
       return;
     }
@@ -1258,7 +1259,8 @@ async function apiFetch(path, { method='GET', body=null }={}){
       }
     }
 
-    const err = new Error(data?.error || 'Ошибка API.');
+    const errorMessage = typeof (data?.error) === 'string' ? data.error : (typeof data?.error === 'object' ? JSON.stringify(data.error) : 'Ошибка API.');
+    const err = new Error(errorMessage);
     err.status = res.status;
     err.reason = data?.reason;
     err.data = data;
@@ -2369,7 +2371,8 @@ function bindHandlers(){
           await enablePush();
           toast('Push включен.');
         } catch (err) {
-          toast(err.message || 'Не удалось включить push.');
+          const errorMessage = err?.message || (typeof err === 'string' ? err : 'Не удалось включить push.');
+          toast(errorMessage);
         } finally {
           APP._pushBusy = false;
           try { updateNotifUI(); } catch {}
@@ -2414,7 +2417,8 @@ function bindHandlers(){
         try {
           await api.profileDelete();
         } catch (err) {
-          toast(err.message || 'Не удалось удалить аккаунт.');
+          const errorMessage = err?.message || (typeof err === 'string' ? err : 'Не удалось удалить аккаунт.');
+          toast(errorMessage);
           return;
         }
         try { await api.logout(); } catch {}
@@ -2689,7 +2693,8 @@ function bindHandlers(){
           toast('Удалено.');
           await hydrateInvite();
         } catch (err) {
-          toast(err.message || 'Ошибка удаления.');
+          const errorMessage = err?.message || (typeof err === 'string' ? err : 'Ошибка удаления.');
+          toast(errorMessage);
         }
         return;
       }
@@ -3006,7 +3011,8 @@ function bindHandlers(){
         toast('Сохранено.');
         await render();
       } catch (err) {
-        toast(err.message || 'Ошибка сохранения.');
+        const errorMessage = err?.message || (typeof err === 'string' ? err : 'Ошибка сохранения.');
+        toast(errorMessage);
       }
     });
   }

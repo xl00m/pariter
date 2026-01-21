@@ -1,3 +1,6 @@
+// Pariter Service Worker (minimal PWA support)
+// Network-first for navigations, stale-while-revalidate for static.
+
 const VERSION = 'pariter-sw-v2';
 const CORE = [
   '/',
@@ -44,16 +47,20 @@ self.addEventListener('fetch', (event) => {
   const req = event.request;
   const url = new URL(req.url);
 
+  // Only same-origin.
   if (url.origin !== self.location.origin) return;
 
+  // Never cache API.
   if (url.pathname.startsWith('/api/')) {
-    return;
+    return; // default network
   }
 
+  // Navigations: network-first, fallback to cached /path shell.
   if (isNavigationRequest(req)) {
     event.respondWith((async ()=>{
       try {
         const fresh = await fetch(req);
+        // best-effort update cached shell
         const cache = await caches.open(VERSION);
         cache.put(req, fresh.clone()).catch(()=>{});
         return fresh;
@@ -65,6 +72,7 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // Static: stale-while-revalidate
   if (isStaticRequest(url)) {
     event.respondWith((async ()=>{
       const cache = await caches.open(VERSION);
@@ -78,11 +86,18 @@ self.addEventListener('fetch', (event) => {
   }
 });
 
+// Push notifications
+// Important: even if payload is missing (event.data == null) or can't be parsed,
+// we still show a generic notification. Otherwise it looks like "push doesn't arrive".
 self.addEventListener('push', (event) => {
   event.waitUntil((async ()=>{
     try {
+      // Messenger-like: keep one “inbox” notification updated.
+      // If user clears it manually, next push will re-create it.
       const inboxTag = 'pariter_inbox';
 
+      // 1) Try to enrich tickle-push with a real preview by fetching from backend.
+      // This avoids encrypted payload fragility and behaves like messengers.
       let title = 'Pariter';
       let body = 'Новый шаг. Открой Pariter, чтобы посмотреть.';
       let url = '/path';
@@ -124,13 +139,18 @@ self.addEventListener('push', (event) => {
               await idbSet('lastInboxKey', nk);
             }
 
+            // Aggregation hint
             if (cnt > 1) {
               body = body ? `${body} (и еще ${cnt - 1})` : `Новых шагов: ${cnt}`;
             }
           }
         }
-      } catch {}
+      } catch {
+        // fallback to generic text below
+      }
 
+      // 2) If push payload exists (optional), use it as fallback.
+      // This is kept for compatibility, but main path is fetch-based enrichment.
       try {
         let data = null;
         try {
@@ -153,18 +173,26 @@ self.addEventListener('push', (event) => {
         }
       } catch {}
 
+      // Messenger-like: keep a single pinned inbox notification.
+      // Do not spam duplicates: if we receive multiple identical pushes in a short window,
+      // ignore the repeats.
       try {
         const now = Date.now();
         const sig = `${title}\n${body}`;
+        // @ts-ignore
         const lastAt = Number(self.__pariterLastAt || 0);
+        // @ts-ignore
         const lastSig = String(self.__pariterLastSig || '');
         if (sig === lastSig && (now - lastAt) < 6000) {
           return;
         }
+        // @ts-ignore
         self.__pariterLastAt = now;
+        // @ts-ignore
         self.__pariterLastSig = sig;
       } catch {}
 
+      // Close any old non-inbox notifications so tray doesn't accumulate legacy tags.
       try {
         const notes = await self.registration.getNotifications({});
         for (const n of notes) {
@@ -184,6 +212,7 @@ self.addEventListener('push', (event) => {
         data: { url },
       });
 
+      // If the app is open, tell the client to refresh UI/badges immediately.
       try {
         const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
         for (const c of clients) {
@@ -191,10 +220,13 @@ self.addEventListener('push', (event) => {
         }
       } catch {}
 
-    } catch {}
+    } catch {
+      // ignore
+    }
   })());
 });
 
+// Notifications: focus/open the app on click.
 self.addEventListener('notificationclick', (event) => {
   try { event.notification.close(); } catch {}
   const url = (event.notification && event.notification.data && event.notification.data.url) ? event.notification.data.url : '/path';
@@ -215,6 +247,7 @@ self.addEventListener('notificationclick', (event) => {
   })());
 });
 
+// App-open hygiene: clear existing notifications when the client tells us the app is active.
 self.addEventListener('message', (event)=>{
   try {
     const data = event?.data;
@@ -232,6 +265,7 @@ self.addEventListener('message', (event)=>{
   } catch {}
 });
 
+// --- SW storage (tiny IndexedDB) to persist push token across restarts
 const DB_NAME = 'pariter_sw';
 const DB_VER = 1;
 const STORE = 'kv';
@@ -270,16 +304,20 @@ async function idbSet(key, val){
   } catch {}
 }
 
+// Receive token from the client
 self.addEventListener('message', (event)=>{
   try {
     const data = event?.data;
     if (!data || typeof data !== 'object') return;
     if (data.type !== 'push-token') return;
     const tok = String(data.token || '').trim();
+    // allow clearing
     event.waitUntil(idbSet('pushToken', tok));
   } catch {}
 });
 
+// Some browsers can rotate/expire push subscriptions after inactivity.
+// Resubscribe and update backend without cookies using a persistent token.
 function b64urlToU8(b64url){
   let s = String(b64url || '').replace(/-/g, '+').replace(/_/g, '/');
   const pad = s.length % 4;
@@ -296,6 +334,7 @@ self.addEventListener('pushsubscriptionchange', (event)=>{
       const token = String(await idbGet('pushToken') || '').trim();
       if (!token) return;
 
+      // Fetch current VAPID public key (no auth)
       const r = await fetch('/api/push/vapidPublicKey', { cache: 'no-store' }).catch(()=>null);
       const j = r ? await r.json().catch(()=>null) : null;
       const publicKey = j?.publicKey;
@@ -315,6 +354,8 @@ self.addEventListener('pushsubscriptionchange', (event)=>{
         body: JSON.stringify({ token, endpoint: sj.endpoint, keys: sj.keys })
       }).catch(()=>{});
 
-    } catch {}
+    } catch {
+      // ignore
+    }
   })());
 });

@@ -1,12 +1,17 @@
 import { nowISO } from './utils';
 
+// Minimal Web Push implementation (no external deps)
+// - VAPID key management (stored in ./vapid.json)
+// - VAPID JWT signing (ES256)
+// - Payload encryption (aes128gcm)
+
 const VAPID_FILE = './vapid.json';
 
 type VapidFile = {
   created_at: string;
   publicJwk: JsonWebKey;
   privateJwk: JsonWebKey;
-  publicKeyB64Url: string;
+  publicKeyB64Url: string; // uncompressed P-256 public key, base64url
 };
 
 let _vapidCache: {
@@ -43,6 +48,7 @@ function b64urlDecode(s: string){
 function b64DecodeFlex(s: string){
   const str = String(s || '').trim();
   if (!str) return new Uint8Array();
+  // keys from PushSubscription are usually base64 (URL-safe); accept both.
   if (str.includes('-') || str.includes('_')) return b64urlDecode(str);
   return new Uint8Array(Buffer.from(str, 'base64'));
 }
@@ -75,10 +81,12 @@ async function hkdfExpand(prk: Uint8Array, info: Uint8Array, len: number){
 }
 
 function derToJose(derSig: Uint8Array){
+  // DER: 30 len 02 rlen r 02 slen s
   let p = 0;
   if (derSig[p++] !== 0x30) throw new Error('Bad DER signature');
   const seqLen = derSig[p++];
   if (seqLen + 2 !== derSig.length && seqLen + 2 !== derSig.length) {
+    // ignore
   }
   if (derSig[p++] !== 0x02) throw new Error('Bad DER signature');
   const rLen = derSig[p++];
@@ -87,6 +95,7 @@ function derToJose(derSig: Uint8Array){
   const sLen = derSig[p++];
   let s = derSig.slice(p, p + sLen);
 
+  // Strip leading zeros
   while (r.length > 0 && r[0] === 0) r = r.slice(1);
   while (s.length > 0 && s[0] === 0) s = s.slice(1);
 
@@ -119,7 +128,9 @@ async function ensureVapid(){
 
   let vf: VapidFile | null = null;
   try {
+    // @ts-ignore Bun runtime
     if (globalThis.Bun?.file) {
+      // @ts-ignore
       const f = Bun.file(VAPID_FILE);
       if (await f.exists()) {
         const txt = await f.text();
@@ -152,13 +163,16 @@ async function ensureVapid(){
     };
 
     try {
+      // @ts-ignore
       if (globalThis.Bun?.write) {
+        // @ts-ignore
         await Bun.write(VAPID_FILE, JSON.stringify(vf, null, 2));
       } else {
         const fs = await import('node:fs/promises');
         await fs.writeFile(VAPID_FILE, JSON.stringify(vf, null, 2), 'utf8');
       }
     } catch {
+      // ignore if filesystem is readonly; keys will be ephemeral for this run
     }
   }
 
@@ -178,6 +192,7 @@ export async function getVapidPublicKeyB64Url(){
 }
 
 function ecdsaSigToJose(sig: Uint8Array){
+  // Some runtimes return raw 64-byte (r||s), others return DER. Support both.
   if (sig.length === 64) return sig;
   if (sig.length > 8 && sig[0] === 0x30) return derToJose(sig);
   throw new Error('Bad ECDSA signature');
@@ -200,6 +215,7 @@ async function makeVapidJwt(endpoint: string, subject: string){
 }
 
 async function encryptWebPushPayload(payload: string, clientPublicKey: Uint8Array, clientAuthSecret: Uint8Array){
+  // Generate ephemeral ECDH
   const server = await crypto.subtle.generateKey({ name:'ECDH', namedCurve:'P-256' }, true, ['deriveBits']);
   const serverPublicRaw = new Uint8Array(await crypto.subtle.exportKey('raw', server.publicKey));
 
@@ -208,16 +224,21 @@ async function encryptWebPushPayload(payload: string, clientPublicKey: Uint8Arra
 
   const salt = crypto.getRandomValues(new Uint8Array(16));
 
+  // PRK_key = HKDF-Extract(auth, shared)
   const prkKey = await hkdfExtract(clientAuthSecret, shared);
 
+  // IKM = HKDF-Expand(PRK_key, "WebPush: info\0" + client_pub + server_pub, 32)
   const info = concatU8(utf8('WebPush: info\0'), clientPublicKey, serverPublicRaw);
   const ikm = await hkdfExpand(prkKey, info, 32);
 
+  // PRK = HKDF-Extract(salt, IKM)
   const prk = await hkdfExtract(salt, ikm);
 
   const cek = await hkdfExpand(prk, utf8('Content-Encoding: aes128gcm\0'), 16);
   const nonce = await hkdfExpand(prk, utf8('Content-Encoding: nonce\0'), 12);
 
+  // RFC8291 (aes128gcm): plaintext is payload + padding delimiter 0x02 (+ optional 0x00 padding)
+  // Using only the delimiter keeps things simple and compatible.
   const pt = concatU8(utf8(payload), new Uint8Array([0x02]));
 
   const key = await crypto.subtle.importKey('raw', cek, { name:'AES-GCM' }, false, ['encrypt']);
@@ -246,12 +267,16 @@ export async function sendWebPush({ subscription, payloadJson, subject }:{
 
   const { jwt, publicKeyB64Url } = await makeVapidJwt(endpoint, subject);
 
+  // Messenger-like delivery: allow the push service to retain notifications longer
+  // when the device/browser is temporarily offline/asleep.
   const baseHeaders: Record<string,string> = {
     'TTL': '86400',
     'Authorization': `vapid t=${jwt}, k=${publicKeyB64Url}`,
     'Urgency': 'high',
   };
 
+  // Tickle push (no payload): maximum compatibility across browsers.
+  // Some browsers can silently drop a push if the encrypted payload cannot be decrypted.
   if (payloadJson == null) {
     const headers: Record<string,string> = {
       ...baseHeaders,
@@ -261,6 +286,7 @@ export async function sendWebPush({ subscription, payloadJson, subject }:{
     return await fetchWithTimeout(endpoint, { method:'POST', headers }, 12000);
   }
 
+  // Encrypted payload (aes128gcm)
   const clientPublicKey = b64DecodeFlex(subscription.p256dh);
   const clientAuthSecret = b64DecodeFlex(subscription.auth);
   if (clientPublicKey.length < 10 || clientAuthSecret.length < 8) throw new Error('Bad subscription keys');

@@ -1,7 +1,7 @@
-import { meResponse, requireAuth } from './auth';
-import { migrate, openDB } from './db';
+import { openDB, migrate } from './db';
 import { handleApi } from './routes/api';
 import { renderAppShell } from './routes/pages';
+import { meResponse, requireAuth } from './auth';
 
 type Config = {
   port?: number;
@@ -35,6 +35,7 @@ async function loadDotEnv(path = './.env'){
       const key = s.slice(0, i).trim();
       let val = s.slice(i + 1).trim();
       if (!key) continue;
+      // strip optional quotes
       if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
         val = val.slice(1, -1);
       }
@@ -44,6 +45,7 @@ async function loadDotEnv(path = './.env'){
       }
     }
   } catch {
+    // ignore
   }
 }
 
@@ -56,11 +58,13 @@ migrate(db);
 
 const staticDir = process.env.PARITER_STATIC || cfg.staticDir || './static';
 
+// Basic security headers (safe defaults). Add HSTS only when running behind HTTPS.
 const SECURE = process.env.PARITER_SECURE_COOKIE === '1';
 const SECURITY_HEADERS: Record<string,string> = {
   'x-content-type-options': 'nosniff',
   'x-frame-options': 'DENY',
   'referrer-policy': 'no-referrer',
+  // Minimal permissions policy (expand if you add capabilities).
   'permissions-policy': 'geolocation=(), microphone=(), camera=()'
 };
 if (SECURE) SECURITY_HEADERS['strict-transport-security'] = 'max-age=31536000; includeSubDomains';
@@ -86,6 +90,7 @@ function contentTypeFor(pathname: string){
 }
 
 function safeStaticPath(pathname: string){
+  // prevent path traversal
   const rel = pathname.replace(/^\/static\//, '');
   const clean = rel.split('/').filter(p => p && p !== '.' && p !== '..').join('/');
   return staticDir.replace(/\/$/,'') + '/' + clean;
@@ -98,6 +103,8 @@ async function serveFile(pathname: string){
 
   const hot = (pathname.endsWith('.js') || pathname.endsWith('.css'));
 
+  // Important: JS/CSS must update immediately after deploy. Some browsers/proxies can be stubborn,
+  // so we use a very explicit no-cache policy.
   const headers: Record<string,string> = {
     'content-type': contentTypeFor(pathname),
   };
@@ -124,20 +131,10 @@ function isPushPath(pathname: string){
 const server = Bun.serve({
   port: Number(process.env.PORT || cfg.port || 8080),
   async fetch(req){
-    let path = req.url;
-    try {
-      const url = new URL(req.url);
-      path = url.pathname;
-    } catch {
-      // If URL parsing fails, assume it's just a path
-      if (req.url.startsWith('/')) {
-        path = req.url;
-      } else {
-        // If it doesn't start with '/', it might be a malformed request
-        return withSecurityHeaders(new Response('Bad Request', { status: 400 }));
-      }
-    }
+    const url = new URL(req.url);
+    const path = url.pathname;
 
+    // Static
     if (isStatic(path)) {
       if (path === '/favicon.ico') {
         const ico = Bun.file(staticDir.replace(/\/$/,'') + '/favicon.ico');
@@ -146,6 +143,7 @@ const server = Bun.serve({
             headers: { 'content-type': 'image/x-icon', 'cache-control': 'public, max-age=86400' }
           }));
         }
+        // fallback to svg
         const svg = Bun.file(staticDir.replace(/\/$/,'') + '/favicon.svg');
         if (await svg.exists()) {
           return withSecurityHeaders(new Response(svg, {
@@ -158,10 +156,14 @@ const server = Bun.serve({
       return withSecurityHeaders(await serveFile(path));
     }
 
+    // API
     if (path.startsWith('/api/')) {
+      // Push inbox endpoint must work without cookies (Service Worker fetch).
+      // It is protected by a per-device token stored in push_subscriptions.
       if (isPushPath(path) && (req.method === 'GET' || req.method === 'HEAD')) {
         const auth = String(req.headers.get('authorization') || '').trim();
         if (auth.toLowerCase().startsWith('bearer ')) {
+          // allow service-worker to pass through as-is (API will validate token)
           return withSecurityHeaders(await handleApi(db, req));
         }
       }
@@ -170,6 +172,8 @@ const server = Bun.serve({
       return withSecurityHeaders(await handleApi(db, req));
     }
 
+    // Pages: real routes + SPA fallback
+    // We always serve the shell for SPA routes.
     let themeId: string | undefined = undefined;
     let authed = false;
     let bootstrap: any = undefined;
@@ -178,6 +182,7 @@ const server = Bun.serve({
       themeId = user?.theme || undefined;
       authed = true;
 
+      // Preload team users for immediate header avatars on first paint.
       const users = db.query(
         'SELECT id, team_id, email, name, login, role, theme, is_admin, created_at FROM users WHERE team_id = ? ORDER BY datetime(created_at) ASC'
       ).all(user.team_id) as any[];
@@ -187,10 +192,12 @@ const server = Bun.serve({
       bootstrap = { user: safeUser, team, teamUsers: users };
     } catch {}
 
+    // If already authenticated, avoid showing auth/landing pages.
     if (authed && (path === '/' || path === '/login' || path === '/register' || path.startsWith('/join/'))) {
       return withSecurityHeaders(Response.redirect('/path', 302));
     }
 
+    // If not authenticated, avoid serving protected pages.
     if (!authed && (path === '/path' || path === '/settings' || path === '/invite')) {
       return withSecurityHeaders(Response.redirect('/login', 302));
     }
@@ -202,8 +209,11 @@ const server = Bun.serve({
       }));
     }
 
+    // Fallback to SPA shell
     return withSecurityHeaders(new Response(renderAppShell(path, themeId, bootstrap), {
       headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' }
     }));
   }
 });
+
+console.log(`PARITER running on http://localhost:${server.port}`);

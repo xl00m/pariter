@@ -1,11 +1,11 @@
-import { inviteTemplate } from '../templates/invite';
-import { joinTemplate } from '../templates/join';
-import { landingTemplate } from '../templates/landing';
 import { layout } from '../templates/layout';
+import { landingTemplate } from '../templates/landing';
 import { loginTemplate } from '../templates/login';
-import { pathTemplate } from '../templates/path';
 import { registerTemplate } from '../templates/register';
+import { joinTemplate } from '../templates/join';
+import { pathTemplate } from '../templates/path';
 import { settingsTemplate } from '../templates/settings';
+import { inviteTemplate } from '../templates/invite';
 
 type Page = { title: string; description: string; body: string };
 
@@ -35,6 +35,7 @@ function pickTemplate(pathname: string): Page {
     return { title: 'Спутники — ✦ PARITER ✦', description, body: inviteTemplate() };
   }
 
+  // SPA fallback
   return {
     title: '✦ PARITER ✦',
     description,

@@ -33,7 +33,6 @@ function clampUTF8(text: string, maxBytes: number){
   const enc = new TextEncoder();
   const bytes = enc.encode(text);
   if (bytes.length <= maxBytes) return text;
-  // truncate by bytes
   const sliced = bytes.slice(0, maxBytes);
   return new TextDecoder().decode(sliced);
 }
@@ -88,7 +87,7 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
     if ((req.method === 'GET' || req.method === 'HEAD') && path === '/api/health') {
       return json({ ok: true, time: nowISO() });
     }
-    
+
     if (req.method === 'DELETE' && path === '/api/profile') {
       const { user } = requireAuth(db, req);
       db.run('DELETE FROM sessions WHERE user_id = ?', [user.id]);
@@ -98,7 +97,7 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
       db.run('DELETE FROM users WHERE id = ?', [user.id]);
       return json({ ok: true });
     }
-    
+
     if (req.method === 'POST' && path === '/api/register') {
       const body = await readJson(req);
       const email = String(body.email || '').trim();
@@ -107,21 +106,21 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
       const password = String(body.password || '');
       const role = String(body.role || '');
       const theme = String(body.theme || '');
-      
+
       if (!validateEmail(email)) return error('Укажи корректный email.');
       if (!name || name.length < 2) return error('Имя слишком короткое.');
       if (!validateLogin(login)) return error('Логин: 3–32 символа (a-z, 0-9, _ . -).');
       if (!validatePassword(password)) return error('Пароль: минимум 6 символов.');
       if (!(role in ROLE_META)) return error('Выбери роль.');
       if (!themeAllowed(role, theme)) return error('Выбери тему.');
-      
+
       const exists = db.query('SELECT id FROM users WHERE login = ?').get(login);
       if (exists) return error('Этот логин уже занят.');
-      
+
       db.run('INSERT INTO teams (created_at) VALUES (?)', [nowISO()]);
       const team = db.query('SELECT last_insert_rowid() AS id').get() as any;
       const teamId = Number(team.id);
-      
+
       const password_hash = await Bun.password.hash(password);
       db.run(
         'INSERT INTO users (team_id, email, name, login, password_hash, role, theme, is_admin, created_at) VALUES (?,?,?,?,?,?,?,?,?)',
@@ -130,27 +129,27 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
       const row = db.query('SELECT last_insert_rowid() AS id').get() as any;
       const userId = Number(row.id);
       const user = db.query('SELECT * FROM users WHERE id = ?').get(userId) as any;
-      
+
       const { sid } = createSession(db, userId);
       const headers = setSessionCookieHeaders(sid);
       return json({ ok: true, user: safeUser(user) }, 200, headers);
     }
-    
+
     if (req.method === 'POST' && path === '/api/login') {
       const body = await readJson(req);
       const login = sanitizeLogin(body.login);
       const password = String(body.password || '');
-      
+
       const user = db.query('SELECT * FROM users WHERE login = ?').get(login) as any;
       if (!user) return error('Неверный логин или пароль.', 401);
       const ok = await Bun.password.verify(password, user.password_hash);
       if (!ok) return error('Неверный логин или пароль.', 401);
-      
+
       const { sid } = createSession(db, user.id);
       const headers = setSessionCookieHeaders(sid);
       return json({ ok: true, user: safeUser(user) }, 200, headers);
     }
-    
+
     if (req.method === 'POST' && path === '/api/logout') {
       try {
         const { sid } = requireAuth(db, req);
@@ -159,7 +158,7 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
       const headers = clearSessionCookieHeaders();
       return json({ ok: true }, 200, headers);
     }
-    
+
     if (req.method === 'GET' && path === '/api/me') {
       try {
         const { user, team } = requireAuth(db, req);
@@ -168,7 +167,7 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
         return json({ user: null, team: null });
       }
     }
-    
+
     if (req.method === 'GET' && path.startsWith('/api/invites/resolve/')) {
       const code = decodeURIComponent(path.split('/').pop() || '').trim();
       const inv = db.query('SELECT * FROM invites WHERE code = ?').get(code) as any;
@@ -178,63 +177,63 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
       const inviter = db.query('SELECT id, name FROM users WHERE id = ?').get(inv.created_by) as any;
       return json({ ok: true, inviter: inviter || { id: null, name: 'Спутник' } });
     }
-    
+
     if (req.method === 'POST' && path.startsWith('/api/join/')) {
       const code = decodeURIComponent(path.split('/').pop() || '').trim();
       const inv = db.query('SELECT * FROM invites WHERE code = ?').get(code) as any;
       if (!inv) return errorWithReason('Приглашение недействительно.', 'invalid', 404);
       if (inv.used === 1) return errorWithReason('Приглашение уже использовано.', 'used', 410);
       if (new Date(inv.expires_at).getTime() <= Date.now()) return errorWithReason('Срок действия приглашения истёк.', 'expired', 410);
-      
+
       const body = await readJson(req);
       const name = String(body.name || '').trim();
       const login = sanitizeLogin(body.login);
       const password = String(body.password || '');
       const role = String(body.role || '');
       const theme = String(body.theme || '');
-      
+
       if (!name || name.length < 2) return error('Имя слишком короткое.');
       if (!validateLogin(login)) return error('Логин: 3–32 символа (a-z, 0-9, _ . -).');
       if (!validatePassword(password)) return error('Пароль: минимум 6 символов.');
       if (!(role in ROLE_META)) return error('Выбери роль.');
       if (!themeAllowed(role, theme)) return error('Выбери тему.');
-      
+
       const exists = db.query('SELECT id FROM users WHERE login = ?').get(login);
       if (exists) return error('Этот логин уже занят.');
-      
+
       const password_hash = await Bun.password.hash(password);
       db.run(
         'INSERT INTO users (team_id, email, name, login, password_hash, role, theme, is_admin, created_at) VALUES (?,?,?,?,?,?,?,?,?)',
         [inv.team_id, null, name, login, password_hash, role, theme, 0, nowISO()]
       );
       db.run('UPDATE invites SET used = 1 WHERE id = ?', [inv.id]);
-      
+
       const row = db.query('SELECT last_insert_rowid() AS id').get() as any;
       const userId = Number(row.id);
       const user = db.query('SELECT * FROM users WHERE id = ?').get(userId) as any;
-      
+
       const { sid } = createSession(db, userId);
       const headers = setSessionCookieHeaders(sid);
       return json({ ok: true, user: safeUser(user) }, 200, headers);
     }
-    
+
     if (req.method === 'GET' && path === '/api/team') {
       const { user, team } = requireAuth(db, req);
       const users = db.query('SELECT id, team_id, email, name, login, role, theme, is_admin, created_at FROM users WHERE team_id = ? ORDER BY datetime(created_at) ASC').all(user.team_id) as any[];
       return json({ team, users });
     }
-    
+
     if (req.method === 'DELETE' && path.startsWith('/api/team/')) {
       const { user } = requireAuth(db, req);
       if (Number(user.is_admin || 0) !== 1) return error('Нет прав удалять спутников.', 403);
       const targetId = Number(path.split('/').pop());
       if (!targetId) return error('Неверный пользователь.', 400);
       if (targetId === Number(user.id)) return error('Себя удаляй через настройки.', 400);
-      
+
       const target = db.query('SELECT * FROM users WHERE id = ?').get(targetId) as any;
       if (!target) return error('Пользователь не найден.', 404);
       if (Number(target.team_id) !== Number(user.team_id)) return error('Нет доступа.', 403);
-      
+
       db.run('DELETE FROM sessions WHERE user_id = ?', [targetId]);
       db.run('DELETE FROM push_subscriptions WHERE user_id = ?', [targetId]);
       db.run('DELETE FROM invites WHERE created_by = ?', [targetId]);
@@ -242,7 +241,7 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
       db.run('DELETE FROM users WHERE id = ?', [targetId]);
       return json({ ok: true });
     }
-    
+
     if (req.method === 'PUT' && path === '/api/settings') {
       const { user } = requireAuth(db, req);
       const body = await readJson(req);
@@ -250,15 +249,15 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
       const roleIn = body.role ? String(body.role) : null;
       const themeIn = body.theme ? String(body.theme) : null;
       const password = body.password ? String(body.password) : null;
-      
+
       if (!name || name.length < 2) return error('Имя слишком короткое.');
-      
+
       let nextRole = String(user.role);
       if (roleIn != null) {
         if (!(roleIn in ROLE_META)) return error('Выбери роль.');
         nextRole = roleIn;
       }
-      
+
       let nextTheme = String(user.theme);
       if (roleIn != null) {
         if (themeIn) {
@@ -272,14 +271,14 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
         if (!t || t.role !== user.role) return error('Неверная тема.');
         nextTheme = themeIn;
       }
-      
+
       if (password) {
         if (!validatePassword(password)) return error('Пароль: минимум 6 символов.');
       }
-      
+
       const args: any[] = [name];
       let sql = 'UPDATE users SET name = ?';
-      
+
       if (roleIn != null) {
         sql += ', role = ?, theme = ?';
         args.push(nextRole, nextTheme);
@@ -287,21 +286,21 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
         sql += ', theme = ?';
         args.push(nextTheme);
       }
-      
+
       if (password) {
         const password_hash = await Bun.password.hash(password);
         sql += ', password_hash = ?';
         args.push(password_hash);
       }
-      
+
       sql += ' WHERE id = ?';
       args.push(user.id);
       db.run(sql, args);
-      
+
       const updated = db.query('SELECT * FROM users WHERE id = ?').get(user.id) as any;
       return json({ ok: true, user: safeUser(updated) });
     }
-    
+
     if (req.method === 'POST' && path === '/api/ai/rewrite') {
       const { user } = requireAuth(db, req);
       if (!String(process.env.PARITER_AI_KEY || '').trim()) {
@@ -327,25 +326,25 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
           }
         } catch {}
       }
-      
+
       const apiKey = String(process.env.PARITER_AI_KEY || '').trim();
       if (!apiKey) return error('AI не настроен на сервере. Добавь PARITER_AI_KEY в .env и перезапусти сервис.', 503);
-      
+
       const body = await readJson(req);
       const field = String(body.field || '').trim();
       const text = String(body.text || '').trim();
       if (!text) return error('Пустой текст.');
       if (!(field === 'victory' || field === 'lesson')) return error('Неверное поле.');
-      
+
       const enc = new TextEncoder();
       const byteLen = (s: string)=> enc.encode(s).length;
       const MAX = 100 * 1024;
-      
+
       const mem = db.query('SELECT compressed, last_entry_id FROM ai_memory WHERE user_id = ?').get(user.id) as any;
       let compressed = mem?.compressed ? String(mem.compressed) : '';
       let lastEntryId = Number(mem?.last_entry_id || 0);
       if (!Number.isFinite(lastEntryId) || lastEntryId < 0) lastEntryId = 0;
-      
+
       const recent = (compressed && lastEntryId > 0)
         ? (db.query(
             'SELECT id, date, victory, lesson, created_at FROM entries WHERE user_id = ? AND id > ? ORDER BY id ASC'
@@ -353,13 +352,13 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
         : (db.query(
             'SELECT id, date, victory, lesson, created_at FROM entries WHERE user_id = ? ORDER BY id ASC'
           ).all(user.id) as any[]);
-      
+
       const lines: string[] = [];
       let maxSeenId = lastEntryId;
       for (const e of recent) {
         const id = Number(e.id || 0);
         if (id > maxSeenId) maxSeenId = id;
-        
+
         const dt = String(e.created_at || '');
         const when = dt ? dt : String(e.date || '');
         const v = gunzipText(e.victory);
@@ -370,16 +369,16 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
         if (!parts.length) continue;
         lines.push(`[${when}]\n${parts.join('\n')}`);
       }
-      
+
       const buildHistory = (comp: string, tailLines: string[])=> {
         const blocks: string[] = [];
         if (comp && comp.trim()) blocks.push(`СЖАТАЯ ИСТОРИЯ (для контекста, не переписывай):\n${comp.trim()}`);
         if (tailLines.length) blocks.push(`ПОСЛЕДНИЕ ШАГИ (для контекста, не переписывай):\n${tailLines.join('\n\n')}`);
         return blocks.join('\n\n');
       };
-      
+
       let history = buildHistory(compressed, lines);
-      
+
       if (!compressed && byteLen(history) <= MAX && maxSeenId > 0) {
         db.run(
           'INSERT INTO ai_memory (user_id, compressed, updated_at, last_entry_id) VALUES (?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET last_entry_id = excluded.last_entry_id, updated_at = excluded.updated_at',
@@ -387,7 +386,7 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
         );
         lastEntryId = maxSeenId;
       }
-      
+
       if (byteLen(history) > MAX) {
         const sys = [
           'Ты — инструмент сжатия контекста дневника Pariter.',
@@ -398,25 +397,25 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
           'Важно: не используй длинное тире "—" или "–"; используй обычный дефис "-".',
           'Цель: итог должен быть короче, чтобы поместиться в лимит 100KB вместе с новыми шагами.'
         ].join('\n');
-        
+
         const userMsg = `Сожми следующую историю. Это ТОЛЬКО история (контекст), её не нужно переписывать как новый текст.\n\n${history}`;
         const out = await callPariterAI({ apiKey, temperature: 0.3, messages: [
           { role: 'system', content: sys },
           { role: 'user', content: userMsg },
         ]});
-        
+
         compressed = normalizeNoYoNoDash(out);
-        
+
         const maxRow = db.query('SELECT MAX(id) AS m FROM entries WHERE user_id = ?').get(user.id) as any;
         const maxId = Number(maxRow?.m || maxSeenId || 0);
-        
+
         db.run(
           'INSERT INTO ai_memory (user_id, compressed, updated_at, last_entry_id) VALUES (?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET compressed = excluded.compressed, updated_at = excluded.updated_at, last_entry_id = excluded.last_entry_id',
           [user.id, compressed, nowISO(), maxId]
         );
-        
+
         history = buildHistory(compressed, []);
-        
+
         let drops = 0;
         while (byteLen(history) > MAX && drops < 25) {
           compressed = dropFirstUTF8Bytes(compressed, 10 * 1024);
@@ -425,12 +424,12 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
           drops++;
           if (!compressed) break;
         }
-        
+
         if (byteLen(history) > MAX) {
           history = clampUTF8(history, MAX);
         }
       }
-      
+
       const systemPrompt = (field === 'victory')
         ? [
             'Перед текущим текстом будет дан блок ИСТОРИЯ (контекст). Не переписывай историю - переписывай только текущий текст.',
@@ -472,7 +471,7 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
             '',
             'Действуй.'
           ].join('\n');
-      
+
       const userPrompt = [
         'Ниже дан контекст (история). Это только для понимания стиля и контекста, НЕ переписывай его.',
         'После контекста будет текущий текст, который нужно переписать.',
@@ -485,21 +484,21 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
         '',
         'Перепиши только текст для переписывания. Ответ: только переписанный текст, без пояснений.'
       ].join('\n');
-      
+
       const rewrittenRaw = await callPariterAI({ apiKey, temperature: 1, messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt },
       ]});
-      
+
       const rewritten = normalizeNoYoNoDash(rewrittenRaw);
       return json({ ok: true, text: rewritten });
     }
-    
+
     if ((req.method === 'GET' || req.method === 'HEAD') && path === '/api/push/vapidPublicKey') {
       const key = await getVapidPublicKeyB64Url();
       return json({ ok: true, publicKey: key });
     }
-    
+
     if ((req.method === 'GET' || req.method === 'HEAD') && path === '/api/push/inbox') {
       let user: any = null;
       try {
@@ -520,22 +519,22 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
           }
         }
       }
-      
+
       if (!user) return error('Не авторизован.', 401);
-      
+
       const afterDate = String(url.searchParams.get('afterDate') || '').trim();
       const afterId = Number(url.searchParams.get('afterId') || '0');
       const limit = Math.max(1, Math.min(3, Number(url.searchParams.get('limit') || '1')));
-      
+
       let where = 'au.team_id = ? AND e.user_id != ?';
       const args: any[] = [user.team_id, user.id];
       if (afterDate && afterId) {
         where += ' AND (e.date > ? OR (e.date = ? AND e.id > ?))';
         args.push(afterDate, afterDate, afterId);
       }
-      
+
       const hasCursor = !!(afterDate && afterId);
-      
+
       const rows = db.query(
         `SELECT e.id, e.user_id, e.date, e.victory, e.lesson, e.created_at, au.name, au.role
          FROM entries e
@@ -544,7 +543,7 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
          ORDER BY e.date DESC, e.id DESC
          LIMIT ?`
       ).all(...args, limit) as any[];
-      
+
       let count = 0;
       if (hasCursor) {
         const countRow = db.query(
@@ -557,7 +556,7 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
       } else {
         count = rows.length ? 1 : 0;
       }
-      
+
       const mkPreview = (e: any)=>{
         const v = gunzipText(e?.victory);
         const l = gunzipText(e?.lesson);
@@ -565,7 +564,7 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
         const firstLine = pick.split(/\r?\n/)[0] || '';
         return firstLine.slice(0, 180);
       };
-      
+
       const mapped = rows.map(e => ({
         id: Number(e.id),
         user_id: Number(e.user_id),
@@ -574,10 +573,10 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
         author: { name: String(e.name || 'Спутник'), role: String(e.role || '') },
         preview: mkPreview(e),
       }));
-      
+
       return json({ ok: true, count, entries: mapped });
     }
-    
+
     if (req.method === 'POST' && path === '/api/push/subscribe') {
       const { user } = requireAuth(db, req);
       const body = await readJson(req);
@@ -585,14 +584,14 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
       const p256dh = String(body?.keys?.p256dh || '').trim();
       const auth = String(body?.keys?.auth || '').trim();
       if (!endpoint || !p256dh || !auth) return error('Неверная подписка.');
-      
+
       let token = String(body?.token || '').trim();
       if (!token) {
         const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
         const buf = crypto.getRandomValues(new Uint8Array(32));
         token = Array.from(buf).map(b => chars[b % chars.length]).join('');
       }
-      
+
       try {
         const row = db.query('SELECT id, endpoint FROM push_subscriptions WHERE token = ?').get(token) as any;
         if (row?.id) {
@@ -604,16 +603,16 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
           return json({ ok: true, token });
         }
       } catch {}
-      
+
       db.run(
         'INSERT INTO push_subscriptions (user_id, endpoint, p256dh, auth, token, created_at, last_seen_at) VALUES (?,?,?,?,?,?,?) ' +
         'ON CONFLICT(endpoint) DO UPDATE SET user_id=excluded.user_id, p256dh=excluded.p256dh, auth=excluded.auth, token=COALESCE(push_subscriptions.token, excluded.token), last_seen_at=excluded.last_seen_at',
         [user.id, endpoint, p256dh, auth, token, nowISO(), nowISO()]
       );
-      
+
       return json({ ok: true, token });
     }
-    
+
     if (req.method === 'POST' && path === '/api/push/resubscribe') {
       const body = await readJson(req);
       const token = String(body?.token || '').trim();
@@ -621,18 +620,18 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
       const p256dh = String(body?.keys?.p256dh || '').trim();
       const auth = String(body?.keys?.auth || '').trim();
       if (!token || !endpoint || !p256dh || !auth) return error('Неверная подписка.');
-      
+
       const row = db.query('SELECT id FROM push_subscriptions WHERE token = ?').get(token) as any;
       if (!row?.id) return error('Токен подписки не найден.', 404);
-      
+
       db.run(
         'UPDATE push_subscriptions SET endpoint = ?, p256dh = ?, auth = ?, last_seen_at = ? WHERE id = ?',
         [endpoint, p256dh, auth, nowISO(), Number(row.id)]
       );
-      
+
       return json({ ok: true });
     }
-    
+
     if (req.method === 'POST' && path === '/api/push/unsubscribe') {
       const { user } = requireAuth(db, req);
       const body = await readJson(req);
@@ -644,24 +643,24 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
       }
       return json({ ok: true });
     }
-    
+
     if (req.method === 'POST' && path === '/api/push/test') {
       const { user } = requireAuth(db, req);
-      
+
       const subs = db.query(
         'SELECT id, endpoint, p256dh, auth FROM push_subscriptions WHERE user_id = ? ORDER BY datetime(created_at) DESC'
       ).all(user.id) as any[];
-      
+
       if (!subs.length) return error('Нет активных push-подписок для этого пользователя.', 404);
-      
+
       const subject = String(process.env.PARITER_VAPID_SUBJECT || 'mailto:admin@pariter.local');
       const payloadJson = null;
-      
+
       const results = await Promise.all(subs.map(async (s)=>{
         const endpoint = String(s.endpoint || '');
         let host = '';
         try { host = new URL(endpoint).host; } catch {}
-        
+
         try {
           const res = await sendWebPush({
             subscription: { endpoint, p256dh: String(s.p256dh), auth: String(s.auth) },
@@ -680,18 +679,18 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
           return { host, status: kind };
         }
       }));
-      
+
       return json({ ok: true, subs: subs.length, results });
     }
-    
+
     if (req.method === 'GET' && path === '/api/stats') {
       const { user } = requireAuth(db, req);
-      
+
       const today = todayYMD();
-      
+
       const rows = db.query('SELECT DISTINCT date FROM entries WHERE user_id = ? ORDER BY date DESC LIMIT 400').all(user.id) as any[];
       const set = new Set(rows.map(r => String(r.date)));
-      
+
       const ymdShift = (ymd: string, deltaDays: number) => {
         const [y,m,d] = ymd.split('-').map(Number);
         const dt = new Date(y, m-1, d);
@@ -701,10 +700,10 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
         const dd = String(dt.getDate()).padStart(2,'0');
         return `${yy}-${mm}-${dd}`;
       };
-      
+
       let start = today;
       if (!set.has(start)) start = ymdShift(today, -1);
-      
+
       let streak = 0;
       let streakFrom: string | null = null;
       if (set.has(start)) {
@@ -715,33 +714,33 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
           cur = ymdShift(cur, -1);
         }
       }
-      
+
       const userTotalRow = db.query('SELECT COUNT(*) AS c FROM entries WHERE user_id = ?').get(user.id) as any;
       const userTodayStepsRow = db.query('SELECT COUNT(*) AS c FROM entries WHERE user_id = ? AND date = ?').get(user.id, today) as any;
-      
+
       const teamTodayRow = db.query(
         `SELECT COUNT(DISTINCT e.user_id) AS c
          FROM entries e
          JOIN users u ON u.id = e.user_id
          WHERE u.team_id = ? AND e.date = ?`
       ).get(user.team_id, today) as any;
-      
+
       const teamTodayStepsRow = db.query(
         `SELECT COUNT(*) AS c
          FROM entries e
          JOIN users u ON u.id = e.user_id
          WHERE u.team_id = ? AND e.date = ?`
       ).get(user.team_id, today) as any;
-      
+
       const teamTotalRow = db.query(
         `SELECT COUNT(*) AS c
          FROM entries e
          JOIN users u ON u.id = e.user_id
          WHERE u.team_id = ?`
       ).get(user.team_id) as any;
-      
+
       const lastEntryDate = rows.length ? String(rows[0].date) : null;
-      
+
       return json({
         ok: true,
         today,
@@ -755,16 +754,16 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
         teamTotal: Number(teamTotalRow?.c || 0),
       });
     }
-    
+
     if (req.method === 'GET' && path === '/api/invites') {
       const { user } = requireAuth(db, req);
       const invites = db.query('SELECT * FROM invites WHERE team_id = ? ORDER BY datetime(created_at) DESC').all(user.team_id) as any[];
       return json({ invites });
     }
-    
+
     if (req.method === 'POST' && path === '/api/invites') {
       const { user } = requireAuth(db, req);
-      
+
       let code = '';
       for (let n=0;n<30;n++) {
         code = randomInviteCode();
@@ -772,7 +771,7 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
         if (!exists) break;
       }
       if (!code) return error('Не удалось создать приглашение.');
-      
+
       const expires_at = new Date(Date.now() + 7*24*60*60*1000).toISOString();
       db.run('INSERT INTO invites (team_id, code, created_by, expires_at, used, created_at) VALUES (?,?,?,?,?,?)', [
         user.team_id, code, user.id, expires_at, 0, nowISO(),
@@ -781,7 +780,7 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
       const invite = db.query('SELECT * FROM invites WHERE id = ?').get(Number(row.id));
       return json({ invite });
     }
-    
+
     if (req.method === 'DELETE' && path.startsWith('/api/invites/')) {
       const { user } = requireAuth(db, req);
       const id = Number(path.split('/').pop());
@@ -791,14 +790,14 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
       db.run('DELETE FROM invites WHERE id = ?', [id]);
       return json({ ok: true });
     }
-    
+
     if (req.method === 'GET' && path === '/api/entries') {
       const { user } = requireAuth(db, req);
       const limit = Math.max(1, Math.min(50, Number(url.searchParams.get('limit') || '20')));
       const legacyBefore = url.searchParams.get('before');
       const beforeDate = url.searchParams.get('beforeDate') || legacyBefore;
       const beforeId = Number(url.searchParams.get('beforeId') || '0');
-      
+
       let where = 'u.team_id = ?';
       const args: any[] = [user.team_id];
       if (beforeDate && beforeId) {
@@ -808,7 +807,7 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
         where += ' AND e.date < ?';
         args.push(beforeDate);
       }
-      
+
       const entries = db.query(
         `SELECT e.id, e.user_id, e.date, e.victory, e.lesson, e.created_at
          FROM entries e
@@ -817,38 +816,38 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
          ORDER BY e.date DESC, e.id DESC
          LIMIT ?`
       ).all(...args, limit) as any[];
-      
+
       const mapped = entries.map(e => ({
         ...e,
         victory: e.victory ? Buffer.from(e.victory).toString('base64') : null,
         lesson: e.lesson ? Buffer.from(e.lesson).toString('base64') : null,
       }));
-      
+
       const nextCursor = mapped.length ? { date: mapped[mapped.length-1].date, id: mapped[mapped.length-1].id } : null;
       const nextBefore = nextCursor?.date || null;
       return json({ entries: mapped, nextCursor, nextBefore });
     }
-    
+
     if (req.method === 'GET' && path === '/api/entries/new') {
       const { user } = requireAuth(db, req);
       const afterDate = String(url.searchParams.get('afterDate') || '').trim();
       const afterId = Number(url.searchParams.get('afterId') || '0');
       const limit = Math.max(1, Math.min(10, Number(url.searchParams.get('limit') || '3')));
-      
+
       if (!afterDate || !afterId) {
         return json({ ok: true, count: 0, entries: [] });
       }
-      
+
       const where = 'u.team_id = ? AND e.user_id != ? AND (e.date > ? OR (e.date = ? AND e.id > ?))';
       const args: any[] = [user.team_id, user.id, afterDate, afterDate, afterId];
-      
+
       const countRow = db.query(
         `SELECT COUNT(*) AS c
          FROM entries e
          JOIN users u ON u.id = e.user_id
          WHERE ${where}`
       ).get(...args) as any;
-      
+
       const rows = db.query(
         `SELECT e.id, e.user_id, e.date, e.victory, e.lesson, e.created_at
          FROM entries e
@@ -857,16 +856,16 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
          ORDER BY e.date DESC, e.id DESC
          LIMIT ?`
       ).all(...args, limit) as any[];
-      
+
       const mapped = rows.map(e => ({
         ...e,
         victory: e.victory ? Buffer.from(e.victory).toString('base64') : null,
         lesson: e.lesson ? Buffer.from(e.lesson).toString('base64') : null,
       }));
-      
+
       return json({ ok: true, count: Number(countRow?.c || 0), entries: mapped });
     }
-    
+
     if (req.method === 'POST' && path === '/api/entries') {
       const { user } = requireAuth(db, req);
       const body = await readJson(req);
@@ -874,36 +873,36 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
       const lesson = String(body.lesson || '').trim();
       const senderPushToken = String(body.pushToken || '').trim();
       if (!victory && !lesson) return error('Заполни хотя бы одну часть: победу или урок.');
-      
+
       const date = todayYMD();
       const createdAt = nowISO();
       const vblob = gzipText(victory);
       const lblob = gzipText(lesson);
-      
+
       db.run('INSERT INTO entries (user_id, date, victory, lesson, created_at) VALUES (?,?,?,?,?)', [
         user.id, date, vblob, lblob, createdAt,
       ]);
       const row = db.query('SELECT last_insert_rowid() AS id').get() as any;
       const entryId = Number(row.id);
-      
+
       try {
         const authorName = String(user.name || 'Спутник');
         void authorName;
-        
+
         let subs = db.query(
           `SELECT ps.id, ps.endpoint, ps.p256dh, ps.auth, ps.user_id, ps.token
            FROM push_subscriptions ps
            JOIN users u ON u.id = ps.user_id
            WHERE u.team_id = ?`
         ).all(user.team_id) as any[];
-        
+
         if (senderPushToken) {
           subs = subs.filter(s => String(s.token || '') !== senderPushToken);
         }
-        
+
         const subject = String(process.env.PARITER_VAPID_SUBJECT || 'mailto:admin@pariter.local');
         const payloadJson = null;
-        
+
         const results = await Promise.allSettled(subs.map(async (s)=>{
           const res = await sendWebPush({
             subscription: { endpoint: String(s.endpoint), p256dh: String(s.p256dh), auth: String(s.auth) },
@@ -919,68 +918,68 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
       } catch {
         
       }
-      
+
       return json({ ok: true, id: entryId, created: true });
     }
-    
+
     if (req.method === 'PUT' && path.startsWith('/api/entries/')) {
       const { user } = requireAuth(db, req);
       const id = Number(path.split('/').pop());
-      
+
       const e = db.query(
         `SELECT e.*, u.team_id AS team_id
          FROM entries e
          JOIN users u ON u.id = e.user_id
          WHERE e.id = ?`
       ).get(id) as any;
-      
+
       if (!e) return error('Запись не найдена.', 404);
       const isMine = Number(e.user_id) === Number(user.id);
       const isAdmin = Number(user.is_admin || 0) === 1;
       const sameTeam = Number(e.team_id) === Number(user.team_id);
       if (!isMine && !(isAdmin && sameTeam)) return error('Нет доступа.', 403);
-      
+
       const body = await readJson(req);
       const victory = String(body.victory || '').trim();
       const lesson = String(body.lesson || '').trim();
       if (!victory && !lesson) return error('Заполни хотя бы одну часть.');
-      
+
       db.run('UPDATE entries SET victory = ?, lesson = ? WHERE id = ?', [gzipText(victory), gzipText(lesson), id]);
       return json({ ok: true });
     }
-    
+
     if (req.method === 'DELETE' && path.startsWith('/api/entries/')) {
       const { user } = requireAuth(db, req);
       const id = Number(path.split('/').pop());
-      
+
       const e = db.query(
         `SELECT e.*, u.team_id AS team_id
          FROM entries e
          JOIN users u ON u.id = e.user_id
          WHERE e.id = ?`
       ).get(id) as any;
-      
+
       if (!e) return error('Запись не найдена.', 404);
       const isMine = Number(e.user_id) === Number(user.id);
       const isAdmin = Number(user.is_admin || 0) === 1;
       const sameTeam = Number(e.team_id) === Number(user.team_id);
       if (!isMine && !(isAdmin && sameTeam)) return error('Нет доступа.', 403);
-      
+
       db.run('DELETE FROM entries WHERE id = ?', [id]);
       return json({ ok: true });
     }
-    
+
     if (req.method === 'GET' && path === '/api/export') {
       const { user, team } = requireAuth(db, req);
-      
+
       const users = db.query(
         'SELECT id, team_id, email, name, login, role, theme, is_admin, created_at FROM users WHERE team_id = ? ORDER BY datetime(created_at) ASC'
       ).all(user.team_id) as any[];
-      
+
       const invites = db.query(
         'SELECT id, team_id, code, created_by, expires_at, used, created_at FROM invites WHERE team_id = ? ORDER BY datetime(created_at) ASC'
       ).all(user.team_id) as any[];
-      
+
       const entries = db.query(
         `SELECT e.id, e.user_id, e.date, e.victory, e.lesson, e.created_at
          FROM entries e
@@ -988,13 +987,13 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
          WHERE u.team_id = ?
          ORDER BY e.date DESC, e.id DESC`
       ).all(user.team_id) as any[];
-      
+
       const mappedEntries = entries.map(e => ({
         ...e,
         victory: e.victory ? Buffer.from(e.victory).toString('base64') : null,
         lesson: e.lesson ? Buffer.from(e.lesson).toString('base64') : null,
       }));
-      
+
       return json({
         ok: true,
         version: 1,
@@ -1005,39 +1004,39 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
         entries: mappedEntries,
       });
     }
-    
+
     if (req.method === 'POST' && path === '/api/import') {
       const { user } = requireAuth(db, req);
       if (Number(user.is_admin || 0) !== 1) return error('Только администратор может делать импорт.', 403);
-      
+
       const body = await readJson(req);
       const payload = (body && typeof body === 'object' && 'data' in body) ? (body as any).data : body;
       const defaultPassword = (body && typeof body === 'object' && 'defaultPassword' in body)
         ? String((body as any).defaultPassword || '').trim()
         : '';
-      
+
       if (!payload || typeof payload !== 'object') return error('Неверный формат импорта.');
       const version = Number((payload as any).version || 0);
       if (version !== 1) return error('Неподдерживаемая версия бэкапа.');
-      
+
       if (defaultPassword && !validatePassword(defaultPassword)) {
         return error('Пароль для импортируемых пользователей: минимум 6 символов.');
       }
-      
+
       const pickTheme = (role: string) => {
         const t = THEMES.find(x => x.role === role);
         return t ? t.id : 'dark_warrior';
       };
-      
+
       const usersIn: any[] = Array.isArray((payload as any).users) ? (payload as any).users : [];
       const invitesIn: any[] = Array.isArray((payload as any).invites) ? (payload as any).invites : [];
       const entriesIn: any[] = Array.isArray((payload as any).entries) ? (payload as any).entries : [];
-      
+
       const oldToNew = new Map<number, number>();
       let usersMapped = 0;
       let usersCreated = 0;
       const createdCreds: Array<{ login: string; password: string }> = [];
-      
+
       for (const u of usersIn) {
         const oldId = Number(u?.id || 0);
         const login = sanitizeLogin(u?.login);
@@ -1048,20 +1047,20 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
         const emailRaw = String(u?.email || '').trim();
         const email = emailRaw ? emailRaw : null;
         const created_at = String(u?.created_at || '') || nowISO();
-        
+
         if (!oldId) continue;
         if (!validateLogin(login)) continue;
-        
+
         const existing = db.query('SELECT id FROM users WHERE team_id = ? AND login = ?').get(user.team_id, login) as any;
         if (existing?.id) {
           oldToNew.set(oldId, Number(existing.id));
           usersMapped++;
           continue;
         }
-        
+
         const pass = defaultPassword || randomInviteCode() + randomInviteCode();
         const password_hash = await Bun.password.hash(pass);
-        
+
         db.run(
           'INSERT INTO users (team_id, email, name, login, password_hash, role, theme, is_admin, created_at) VALUES (?,?,?,?,?,?,?,?,?)',
           [user.team_id, email, name, login, password_hash, role, theme, is_admin, created_at]
@@ -1072,7 +1071,7 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
         usersCreated++;
         if (!defaultPassword) createdCreds.push({ login, password: pass });
       }
-      
+
       let invitesCreated = 0;
       let invitesSkipped = 0;
       for (const inv of invitesIn) {
@@ -1080,46 +1079,42 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
         if (!code) continue;
         const exists = db.query('SELECT id FROM invites WHERE code = ?').get(code) as any;
         if (exists?.id) { invitesSkipped++; continue; }
-        
+
         const oldCreatedBy = Number(inv?.created_by || 0);
         const created_by = oldToNew.get(oldCreatedBy) || user.id;
         const expires_at = String(inv?.expires_at || '') || new Date(Date.now() + 7*24*60*60*1000).toISOString();
         const used = Number(inv?.used || 0) ? 1 : 0;
         const created_at = String(inv?.created_at || '') || nowISO();
-        
+
         db.run(
           'INSERT INTO invites (team_id, code, created_by, expires_at, used, created_at) VALUES (?,?,?,?,?,?)',
           [user.team_id, code, created_by, expires_at, used, created_at]
         );
         invitesCreated++;
       }
-      
-      let entriesCreated = 0;
-      let entriesUpdated = 0;
-      let entriesSkipped = 0;
-      
+
       const empty = gzipText('');
       for (const e of entriesIn) {
         const oldUserId = Number(e?.user_id || 0);
         const newUserId = oldToNew.get(oldUserId);
         if (!newUserId) { entriesSkipped++; continue; }
-        
+
         const date = String(e?.date || '').trim();
         if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) { entriesSkipped++; continue; }
-        
+
         const vblob = e?.victory ? Buffer.from(String(e.victory), 'base64') : empty;
         const lblob = e?.lesson ? Buffer.from(String(e.lesson), 'base64') : empty;
         const created_at = String(e?.created_at || '') || nowISO();
-        
+
         const ex = db.query('SELECT id FROM entries WHERE user_id = ? AND date = ? AND created_at = ?').get(newUserId, date, created_at) as any;
         if (ex?.id) { entriesSkipped++; continue; }
-        
+
         db.run('INSERT INTO entries (user_id, date, victory, lesson, created_at) VALUES (?,?,?,?,?)', [
           newUserId, date, vblob, lblob, created_at,
         ]);
         entriesCreated++;
       }
-      
+
       return json({
         ok: true,
         usersMapped,
@@ -1132,7 +1127,7 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
         createdCreds,
       });
     }
-    
+
     if (req.method === 'POST' && path === '/api/gunzip') {
       const { } = requireAuth(db, req);
       const body = await readJson(req);
@@ -1141,9 +1136,9 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
       const blob = Buffer.from(b64, 'base64');
       return json({ text: gunzipText(blob) });
     }
-    
+
     return error('Not found', 404);
-    
+
   } catch (e) {
     return authErrorToResponse(e);
   }

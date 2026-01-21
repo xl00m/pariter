@@ -9,17 +9,16 @@ export function sessionTTLISO(days=30){
 }
 
 export async function hashPassword(password: string){
-  // Bun API
   // @ts-ignore
   if (globalThis.Bun?.password?.hash) {
     // @ts-ignore
     return await Bun.password.hash(password);
   }
-  // fallback (shouldn't happen in Bun)
   const enc = new TextEncoder();
   const salt = crypto.getRandomValues(new Uint8Array(16));
   const keyMaterial = await crypto.subtle.importKey('raw', enc.encode(password), {name:'PBKDF2'}, false, ['deriveBits']);
   const bits = await crypto.subtle.deriveBits({ name:'PBKDF2', salt, iterations: 120000, hash:'SHA-256' }, keyMaterial, 256);
+  // @ts-ignore
   const b64 = (u8: Uint8Array)=> Buffer.from(u8).toString('base64');
   return JSON.stringify({ alg:'PBKDF2-SHA256', salt: b64(salt), hash: b64(new Uint8Array(bits)) });
 }
@@ -30,13 +29,15 @@ export async function verifyPassword(password: string, passwordHash: string){
     // @ts-ignore
     return await Bun.password.verify(password, passwordHash);
   }
-  // fallback
+  // @ts-ignore
   try {
     const obj = JSON.parse(passwordHash);
     const enc = new TextEncoder();
+    // @ts-ignore
     const salt = Buffer.from(obj.salt, 'base64');
     const keyMaterial = await crypto.subtle.importKey('raw', enc.encode(password), {name:'PBKDF2'}, false, ['deriveBits']);
     const bits = await crypto.subtle.deriveBits({ name:'PBKDF2', salt, iterations: 120000, hash:'SHA-256' }, keyMaterial, 256);
+    // @ts-ignore
     const hash = Buffer.from(new Uint8Array(bits)).toString('base64');
     return hash === obj.hash;
   } catch {
@@ -54,7 +55,7 @@ export function getSessionId(req: Request){
 }
 
 export function setSessionCookieHeaders(sessionId: string){
-  // In production behind HTTPS, set secure=true via PARITER_SECURE_COOKIE=1.
+  // @ts-ignore
   const secure = process.env.PARITER_SECURE_COOKIE === '1';
   const cookie = setCookie(SESSION_COOKIE, sessionId, {
     httpOnly: true,
@@ -67,6 +68,7 @@ export function setSessionCookieHeaders(sessionId: string){
 }
 
 export function clearSessionCookieHeaders(){
+  // @ts-ignore
   const secure = process.env.PARITER_SECURE_COOKIE === '1';
   const cookie = setCookie(SESSION_COOKIE, 'deleted', {
     httpOnly: true,

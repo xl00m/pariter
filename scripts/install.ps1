@@ -1,4 +1,3 @@
-#requires -RunAsAdministrator
 $ErrorActionPreference = 'Stop'
 
 $domain = Read-Host "Домен (для Windows можно оставить пустым, будет localhost)"
@@ -16,7 +15,6 @@ if (-not (Get-Command bun -ErrorAction SilentlyContinue)) {
   irm https://bun.sh/install.ps1 | iex
 }
 
-# Ensure bun is available in current PowerShell session (installer may require terminal restart)
 if (-not (Get-Command bun -ErrorAction SilentlyContinue)) {
   $candidate = Join-Path $env:USERPROFILE ".bun\bin"
   if (Test-Path (Join-Path $candidate "bun.exe")) {

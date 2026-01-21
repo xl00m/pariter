@@ -26,7 +26,7 @@ export type Theme = {
 };
 
 export const THEMES: Theme[] = [
-  // Warrior
+  
   { id: 'dark_warrior', role: 'warrior', emoji: '⚔️', ru: 'Тёмный воин', la: 'Bellātor Nocturnus', light: false, colors: {
     bg: '#0b1020', bgSecondary: '#0f1730', text: '#e7eaf3', textMuted: '#9aa4c3', accent: '#7c5cff', accentHover: '#6a4ff0', border: 'rgba(255,255,255,.10)', victory: 'rgba(124,92,255,.12)', lesson: 'rgba(46,212,167,.12)'
   } },
@@ -49,7 +49,7 @@ export const THEMES: Theme[] = [
     bg: '#0c0f14', bgSecondary: '#141a22', text: '#eef3ff', textMuted: '#a8b4c8', accent: '#8bd3ff', accentHover: '#67c5ff', border: 'rgba(255,255,255,.12)', victory: 'rgba(139,211,255,.14)', lesson: 'rgba(255,209,102,.10)'
   } },
 
-  // Amazon
+  
   { id: 'dark_amazon', role: 'amazon', emoji: '🌙', ru: 'Тёмная воительница', la: 'Bellātrix Nocturna', light: false, colors: {
     bg: '#0b0c16', bgSecondary: '#11142a', text: '#eef0ff', textMuted: '#a7abd6', accent: '#b392ff', accentHover: '#a47fff', border: 'rgba(255,255,255,.11)', victory: 'rgba(179,146,255,.14)', lesson: 'rgba(46,212,167,.10)'
   } },
@@ -72,7 +72,7 @@ export const THEMES: Theme[] = [
     bg: '#0b1014', bgSecondary: '#0f1a22', text: '#eef8ff', textMuted: '#9ab3c2', accent: '#7dd3fc', accentHover: '#5ec7f8', border: 'rgba(255,255,255,.11)', victory: 'rgba(125,211,252,.14)', lesson: 'rgba(179,146,255,.10)'
   } },
 
-  // Synchronization (shared palette for both roles)
+  
   { id: 'sync_warrior', role: 'warrior', emoji: '🖤', ru: 'Синхронизация', la: 'Synchronizatio', light: false, colors: {
     bg: '#0a0a0f', bgSecondary: '#14141f', text: '#d4dbe8', textMuted: '#7a8599', accent: '#8fa4c9', accentHover: '#b8c8e8', border: 'rgba(150,160,180,.12)', victory: 'rgba(143,164,201,.12)', lesson: 'rgba(255,190,225,.10)'
   } },

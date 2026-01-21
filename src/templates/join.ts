@@ -11,7 +11,7 @@ export function joinTemplate(code: string){
           <div style="margin-top: 8px; font-size: 14px; color: var(--textMuted);">Iunge te itineri</div>
         </div>
         <div class="card" style="padding: 18px;">
-          <div class="textMuted" style="font-size: 13px; line-height: 1.6">Проверяю приглашение <span class="kbd">${safe}</span>…</div>
+          <div class="textMuted" style="font-size: 13px; line-height: 1.6">Проверяю приглашение <span class="kbd">\${safe}</span>…</div>
           <div class="textMuted" style="margin-top: 10px; font-size: 12px;">Если код недействителен — SPA покажет причину.</div>
         </div>
       </div>

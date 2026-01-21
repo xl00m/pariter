@@ -1579,36 +1579,38 @@ function EntryCard({entry, author, meId, meIsAdmin}){
   const dateLabel = ruDateLabel(entry.date);
   
   // Process created_at to always show time label, regardless of ownership
-  // Normalize and trim the created_at value to handle various formats
-  const cleanCreatedAt = (entry.created_at || '').trim();
-  let timeLabel = '00:00'; // Default fallback
+  // Always ensure time is displayed by using proper fallbacks
+  let timeLabel = '00:00'; // Default fallback time
   
-  if (cleanCreatedAt && cleanCreatedAt !== 'null' && cleanCreatedAt !== 'undefined' && cleanCreatedAt !== 'Invalid Date') {
-    const dateObj = new Date(cleanCreatedAt);
+  // Only try to extract time if created_at exists and is not empty/null/undefined
+  if (entry?.created_at) {
+    // Clean the input to handle potential formatting issues
+    const cleanInput = String(entry.created_at).trim();
     
-    // If the date object is valid, extract the time
-    if (!isNaN(dateObj.getTime())) {
-      timeLabel = ruTimeLabel(cleanCreatedAt);
-    } else {
-      // Try alternative parsing methods
-      const timestamp = Number(cleanCreatedAt);
-      if (!isNaN(timestamp) && timestamp > 0) {
-        const dateFromTimestamp = new Date(timestamp);
-        if (!isNaN(dateFromTimestamp.getTime())) {
-          timeLabel = ruTimeLabel(dateFromTimestamp.toISOString());
+    // Check for valid non-empty string
+    if (cleanInput && cleanInput !== 'null' && cleanInput !== 'undefined' && cleanInput !== 'Invalid Date') {
+      // Try to parse as ISO date string
+      const dateObj = new Date(cleanInput);
+      
+      // If valid date object, extract time using ruTimeLabel
+      if (!isNaN(dateObj.getTime())) {
+        const extractedTime = ruTimeLabel(cleanInput);
+        // Only use extracted time if it's not empty
+        if (extractedTime && extractedTime.trim() !== '') {
+          timeLabel = extractedTime;
+        }
+      } else {
+        // If ISO parsing fails, try to extract time pattern directly from string
+        const timeRegex = /(\d{1,2}):(\d{2})/;
+        const timeMatch = cleanInput.match(timeRegex);
+        if (timeMatch) {
+          const [, hours, minutes] = timeMatch;
+          // Pad hours and minutes to ensure proper format
+          const paddedHours = hours.padStart(2, '0');
+          const paddedMinutes = minutes.padStart(2, '0');
+          timeLabel = `${paddedHours}:${paddedMinutes}`;
         }
       }
-    }
-  }
-  
-  // Ensure we always have a proper time label - if still '00:00' and we have a valid date,
-  // we can use a default time or try to extract from the datetime string
-  if (timeLabel === '00:00' && cleanCreatedAt && cleanCreatedAt.length > 0) {
-    // Try to extract time from the raw string if it contains time information
-    const timeMatch = cleanCreatedAt.match(/(\d{1,2}):(\d{2})/);
-    if (timeMatch) {
-      const [, hours, minutes] = timeMatch;
-      timeLabel = `${hours.padStart(2, '0')}:${minutes.padStart(2, '0')}`;
     }
   }
 

@@ -1580,9 +1580,10 @@ function EntryCard({entry, author, meId, meIsAdmin}){
   
   // Process created_at to always show time label, regardless of ownership
   // Always ensure time is displayed by using proper fallbacks
+  // IMPORTANT: Remove any conditional logic based on isMine to ensure consistency
   let timeLabel = '00:00'; // Default fallback time
   
-  // Only try to extract time if created_at exists and is not empty/null/undefined
+  // Process created_at field to extract time, regardless of ownership
   if (entry?.created_at) {
     // Clean the input to handle potential formatting issues
     const cleanInput = String(entry.created_at).trim();
@@ -1598,6 +1599,15 @@ function EntryCard({entry, author, meId, meIsAdmin}){
         // Only use extracted time if it's not empty
         if (extractedTime && extractedTime.trim() !== '') {
           timeLabel = extractedTime;
+        } else {
+          // As a fallback, extract time directly from the ISO string
+          const timePart = cleanInput.split('T')[1]; // Get the time part after 'T'
+          if (timePart) {
+            const [hours, minutes] = timePart.split(':');
+            if (hours && minutes) {
+              timeLabel = `${hours.padStart(2, '0')}:${minutes.padStart(2, '0')}`;
+            }
+          }
         }
       } else {
         // If ISO parsing fails, try to extract time pattern directly from string
@@ -1622,7 +1632,7 @@ function EntryCard({entry, author, meId, meIsAdmin}){
     entryCreatedAtType: typeof entry.created_at,
     entryUserId: entry.user_id,
     meId: meId,
-    isMine: Number(entry.user_id) === Number(meId),
+    isMine: Number(entry.user_id) === Number(meId), // Just for logging
     dateLabel,
     timeLabel,
     rawEntry: entry

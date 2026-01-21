@@ -9,13 +9,9 @@ export function sessionTTLISO(days=30){
 }
 
 export async function hashPassword(password: string){
-  // Bun API
-  // @ts-ignore
   if (globalThis.Bun?.password?.hash) {
-    // @ts-ignore
     return await Bun.password.hash(password);
   }
-  // fallback (shouldn't happen in Bun)
   const enc = new TextEncoder();
   const salt = crypto.getRandomValues(new Uint8Array(16));
   const keyMaterial = await crypto.subtle.importKey('raw', enc.encode(password), {name:'PBKDF2'}, false, ['deriveBits']);
@@ -25,12 +21,9 @@ export async function hashPassword(password: string){
 }
 
 export async function verifyPassword(password: string, passwordHash: string){
-  // @ts-ignore
   if (globalThis.Bun?.password?.verify) {
-    // @ts-ignore
     return await Bun.password.verify(password, passwordHash);
   }
-  // fallback
   try {
     const obj = JSON.parse(passwordHash);
     const enc = new TextEncoder();
@@ -54,7 +47,6 @@ export function getSessionId(req: Request){
 }
 
 export function setSessionCookieHeaders(sessionId: string){
-  // In production behind HTTPS, set secure=true via PARITER_SECURE_COOKIE=1.
   const secure = process.env.PARITER_SECURE_COOKIE === '1';
   const cookie = setCookie(SESSION_COOKIE, sessionId, {
     httpOnly: true,

@@ -1,7 +1,3 @@
-// Pariter Service Worker (minimal PWA support)
-// NOTE: This file is served from /sw.js to allow scope '/'
-// Network-first for navigations, stale-while-revalidate for static.
-
 const VERSION = 'pariter-sw-v1';
 const CORE = [
   '/',
@@ -45,20 +41,16 @@ self.addEventListener('fetch', (event) => {
   const req = event.request;
   const url = new URL(req.url);
 
-  // Only same-origin.
   if (url.origin !== self.location.origin) return;
 
-  // Never cache API.
   if (url.pathname.startsWith('/api/')) {
-    return; // default network
+    return;
   }
 
-  // Navigations: network-first, fallback to cached /path shell.
   if (isNavigationRequest(req)) {
     event.respondWith((async ()=>{
       try {
         const fresh = await fetch(req);
-        // best-effort update cached shell
         const cache = await caches.open(VERSION);
         cache.put(req, fresh.clone()).catch(()=>{});
         return fresh;
@@ -70,7 +62,6 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Static: stale-while-revalidate
   if (isStaticRequest(url)) {
     event.respondWith((async ()=>{
       const cache = await caches.open(VERSION);
@@ -84,7 +75,6 @@ self.addEventListener('fetch', (event) => {
   }
 });
 
-// Push notifications
 self.addEventListener('push', (event) => {
   event.waitUntil((async ()=>{
     try {
@@ -123,12 +113,10 @@ self.addEventListener('push', (event) => {
         });
       }
     } catch {
-      // ignore
     }
   })());
 });
 
-// Notifications: focus/open the app on click.
 self.addEventListener('notificationclick', (event) => {
   try { event.notification.close(); } catch {}
   const url = (event.notification && event.notification.data && event.notification.data.url) ? event.notification.data.url : '/path';

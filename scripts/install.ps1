@@ -1,6 +1,5 @@
-#requires -RunAsAdministrator
 $ErrorActionPreference = 'Stop'
-
+ 
 $domain = Read-Host "Домен (для Windows можно оставить пустым, будет localhost)"
 $adminEmail = Read-Host "Email администратора"
 $adminLogin = Read-Host "Логин администратора"
@@ -11,12 +10,11 @@ if ([string]::IsNullOrWhiteSpace($adminEmail) -or [string]::IsNullOrWhiteSpace($
   throw "Все поля обязательны."
 }
 
-Write-Host "Устанавливаю Bun (если нужно)…"
 if (-not (Get-Command bun -ErrorAction SilentlyContinue)) {
+
   irm https://bun.sh/install.ps1 | iex
 }
 
-# Ensure bun is available in current PowerShell session (installer may require terminal restart)
 if (-not (Get-Command bun -ErrorAction SilentlyContinue)) {
   $candidate = Join-Path $env:USERPROFILE ".bun\bin"
   if (Test-Path (Join-Path $candidate "bun.exe")) {
@@ -30,8 +28,8 @@ if (-not (Get-Command bun -ErrorAction SilentlyContinue)) {
 $base = Join-Path $env:LOCALAPPDATA "Pariter"
 New-Item -ItemType Directory -Force -Path $base | Out-Null
 
-Write-Host "Скачиваю Pariter…"
 $tmp = Join-Path $env:TEMP ("pariter-" + [guid]::NewGuid().ToString("N") + ".zip")
+
 Invoke-WebRequest -Uri "https://github.com/xl00m/pariter/archive/refs/heads/main.zip" -OutFile $tmp -MaximumRedirection 10
 
 $extract = Join-Path $env:TEMP ("pariter-extract-" + [guid]::NewGuid().ToString("N"))
@@ -63,12 +61,7 @@ $config = @{
 
 Set-Content -Path (Join-Path $base "config.json") -Value $config -Encoding UTF8
 
-Write-Host "Инициализирую БД и админа…"
 Push-Location $base
 bun run scripts/setup.ts
 Pop-Location
 
-Write-Host "Готово. Запуск:"
-Write-Host "  cd $base"
-Write-Host "  bun run src/index.ts"
-Write-Host "Открой: http://localhost:8080"

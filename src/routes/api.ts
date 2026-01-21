@@ -1,8 +1,8 @@
-import type { DB } from '../db';
-import { ROLE_META, THEMES, defaultThemeForRole } from '../themes';
 import { authErrorToResponse, clearSessionCookieHeaders, createSession, requireAuth, setSessionCookieHeaders } from '../auth';
-import { error, json, nowISO, randomInviteCode, readJson, sanitizeLogin, todayYMD, validateEmail, validateLogin, validatePassword } from '../utils';
+import type { DB } from '../db';
 import { getVapidPublicKeyB64Url, sendWebPush } from '../push';
+import { ROLE_META, THEMES, defaultThemeForRole } from '../themes';
+import { error, json, nowISO, randomInviteCode, readJson, sanitizeLogin, todayYMD, validateEmail, validateLogin, validatePassword } from '../utils';
 
 function themeAllowed(role: string, theme: string){
   return THEMES.some(t => t.id === theme && t.role === role);
@@ -19,7 +19,6 @@ function safeUser(u: any){
 }
 
 function gzipText(text: string){
-  // Bun.gzipSync returns Buffer/Uint8Array
   // @ts-ignore
   const bytes = Bun.gzipSync(new TextEncoder().encode(text || ''));
   return bytes;
@@ -36,7 +35,6 @@ function clampUTF8(text: string, maxBytes: number){
   const enc = new TextEncoder();
   const bytes = enc.encode(text);
   if (bytes.length <= maxBytes) return text;
-  // truncate by bytes
   const sliced = bytes.slice(0, maxBytes);
   return new TextDecoder().decode(sliced);
 }
@@ -49,7 +47,6 @@ function dropFirstUTF8Bytes(text: string, dropBytes: number){
 }
 
 function normalizeNoYoNoDash(text: string){
-  // Enforce project style: no "ё" and no long dashes.
   return String(text || '')
     .replaceAll('ё', 'е')
     .replaceAll('Ё', 'Е')
@@ -89,12 +86,10 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
   const path = url.pathname;
 
   try {
-    // --- Health
     if ((req.method === 'GET' || req.method === 'HEAD') && path === '/api/health') {
       return json({ ok: true, time: nowISO() });
     }
 
-    // --- Account delete (self)
     if (req.method === 'DELETE' && path === '/api/profile') {
       const { user } = requireAuth(db, req);
       db.run('DELETE FROM sessions WHERE user_id = ?', [user.id]);
@@ -105,7 +100,6 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
       return json({ ok: true });
     }
 
-    // --- Auth
     if (req.method === 'POST' && path === '/api/register') {
       const body = await readJson(req);
       const email = String(body.email || '').trim();
@@ -170,7 +164,6 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
     }
 
     if (req.method === 'GET' && path === '/api/me') {
-      // in auth.ts there is helper, but keep local to avoid circular
       try {
         const { user, team } = requireAuth(db, req);
         return json({ user: safeUser(user), team });
@@ -179,7 +172,6 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
       }
     }
 
-    // --- Join resolve
     if (req.method === 'GET' && path.startsWith('/api/invites/resolve/')) {
       const code = decodeURIComponent(path.split('/').pop() || '').trim();
       const inv = db.query('SELECT * FROM invites WHERE code = ?').get(code) as any;
@@ -230,7 +222,6 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
       return json({ ok: true, user: safeUser(user) }, 200, headers);
     }
 
-    // --- Team
     if (req.method === 'GET' && path === '/api/team') {
       const { user, team } = requireAuth(db, req);
       const users = db.query('SELECT id, team_id, email, name, login, role, theme, is_admin, created_at FROM users WHERE team_id = ? ORDER BY datetime(created_at) ASC').all(user.team_id) as any[];
@@ -256,7 +247,6 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
       return json({ ok: true });
     }
 
-    // --- Settings
     if (req.method === 'PUT' && path === '/api/settings') {
       const { user } = requireAuth(db, req);
       const body = await readJson(req);
@@ -298,7 +288,6 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
       const args: any[] = [name];
       let sql = 'UPDATE users SET name = ?';
 
-      // If roleIn is provided, update role and theme (theme is recalculated above).
       if (roleIn != null) {
         sql += ', role = ?, theme = ?';
         args.push(nextRole, nextTheme);
@@ -322,13 +311,11 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
       return json({ ok: true, user: safeUser(updated) });
     }
 
-    // --- AI rewrite
     if (req.method === 'POST' && path === '/api/ai/rewrite') {
       const { user } = requireAuth(db, req);
-      // Best-effort: load PARITER_AI_KEY from .env at runtime.
-      // This is important in production where systemd may not export env vars.
       if (!String(process.env.PARITER_AI_KEY || '').trim()) {
         try {
+          // @ts-ignore
           const f = Bun.file('./.env');
           if (await f.exists()) {
             const txt = await f.text();
@@ -404,11 +391,8 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
         return blocks.join('\n\n');
       };
 
-      // Build context: compressed summary (if any) + ONLY new raw steps (after last_entry_id).
       let history = buildHistory(compressed, lines);
 
-      // If we have no compressed memory yet, and history is already under the limit, mark memory as up-to-date
-      // so next time we don't resend the entire raw history.
       if (!compressed && byteLen(history) <= MAX && maxSeenId > 0) {
         db.run(
           'INSERT INTO ai_memory (user_id, compressed, updated_at, last_entry_id) VALUES (?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET last_entry_id = excluded.last_entry_id, updated_at = excluded.updated_at',
@@ -417,7 +401,6 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
         lastEntryId = maxSeenId;
       }
 
-      // If context too large, compress via LLM and store.
       if (byteLen(history) > MAX) {
         const sys = [
           'Ты — инструмент сжатия контекста дневника Pariter.',
@@ -450,7 +433,6 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
         // After compressing, there are no "new" raw lines yet.
         history = buildHistory(compressed, []);
 
-        // If still too large, drop first 10KB from compressed repeatedly (as per spec)
         let drops = 0;
         while (byteLen(history) > MAX && drops < 25) {
           compressed = dropFirstUTF8Bytes(compressed, 10 * 1024);
@@ -468,8 +450,6 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
 
       const systemPrompt = (field === 'victory')
         ? [
-            // NOTE: перед текстом пользовательского ввода будет добавлен блок "ИСТОРИЯ" (контекст).
-            // Его нельзя переписывать, он только для понимания пути пользователя.
             'Перед текущим текстом будет дан блок ИСТОРИЯ (контекст). Не переписывай историю - переписывай только текущий текст.',
             'Важно: не используй букву "ё" (заменяй на "е").',
             'Важно: не используй длинное тире "—" или "–"; используй обычный дефис "-".',
@@ -532,22 +512,16 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
       return json({ ok: true, text: rewritten });
     }
 
-    // --- Push
     if ((req.method === 'GET' || req.method === 'HEAD') && path === '/api/push/vapidPublicKey') {
-      // Public key can be served without auth.
       const key = await getVapidPublicKeyB64Url();
       return json({ ok: true, publicKey: key });
     }
 
-    // Push: inbox preview helper (used by Service Worker on tickle-push)
-    // Works with either cookie session OR a per-device token (so it can run even when the app isn't open).
-    // Returns newest teammate entry preview. Optional cursor afterDate/afterId to avoid duplicates.
     if ((req.method === 'GET' || req.method === 'HEAD') && path === '/api/push/inbox') {
       let user: any = null;
       try {
         user = requireAuth(db, req).user;
       } catch {
-        // no cookie session - try token auth
         const auth = String(req.headers.get('authorization') || '').trim();
         const bearer = auth.toLowerCase().startsWith('bearer ') ? auth.slice(7).trim() : '';
         const token = bearer || String(url.searchParams.get('token') || '').trim();
@@ -559,8 +533,6 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
              WHERE ps.token = ?`
           ).get(token) as any;
           if (user) {
-            // ensure token belongs to an active session-less device; ok
-            // do not expose password hash
           }
         }
       }
@@ -599,7 +571,6 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
         ).get(...args) as any;
         count = Number(countRow?.c || 0);
       } else {
-        // No cursor - avoid showing a huge aggregated number from the entire history.
         count = rows.length ? 1 : 0;
       }
 
@@ -631,7 +602,6 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
       const auth = String(body?.keys?.auth || '').trim();
       if (!endpoint || !p256dh || !auth) return error('Неверная подписка.');
 
-      // token: persistent per-device handle for background resubscribe (pushsubscriptionchange) without cookies.
       let token = String(body?.token || '').trim();
       if (!token) {
         const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -639,11 +609,9 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
         token = Array.from(buf).map(b => chars[b % chars.length]).join('');
       }
 
-      // If token already exists - update by token (handles endpoint rotation without creating duplicates).
       try {
         const row = db.query('SELECT id, endpoint FROM push_subscriptions WHERE token = ?').get(token) as any;
         if (row?.id) {
-          // Ensure endpoint uniqueness: if another row has this endpoint, remove it.
           db.run('DELETE FROM push_subscriptions WHERE endpoint = ? AND token != ?', [endpoint, token]);
           db.run(
             'UPDATE push_subscriptions SET user_id = ?, endpoint = ?, p256dh = ?, auth = ?, last_seen_at = ? WHERE id = ?',
@@ -663,7 +631,6 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
       return json({ ok: true, token });
     }
 
-    // Background resubscribe without cookies (for pushsubscriptionchange)
     if (req.method === 'POST' && path === '/api/push/resubscribe') {
       const body = await readJson(req);
       const token = String(body?.token || '').trim();
@@ -695,7 +662,6 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
       return json({ ok: true });
     }
 
-    // --- Push: test (send a real Web Push to the current user)
     if (req.method === 'POST' && path === '/api/push/test') {
       const { user } = requireAuth(db, req);
 
@@ -706,7 +672,6 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
       if (!subs.length) return error('Нет активных push-подписок для этого пользователя.', 404);
 
       const subject = String(process.env.PARITER_VAPID_SUBJECT || 'mailto:admin@pariter.local');
-      // Send a "tickle" push without payload for maximum compatibility (debugging delivery).
       const payloadJson = null;
 
       const results = await Promise.all(subs.map(async (s)=>{
@@ -736,14 +701,11 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
       return json({ ok: true, subs: subs.length, results });
     }
 
-    // --- Stats
     if (req.method === 'GET' && path === '/api/stats') {
       const { user } = requireAuth(db, req);
 
       const today = todayYMD();
 
-      // DISTINCT is important for the “infinite path”: user can create many entries per day.
-      // We only need unique dates to calculate streak.
       const rows = db.query('SELECT DISTINCT date FROM entries WHERE user_id = ? ORDER BY date DESC LIMIT 400').all(user.id) as any[];
       const set = new Set(rows.map(r => String(r.date)));
 
@@ -757,7 +719,6 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
         return `${yy}-${mm}-${dd}`;
       };
 
-      // current streak: today if exists, otherwise yesterday if exists
       let start = today;
       if (!set.has(start)) start = ymdShift(today, -1);
 
@@ -776,7 +737,6 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
       const userTotalRow = db.query('SELECT COUNT(*) AS c FROM entries WHERE user_id = ?').get(user.id) as any;
       const userTodayStepsRow = db.query('SELECT COUNT(*) AS c FROM entries WHERE user_id = ? AND date = ?').get(user.id, today) as any;
 
-      // team: members active today vs total steps today
       const teamTodayRow = db.query(
         `SELECT COUNT(DISTINCT e.user_id) AS c
          FROM entries e
@@ -814,7 +774,6 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
       });
     }
 
-    // --- Invites
     if (req.method === 'GET' && path === '/api/invites') {
       const { user } = requireAuth(db, req);
       const invites = db.query('SELECT * FROM invites WHERE team_id = ? ORDER BY datetime(created_at) DESC').all(user.team_id) as any[];
@@ -851,9 +810,6 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
       return json({ ok: true });
     }
 
-    // --- Entries
-    // Legacy helper: return the latest entry for today (if any).
-    // The app allows multiple entries per day; client no longer relies on this endpoint.
     if (req.method === 'GET' && path === '/api/today') {
       const { user } = requireAuth(db, req);
       const date = todayYMD();
@@ -952,7 +908,6 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
       const senderPushToken = String(body.pushToken || '').trim();
       if (!victory && !lesson) return error('Заполни хотя бы одну часть: победу или урок.');
 
-      // Infinite path: allow multiple entries per day.
       const date = todayYMD();
       const createdAt = nowISO();
       const vblob = gzipText(victory);
@@ -964,11 +919,8 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
       const row = db.query('SELECT last_insert_rowid() AS id').get() as any;
       const entryId = Number(row.id);
 
-      // Web Push (best-effort): notify teammates (exclude author)
       try {
         const authorName = String(user.name || 'Спутник');
-        // NOTE: delivery is “tickle push” (no payload), same as /api/push/test.
-        // UI refresh + details are handled by the client via live polling.
         void authorName;
 
         let subs = db.query(
@@ -983,8 +935,6 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
         }
 
         const subject = String(process.env.PARITER_VAPID_SUBJECT || 'mailto:admin@pariter.local');
-        // Send a "tickle" push without payload for maximum delivery reliability.
-        // Service Worker will show a generic notification and the app will refresh via live polling.
         const payloadJson = null;
 
         const results = await Promise.allSettled(subs.map(async (s)=>{
@@ -993,16 +943,13 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
             payloadJson,
             subject,
           });
-          // Remove dead subscriptions. Be conservative: some services may return transient 401/403.
           if (res.status === 404 || res.status === 410) {
             db.run('DELETE FROM push_subscriptions WHERE id = ?', [Number(s.id)]);
           }
           return res.status;
         }));
-        // ignore results
         void results;
       } catch {
-        // ignore push errors
       }
 
       return json({ ok: true, id: entryId, created: true });
@@ -1012,7 +959,6 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
       const { user } = requireAuth(db, req);
       const id = Number(path.split('/').pop());
 
-      // Admin can edit any entry within their team.
       const e = db.query(
         `SELECT e.*, u.team_id AS team_id
          FROM entries e
@@ -1039,7 +985,6 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
       const { user } = requireAuth(db, req);
       const id = Number(path.split('/').pop());
 
-      // Admin can delete any entry within their team.
       const e = db.query(
         `SELECT e.*, u.team_id AS team_id
          FROM entries e
@@ -1057,7 +1002,6 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
       return json({ ok: true });
     }
 
-    // --- Export (backup)
     if (req.method === 'GET' && path === '/api/export') {
       const { user, team } = requireAuth(db, req);
 
@@ -1094,7 +1038,6 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
       });
     }
 
-    // --- Import (restore/merge)
     if (req.method === 'POST' && path === '/api/import') {
       const { user } = requireAuth(db, req);
       if (Number(user.is_admin || 0) !== 1) return error('Только администратор может делать импорт.', 403);
@@ -1187,8 +1130,6 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
         invitesCreated++;
       }
 
-      // entries (insert-only; allow multiple entries per day)
-      // Dedupe by (user_id, date, created_at) when possible to reduce duplicates on repeated imports.
       let entriesCreated = 0;
       let entriesUpdated = 0; // kept for backward compatibility in response
       let entriesSkipped = 0;
@@ -1228,7 +1169,6 @@ export async function handleApi(db: DB, req: Request): Promise<Response> {
       });
     }
 
-    // --- gunzip helper endpoint (optional, but keep client simple)
     if (req.method === 'POST' && path === '/api/gunzip') {
       const { } = requireAuth(db, req);
       const body = await readJson(req);

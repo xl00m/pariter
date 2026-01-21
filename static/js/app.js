@@ -1,5 +1,3 @@
-// PARITER client (Vanilla JS) — talks to Bun backend via /api/*
-
 const APP = {
   _authRedirectScheduled: false,
   _rendering: false,
@@ -41,7 +39,6 @@ const THEMES = [
   { id:'dawn_guard', role:'amazon', emoji:'🌅', ru:'Рассветная стража', la:'Custōs Aurōrae', light:false, colors:{ bg:'#140c07', bgSecondary:'#21130b', text:'#fff2e8', textMuted:'#d0ad95', accent:'#ff9f43', accentHover:'#ff8a1f', border:'rgba(255,255,255,.12)', victory:'rgba(255,159,67,.16)', lesson:'rgba(255,77,109,.10)' } },
   { id:'quiet_storm', role:'amazon', emoji:'🦋', ru:'Тихая буря', la:'Tempestās Tacita', light:false, colors:{ bg:'#0b1014', bgSecondary:'#0f1a22', text:'#eef8ff', textMuted:'#9ab3c2', accent:'#7dd3fc', accentHover:'#5ec7f8', border:'rgba(255,255,255,.11)', victory:'rgba(125,211,252,.14)', lesson:'rgba(179,146,255,.10)' } },
 
-  // Synchronization (shared palette for both roles)
   { id:'sync_warrior', role:'warrior', emoji:'🖤', ru:'Синхронизация', la:'Synchronizatio', light:false, colors:{ bg:'#0a0a0f', bgSecondary:'#14141f', text:'#d4dbe8', textMuted:'#7a8599', accent:'#8fa4c9', accentHover:'#b8c8e8', border:'rgba(150,160,180,.12)', victory:'rgba(143,164,201,.12)', lesson:'rgba(255,190,225,.10)' } },
   { id:'sync_amazon', role:'amazon', emoji:'🖤', ru:'Синхронизация', la:'Synchronizatio', light:false, colors:{ bg:'#0a0a0f', bgSecondary:'#14141f', text:'#d4dbe8', textMuted:'#7a8599', accent:'#8fa4c9', accentHover:'#b8c8e8', border:'rgba(150,160,180,.12)', victory:'rgba(143,164,201,.12)', lesson:'rgba(255,190,225,.10)' } },
 ];
@@ -50,13 +47,11 @@ function themeById(id){
   return THEMES.find(t => t.id === id) || THEMES[0];
 }
 
-// --- Stars + landing crystal background (battery-friendly)
 function shouldAnimateNow(){
   try {
     const inFocus = !document.hidden && (typeof document.hasFocus !== 'function' || document.hasFocus());
     if (!inFocus) return false;
 
-    // Only animate when a route exists (SPA mounted)
     const p = APP.state?.route?.path || parseRoute().path;
     return !!p;
   } catch { return false; }
@@ -64,33 +59,29 @@ function shouldAnimateNow(){
 
 function shouldAnimateBlackHoles(){
   try {
-    // Even with reduced motion, we still want to show black holes (with reduced intensity)
     const prefersReducedMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    
+
     const inFocus = !document.hidden && (typeof document.hasFocus !== 'function' || document.hasFocus());
     if (!inFocus) return false;
 
-    // Only animate when a route exists (SPA mounted)
     const p = APP.state?.route?.path || parseRoute().path;
-    return !!p && !prefersReducedMotion; // Only animate black holes if not reduced motion
+    return !!p && !prefersReducedMotion;
   } catch { return false; }
 }
 
 function shouldAnimateWithReducedIntensity(){
   try {
     const prefersReducedMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    
+
     const inFocus = !document.hidden && (typeof document.hasFocus !== 'function' || document.hasFocus());
     if (!inFocus) return false;
 
-    // Only animate when a route exists (SPA mounted)
     const p = APP.state?.route?.path || parseRoute().path;
-    return !!p && prefersReducedMotion; // Return true only if reduced motion is preferred but other conditions are met
+    return !!p && prefersReducedMotion;
   } catch { return false; }
 }
 
 function ensureStarsLayer(){
-  // Mount global stars canvas once
   if (!document.getElementById('starsCanvas')) {
     const old = document.querySelector('.stars-bg');
     if (old) old.remove();
@@ -102,19 +93,15 @@ function ensureStarsLayer(){
     bg.appendChild(canvas);
     document.body.insertBefore(bg, document.body.firstChild || null);
 
-    // enable transparent html/body backgrounds
     document.documentElement.classList.add('l00m-stars-on');
   }
 
-  // Start animation loop (paused when app is not active)
   if (!ensureStarsLayer._stars) ensureStarsLayer._stars = new StarsEngine(document.getElementById('starsCanvas'));
   ensureStarsLayer._stars.start();
 
-  // Landing crystal: start/stop based on route
   if (!ensureStarsLayer._crystal) ensureStarsLayer._crystal = new CrystalEngine();
   ensureStarsLayer._crystal.syncToRoute();
 
-  // Pause/resume on visibility
   if (!ensureStarsLayer._bound) {
     ensureStarsLayer._bound = true;
 
@@ -157,7 +144,6 @@ function StarsEngine(canvas){
 
   this.W = 0; this.H = 0;
   this.stars = []; this.twinkle = []; this.ghosts = [];
-  // extra layer: comets + black holes (subtle, global)
   this.holes = [];
   this.comets = [];
   this._lastCometAt = 0;
@@ -221,7 +207,6 @@ function StarsEngine(canvas){
   };
 
   this.generateHoles = ()=>{
-    // 1-2 subtle black holes for depth
     this.holes = [];
     if (!this.W || !this.H) return;
     const n = (Math.random() > 0.55) ? 2 : 1;
@@ -239,7 +224,6 @@ function StarsEngine(canvas){
         ph: Math.random()*Math.PI*2,
       });
     }
-    // reset comets on hole regen
     this.comets = [];
     this._lastCometAt = 0;
   };
@@ -266,7 +250,6 @@ function StarsEngine(canvas){
     const vx = (dx/dist)*speed;
     const vy = (dy/dist)*speed;
 
-    // tint: ice or pink
     const tint = (Math.random() > 0.5)
       ? { r: 190, g: 215, b: 255 }
       : { r: 255, g: 190, b: 225 };
@@ -296,7 +279,6 @@ function StarsEngine(canvas){
     this.H = window.innerHeight || document.documentElement.clientHeight || 0;
     if (!this.W || !this.H) return;
 
-    // canvas size
     this.canvas.width = this.W;
     this.canvas.height = this.H;
     this.baseCanvas.width = this.W;
@@ -310,7 +292,7 @@ function StarsEngine(canvas){
     this.stars = [];
     this.twinkle = [];
 
-    const count = 900; // reduce from 1500 for battery
+    const count = 900;
     for (let i=0;i<count;i++) {
       const sp = this.pickSpectral();
       const fill = SPECTRAL[sp];
@@ -345,7 +327,6 @@ function StarsEngine(canvas){
     }
 
     this.renderBase();
-    // extra layer
     this.generateHoles();
   };
 
@@ -383,7 +364,6 @@ function StarsEngine(canvas){
     const ctx = this.ctx;
     if (!this.holes?.length) return;
 
-    // Check if we should animate black holes specifically
     if (!shouldAnimateBlackHoles() && !shouldAnimateWithReducedIntensity()) return;
 
     ctx.save();
@@ -497,10 +477,8 @@ function StarsEngine(canvas){
     ctx.globalCompositeOperation = 'source-over';
     ctx.drawImage(this.baseCanvas, 0, 0);
 
-    // black holes beneath
     this.drawHoles(t);
 
-    // twinkle
     for (const st of this.twinkle) {
       const twk = 0.55 + 0.45 * Math.sin(t * st.tw + st.ph);
       const a = st.a0 * twk;
@@ -556,29 +534,24 @@ function StarsEngine(canvas){
     for (let i=this.comets.length-1;i>=0;i--) {
       const c = this.comets[i];
 
-      // enhanced gravitational effects near holes
       for (const h of this.holes || []) {
         const dx = h.x - c.x;
         const dy = h.y - c.y;
         const dist = Math.hypot(dx, dy) || 1;
         
         if (dist < (h.r*4.6)) {
-          // Коэффициент влияния в зависимости от расстояния
           const k = 1 - dist/(h.r*4.6);
           
-          // Сила притяжения
-          const pull = 0.040 * k; // Увеличенная сила притяжения
+          const pull = 0.040 * k;
           c.vx += (dx/dist) * pull;
           c.vy += (dy/dist) * pull;
           
-          // Сила вращения (вихревое движение)
-          const swirl = 0.035 * k * h.spin; // Увеличенная сила вращения
+          const swirl = 0.035 * k * h.spin;
           c.vx += (-dy/dist) * swirl;
           c.vy += ( dx/dist) * swirl;
           
-          // Если комета слишком близко к центру, она может быть "поглощена"
           if (dist < h.r * 0.8) {
-            c.life = 0; // Уничтожаем комету
+            c.life = 0;
           }
         }
       }
@@ -595,7 +568,6 @@ function StarsEngine(canvas){
   };
 
   this._loop = (ts)=>{
-    // Check if we should run the full animation or just black holes
     const fullAnimation = shouldAnimateNow();
     const blackHoleAnimation = shouldAnimateBlackHoles() || shouldAnimateWithReducedIntensity();
     
@@ -606,7 +578,6 @@ function StarsEngine(canvas){
 
     const now = ts;
 
-    // refresh ghost constellations if page height changes (SPA / infinite feed)
     if (fullAnimation && (!this._ghostCheckAt || (now - this._ghostCheckAt) > 1800)) {
       this._ghostCheckAt = now;
       const dh = this.getDocHeight();
@@ -615,12 +586,10 @@ function StarsEngine(canvas){
       }
     }
 
-    // spawn comets sometimes - only if full animation is enabled
     if (fullAnimation) {
       if (!this._lastCometAt) this._lastCometAt = now;
       if ((now - this._lastCometAt) > (2600 + Math.random()*1200)) {
         this.spawnComet();
-        // rare double-comet
         if (Math.random() < 0.18) {
           setTimeout(()=>{ try { this.spawnComet(); } catch {} }, 220);
         }
@@ -628,12 +597,10 @@ function StarsEngine(canvas){
       }
     }
 
-    // update comets only if full animation is enabled
     if (fullAnimation) {
       this.updateComets();
     }
     
-    // Apply black hole forces to stars for gravitational effects
     for (const s of this.stars) {
       this.applyBlackHoleForces(s);
       
@@ -651,7 +618,6 @@ function StarsEngine(canvas){
       if (s.y > this.H + 30) s.y = -30;
     }
     
-    // Render frame - always render if either animation is enabled
     this.renderFrame(ts/1000);
     this._raf = requestAnimationFrame(this._loop);
   };
@@ -670,7 +636,6 @@ function StarsEngine(canvas){
     try { window.removeEventListener('resize', this._onResize); } catch {}
   };
 
-  // init
   try { this.rebuild(); this.generateGhosts(); } catch {}
 }
 
@@ -702,7 +667,6 @@ function CrystalEngine(){
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     this._ctx = ctx;
 
-    // rebuild state
     this._state = this._makeState(W, H);
   };
 
@@ -805,8 +769,6 @@ function CrystalEngine(){
 
     ctx.clearRect(0,0,st.W,st.H);
 
-    // holes
-    // Check if we should animate black holes specifically
     if (shouldAnimateBlackHoles() || shouldAnimateWithReducedIntensity()) {
       ctx.save();
       ctx.globalCompositeOperation = 'source-over';
@@ -868,7 +830,6 @@ function CrystalEngine(){
       ctx.restore();
     }
 
-    // links
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
     ctx.lineWidth = 0.6;
@@ -894,7 +855,6 @@ function CrystalEngine(){
     }
     ctx.restore();
 
-    // stars
     ctx.save();
     ctx.globalCompositeOperation='lighter';
     for (const s of st.stars){
@@ -908,7 +868,6 @@ function CrystalEngine(){
     }
     ctx.restore();
 
-    // comets
     ctx.save();
     ctx.globalCompositeOperation='lighter';
     ctx.lineCap='round';
@@ -941,7 +900,6 @@ function CrystalEngine(){
   };
 
   this._loop = (now)=>{
-    // Check if we should run the full animation or just black holes
     const fullAnimation = shouldAnimateNow();
     const blackHoleAnimation = shouldAnimateBlackHoles() || shouldAnimateWithReducedIntensity();
     
@@ -952,7 +910,6 @@ function CrystalEngine(){
     
     const st = this._state;
     if (st) {
-      // Only update comets and stars if full animation is enabled
       if (fullAnimation) {
         if (now - st.lastCometAt > 2600) { this._spawnComet(); st.lastCometAt = now; }
         for (const s of st.stars){
@@ -968,7 +925,6 @@ function CrystalEngine(){
         for (let i=st.comets.length-1;i>=0;i--){
           const c=st.comets[i];
           
-          // Apply black hole forces to comets
           for (const h of st.holes || []) {
             const dx = h.x - c.x;
             const dy = h.y - c.y;
@@ -989,7 +945,6 @@ function CrystalEngine(){
         }
       }
       
-      // Always render if either animation is enabled
       this._render(now*0.001);
     }
     this._raf = requestAnimationFrame(this._loop);
@@ -998,7 +953,7 @@ function CrystalEngine(){
   this.start = ()=>{
     if (this._raf) return;
     const p = APP.state?.route?.path || parseRoute().path;
-    if (p !== '/') return; // only landing
+    if (p !== '/') return;
     this._root = document.getElementById('cosmosRoot');
     this._canvas = document.getElementById('crystalCanvas');
     if (!this._root || !this._canvas) return;
@@ -1024,546 +979,53 @@ function CrystalEngine(){
   };
 }
 
-function defaultThemeForRole(role){
-  return (THEMES.find(t => t.role === role) || THEMES[0]).id;
-}
-
-const $ = (sel, el=document) => el.querySelector(sel);
-const $$ = (sel, el=document) => Array.from(el.querySelectorAll(sel));
-
-function escapeHTML(s){
-  return String(s)
-    .replaceAll('&','&amp;')
-    .replaceAll('<','&lt;')
-    .replaceAll('>','&gt;')
-    .replaceAll('"','&quot;')
-    .replaceAll("'", '&#039;');
-}
-
-function toast(msg){
-  const el = $('#toast');
-  if (!el) return;
-  el.textContent = msg;
-  el.classList.remove('hidden');
-  el.classList.add('fade-in');
-  clearTimeout(toast._t);
-  toast._t = setTimeout(()=>{
-    el.classList.add('hidden');
-    el.classList.remove('fade-in');
-  }, 2200);
-}
-
-function ensureEntryModal(){
-  if ($('#entryModal')) return;
-  const wrap = document.createElement('div');
-  wrap.id = 'entryModal';
-  wrap.className = 'hidden';
-  wrap.innerHTML = `
-    <div class="modalWrap">
-      <div class="modalScrim" data-action="modal-close" aria-hidden="true"></div>
-      <div class="modalPanel card" role="dialog" aria-modal="true" aria-label="Редактировать запись" style="padding: 16px;">
-        <div class="rowBetween" style="align-items:flex-start;">
-          <div>
-            <div style="font-size: 18px; font-weight: 900">Редактировать</div>
-            <div class="textMuted" style="font-size: 12px">Обнови победу и/или урок</div>
-          </div>
-          <button type="button" class="btn-ghost" style="padding: 10px 12px" data-action="modal-close" aria-label="Закрыть">✕</button>
-        </div>
-
-        <div class="grid" style="margin-top: 12px;">
-          <div class="soft" style="padding: 12px; background: var(--victory)">
-            <div style="font-size: 12px; font-weight: 900; letter-spacing:.16em">⚔️ VICTORIA</div>
-            <div class="ai-wrap" style="margin-top: 10px;">
-              <textarea class="textarea ai-textarea" id="entryModalVictory" placeholder="Текст победы"></textarea>
-              <button type="button" class="ai-btn" data-action="ai-rewrite" data-target="entryModalVictory" data-field="victory" title="Переписать с ИИ" aria-label="Переписать с ИИ">✦</button>
-            </div>
-          </div>
-
-          <div class="soft" style="padding: 12px; background: var(--lesson)">
-            <div style="font-size: 12px; font-weight: 900; letter-spacing:.16em">🦉 LECTIO</div>
-            <div class="ai-wrap" style="margin-top: 10px;">
-              <textarea class="textarea ai-textarea" id="entryModalLesson" placeholder="Текст урока"></textarea>
-              <button type="button" class="ai-btn" data-action="ai-rewrite" data-target="entryModalLesson" data-field="lesson" title="Переписать с ИИ" aria-label="Переписать с ИИ">✦</button>
-            </div>
-          </div>
-
-          <div class="rowBetween" style="flex-wrap: wrap; gap: 10px">
-            <button type="button" class="btn-danger" style="padding: 10px 14px; border-radius: 999px" data-action="modal-delete">🗑️ Удалить</button>
-            <div class="row" style="flex-wrap: wrap">
-              <button type="button" class="btn-ghost" data-action="modal-close">Отмена</button>
-              <button type="button" class="btn" data-action="modal-save">Сохранить</button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  `;
-  document.body.appendChild(wrap);
-
-  const close = ()=> closeEntryModal();
-  wrap.addEventListener('click', async (e)=>{
-    const t = e.target?.closest?.('[data-action]');
-    const action = t?.getAttribute?.('data-action');
-    if (!action) return;
-
-    if (action === 'modal-close') return close();
-
-    const id = Number(wrap.getAttribute('data-id') || '0');
-    if (!id) return close();
-
-    if (action === 'modal-save') {
-      const v = String($('#entryModalVictory')?.value || '').trim();
-      const l = String($('#entryModalLesson')?.value || '').trim();
-      if (!v && !l) return toast('Заполни хотя бы одну часть.');
-      try {
-        await api.entryUpdate(id, { victory: v, lesson: l });
-        toast('Обновлено.');
-        APP.state.cache.entryText.delete(id);
-        close();
-        await hydratePathStats();
-        await hydrateFeed(true);
-      } catch (err) {
-        toast(err.message || 'Ошибка обновления.');
+function parseRoute(){
+  const path = location.hash ? location.hash.slice(1) : (location.pathname || '/');
+  const [basePath, queryStr = ''] = path.split('?');
+  const params = {};
+  if (queryStr) {
+    try {
+      for (const pair of queryStr.split('&')) {
+        const [k, v] = pair.split('=');
+        if (k) params[decodeURIComponent(k)] = decodeURIComponent(v || '');
       }
-      return;
-    }
-
-    if (action === 'modal-delete') {
-      if (!confirm('Удалить запись?')) return;
-      try {
-        await api.entryDelete(id);
-        toast('Удалено.');
-        APP.state.cache.entryText.delete(id);
-        close();
-        await hydratePathStats();
-        await hydrateFeed(true);
-      } catch (err) {
-        toast(err.message || 'Ошибка удаления.');
-      }
-      return;
-    }
-  });
+    } catch {}
+  }
+  return { path: basePath || '/', params };
 }
 
-function openEntryModal(id){
-  ensureEntryModal();
-  const wrap = $('#entryModal');
-  const cached = APP.state.cache.entryText.get(id);
-  if (!wrap || !cached) return;
-  wrap.setAttribute('data-id', String(id));
-  $('#entryModalVictory').value = cached.victory ?? '';
-  $('#entryModalLesson').value = cached.lesson ?? '';
-  wrap.classList.remove('hidden');
-  // prevent background scroll while modal is open
-  try { document.body.style.overflow = 'hidden'; } catch {}
-  setTimeout(()=>{ try { $('#entryModalVictory')?.focus?.(); } catch {} }, 0);
-}
-
-function closeEntryModal(){
-  const wrap = $('#entryModal');
-  if (!wrap) return;
-  wrap.classList.add('hidden');
-  wrap.removeAttribute('data-id');
-  // restore background scroll
-  try { document.body.style.overflow = ''; } catch {}
-}
-
-function setTheme(themeId){
-  const t = THEMES.find(x=>x.id===themeId) || THEMES[0];
-  const r = document.documentElement;
-  const b = document.body;
-
-  // Important: SSR can set CSS variables inline on <body>. If we only set vars on <html>,
-  // body vars will win and theme switching will look “stuck”. So we set vars on BOTH.
-  Object.entries(t.colors).forEach(([k,v]) => {
-    r.style.setProperty(`--${k}`, v);
-    b.style.setProperty(`--${k}`, v);
-  });
-
-  // If stars background is enabled, canvas draws the “night”, so we keep body transparent.
-  if (document.documentElement.classList.contains('l00m-stars-on')) {
-    b.style.background = 'transparent';
+function nav(to, { replace = false } = {}){
+  if (to.startsWith('http')) {
+    location.href = to;
     return;
   }
-
-  if (t.light) {
-    b.style.background = `radial-gradient(1100px 560px at 20% -10%, rgba(76,111,255,.12), transparent 55%),
-                          radial-gradient(900px 520px at 110% 10%, rgba(31,185,129,.12), transparent 60%),
-                          var(--bg)`;
-  } else {
-    b.style.background = `radial-gradient(1200px 600px at 20% -10%, rgba(124,92,255,.22), transparent 55%),
-                          radial-gradient(900px 520px at 110% 10%, rgba(46,212,167,.20), transparent 60%),
-                          var(--bg)`;
-  }
-}
-
-function nowISO(){ return new Date().toISOString(); }
-function todayYMD(){
-  const d = new Date();
-  const y = d.getFullYear();
-  const m = String(d.getMonth()+1).padStart(2,'0');
-  const day = String(d.getDate()).padStart(2,'0');
-  return `${y}-${m}-${day}`;
-}
-function ruDateLabel(ymd){
-  const [y,m,d] = ymd.split('-').map(Number);
-  const date = new Date(y, m-1, d);
-  return new Intl.DateTimeFormat('ru-RU', { day:'numeric', month:'long' }).format(date);
-}
-
-function ruTimeLabel(iso){
-  try {
-    const dt = new Date(iso);
-    if (Number.isNaN(dt.getTime())) return '';
-    return new Intl.DateTimeFormat('ru-RU', { hour:'2-digit', minute:'2-digit' }).format(dt);
-  } catch { return ''; }
-}
-
-async function apiFetch(path, { method='GET', body=null }={}){
-  const headers = { 'accept': 'application/json' };
-  if (body !== null) headers['content-type'] = 'application/json';
-
-  const res = await fetch(path, {
-    method,
-    headers,
-    body: body !== null ? JSON.stringify(body) : undefined,
-    cache: 'no-store',
-    credentials: 'include',
-  });
-
-  let data = null;
-  try { data = await res.json(); } catch { data = {}; }
-
-  if (!res.ok) {
-    // global auth handling
-    if (res.status === 401) {
-      APP.state.user = null;
-      APP.state.team = null;
-
-      const curPath = location.pathname;
-      const isAuthPage = curPath === '/login' || curPath === '/register' || curPath.startsWith('/join/');
-      if (!isAuthPage && !APP._authRedirectScheduled) {
-        APP._authRedirectScheduled = true;
-        setTimeout(()=>{
-          try {
-            // Use replace to avoid back-button loops
-            history.replaceState({}, '', '/login');
-          } finally {
-            APP._authRedirectScheduled = false;
-            // render is safe here: it will call /api/me, which will again 401,
-            // but will NOT schedule another redirect because we're already on /login.
-            render();
-          }
-        }, 0);
-      }
-    }
-
-    const err = new Error(data?.error || 'Ошибка API.');
-    err.status = res.status;
-    err.reason = data?.reason;
-    err.data = data;
-    throw err;
-  }
-  return data;
-}
-
-const api = {
-  health: ()=> apiFetch('/api/health'),
-  me: ()=> apiFetch('/api/me'),
-  register: (payload)=> apiFetch('/api/register', { method:'POST', body: payload }),
-  login: (payload)=> apiFetch('/api/login', { method:'POST', body: payload }),
-  logout: ()=> apiFetch('/api/logout', { method:'POST', body: {} }),
-  inviteResolve: (code)=> apiFetch('/api/invites/resolve/' + encodeURIComponent(code)),
-  join: (code, payload)=> apiFetch('/api/join/' + encodeURIComponent(code), { method:'POST', body: payload }),
-  team: ()=> apiFetch('/api/team'),
-  invitesList: ()=> apiFetch('/api/invites'),
-  invitesCreate: ()=> apiFetch('/api/invites', { method:'POST', body: {} }),
-  invitesDelete: (id)=> apiFetch('/api/invites/' + Number(id), { method:'DELETE' }),
-  // legacy, not used in infinite-path mode
-  today: ()=> apiFetch('/api/today'),
-  entriesGet: ({limit=20, before=null}={}) => {
-    const p = new URLSearchParams();
-    p.set('limit', String(limit));
-    if (before?.date && before?.id) {
-      p.set('beforeDate', before.date);
-      p.set('beforeId', String(before.id));
-    } else if (before?.date) {
-      // legacy cursor mode: only date
-      p.set('before', before.date);
-    }
-    return apiFetch('/api/entries?' + p.toString());
-  },
-  entriesNew: ({after, limit=3}={})=>{
-    const p = new URLSearchParams();
-    if (after?.date && after?.id) {
-      p.set('afterDate', after.date);
-      p.set('afterId', String(after.id));
-    }
-    p.set('limit', String(limit));
-    return apiFetch('/api/entries/new?' + p.toString());
-  },
-  entryCreate: ({victory, lesson})=> apiFetch('/api/entries', { method:'POST', body: { victory, lesson, pushToken: readPushToken() || null } }),
-  // legacy name (kept for older code paths)
-  entryUpsertToday: ({victory, lesson})=> apiFetch('/api/entries', { method:'POST', body: { victory, lesson, pushToken: readPushToken() || null } }),
-  entryUpdate: (id, {victory, lesson})=> apiFetch('/api/entries/' + Number(id), { method:'PUT', body: { victory, lesson } }),
-  entryDelete: (id)=> apiFetch('/api/entries/' + Number(id), { method:'DELETE' }),
-  settingsUpdate: ({name, role, theme, password})=> apiFetch('/api/settings', { method:'PUT', body: { name, role, theme, password } }),
-  export: ()=> apiFetch('/api/export'),
-  import: ({data, defaultPassword})=> apiFetch('/api/import', { method:'POST', body: { data, defaultPassword } }),
-  stats: ()=> apiFetch('/api/stats'),
-  aiRewrite: ({field, text})=> apiFetch('/api/ai/rewrite', { method:'POST', body: { field, text } }),
-
-  // Push
-  pushVapidKey: ()=> apiFetch('/api/push/vapidPublicKey'),
-  pushSubscribe: ({ endpoint, keys, token=null })=> apiFetch('/api/push/subscribe', { method:'POST', body: { endpoint, keys, token } }),
-  pushResubscribe: ({ token, endpoint, keys })=> apiFetch('/api/push/resubscribe', { method:'POST', body: { token, endpoint, keys } }),
-  pushUnsubscribe: ({ endpoint=null }={})=> apiFetch('/api/push/unsubscribe', { method:'POST', body: { endpoint } }),
-
-  // Account / Team management
-  profileDelete: ()=> apiFetch('/api/profile', { method:'DELETE' }),
-  teamDelete: (id)=> apiFetch('/api/team/' + Number(id), { method:'DELETE' }),
-};
-
-// server returns base64(Bun.gzipSync(text)) in entry.victory / entry.lesson
-// Prefer client-side gunzip (DecompressionStream). Fallback to /api/gunzip.
-const _gunzipCache = new Map();
-const GUNZIP_CACHE_MAX = 600;
-
-function gunzipCacheSet(key, value){
-  _gunzipCache.set(key, value);
-  // simple FIFO cap to avoid unbounded memory growth
-  while (_gunzipCache.size > GUNZIP_CACHE_MAX) {
-    const first = _gunzipCache.keys().next().value;
-    _gunzipCache.delete(first);
-  }
-}
-
-function b64ToU8(b64){
-  const bin = atob(b64);
-  const u8 = new Uint8Array(bin.length);
-  for (let i=0;i<bin.length;i++) u8[i] = bin.charCodeAt(i);
-  return u8;
-}
-
-async function gunzipB64(b64){
-  if (!b64) return '';
-  if (_gunzipCache.has(b64)) return _gunzipCache.get(b64);
-
-  // client path
-  try {
-    if (typeof DecompressionStream !== 'undefined') {
-      const ds = new DecompressionStream('gzip');
-      const blob = new Blob([b64ToU8(b64)]);
-      const stream = blob.stream().pipeThrough(ds);
-      const ab = await new Response(stream).arrayBuffer();
-      const text = new TextDecoder().decode(new Uint8Array(ab));
-      gunzipCacheSet(b64, text);
-      return text;
-    }
-  } catch {}
-
-  // fallback to server helper
-  try {
-    const r = await apiFetch('/api/gunzip', { method:'POST', body: { b64 } });
-    const text = String(r.text || '');
-    gunzipCacheSet(b64, text);
-    return text;
-  } catch {
-    return '';
-  }
-}
-
-function parseRoute(){
-  const path = location.pathname;
-  const parts = path.split('/').filter(Boolean);
-  if (parts.length === 0) return { path: '/', params: {} };
-  if (parts[0] === 'join') return { path: '/join', params: { code: parts[1] || '' } };
-  return { path: '/' + parts[0], params: {} };
-}
-
-function setDocumentTitle(routePath){
-  // Keep titles in sync with server-side pages.ts (so no F5 needed for title updates).
-  const base = '✦ PARITER ✦';
-  let t = base;
-  if (routePath === '/login') t = `Вход — ${base}`;
-  else if (routePath === '/register') t = `Регистрация — ${base}`;
-  else if (routePath === '/join') t = `Присоединиться — ${base}`;
-  else if (routePath === '/path') t = `Путь — ${base}`;
-  else if (routePath === '/invite') t = `Спутники — ${base}`;
-  else if (routePath === '/settings') t = `Настройки — ${base}`;
-
-  const n = Number(APP?.state?.live?.unread || 0);
-  const prefix = (n > 0) ? `(${Math.min(n, 99)}) ` : '';
-  try { document.title = prefix + t; } catch {}
-}
-
-function nav(path){
-  history.pushState({}, '', path);
+  if (replace) history.replaceState(null, '', to);
+  else history.pushState(null, '', to);
   render();
 }
 
-function requireAuth(){
-  if (!APP.state.user) {
-    history.replaceState({}, '', '/login');
-    render();
-    return false;
-  }
-  return true;
+function $(sel, root=document){
+  return root.querySelector(sel);
 }
 
-function Logo(){
-  return `<span style="letter-spacing:.18em; font-weight:800">✦ PARITER ✦</span>`;
+function escapeHTML(s){
+  const m = { '&': '&', '<': '<', '>': '>', '"': '"', "'": '&#039;' };
+  return String(s || '').replace(/[&<>"']/g, (x)=> m[x]);
 }
 
-function HealthBadge(){
-  return `<span id="healthBadge" class="pill textMuted" style="font-size: 12px">связь: …</span>`;
-}
-
-function PageShell({title, subtitle, body, footer}={}){
-  return `
-    <div class="centerShell">
-      <div class="centerMax">
-        <div style="text-align:center; margin-bottom: 18px;">
-          <div style="font-size:12px; text-transform:uppercase; opacity:.9">${Logo()}</div>
-          ${title ? `<div style="margin-top: 16px; font-size: 28px; font-weight: 800;">${escapeHTML(title)}</div>` : ''}
-          ${subtitle ? `<div style="margin-top: 8px; font-size: 14px; color: var(--textMuted);">${escapeHTML(subtitle)}</div>` : ''}
-        </div>
-        <div class="card" style="padding: 18px;">${body || ''}</div>
-        ${footer ? `<div style="text-align:center; margin-top: 14px; font-size: 13px; color: var(--textMuted);">${footer}</div>` : ''}
-      </div>
-    </div>
-  `;
-}
-
-function AppHeader(){
-  const me = APP.state.user;
-  const mates = (APP.state.teamUsers || []).filter(u => me && Number(u.id) !== Number(me.id));
-  const show = mates.slice(0, 6);
-  const more = mates.length - show.length;
-
-  return `
-    <header class="header">
-      <div class="container">
-        <div class="headerRow">
-          <button class="btn-ghost" style="padding: 10px 12px" data-action="sidebar-open" aria-label="Меню">☰</button>
-          <button type="button" class="btn-ghost" style="padding: 8px 10px; border:0; background:transparent; letter-spacing:.16em" data-nav="/" aria-label="На главную">PARITER</button>
-          <div class="row">
-            <div class="row" style="display:none" id="mateIcons"></div>
-            <div class="row" style="gap:6px" aria-hidden="true">
-              ${show.map(u=>`<div title="Спутник: ${escapeHTML(u.name)}" style="width:32px;height:32px;border-radius:999px;border:1px solid var(--border);display:grid;place-items:center;background:rgba(255,255,255,.03)">${ROLE_META[u.role]?.emoji || '✦'}</div>`).join('')}
-              ${more>0 ? `<div title="Ещё спутники" style="width:32px;height:32px;border-radius:999px;border:1px solid var(--border);display:grid;place-items:center;background:rgba(255,255,255,.03);font-size:12px">+${more}</div>` : ''}
-            </div>
-            <div aria-hidden="true" style="width:1px; height: 22px; background: var(--border); margin: 0 8px;"></div>
-            <button class="btn-ghost" style="padding: 10px 12px" data-action="go-settings" aria-label="Настройки">⚙️</button>
-          </div>
-        </div>
-      </div>
-    </header>
-  `;
-}
-
-function Sidebar(){
-  const open = APP.state.sidebarOpen;
-  const me = APP.state.user;
-  const current = location.pathname;
-
-  const item = (path, label, icon) => {
-    const is = current === path || (path === '/path' && current === '/');
-    return `
-      <button class="soft" style="width:100%; text-align:left; padding: 12px; border-radius: 16px; border-color: ${is ? 'color-mix(in srgb, var(--accent) 55%, var(--border))' : 'var(--border)'}; background: ${is ? 'color-mix(in srgb, var(--accent) 14%, transparent)' : 'rgba(255,255,255,.02)'}" data-nav="${path}">
-        <div class="rowBetween">
-          <div class="row" style="gap:10px">
-            <span>${icon}</span>
-            <span style="font-weight:700">${label}</span>
-          </div>
-          ${is ? `<span class="textMuted" style="font-size: 12px">активно</span>` : ''}
-        </div>
-      </button>
-    `;
-  };
-
-  return `
-    <div class="${open ? '' : 'hidden'}" style="position:fixed; inset:0; z-index: 50;">
-      <div class="sidebar-scrim" style="position:absolute; inset:0" data-action="sidebar-close"></div>
-      <aside class="sidebar" style="position:absolute; left:0; top:0; height:100%; width: min(320px, 86vw); padding: 16px;">
-        <div class="rowBetween" style="margin-bottom: 12px;">
-          <div style="font-size: 12px; text-transform: uppercase; letter-spacing: .16em; font-weight: 900;">✦ PARITER ✦</div>
-          <button class="btn-ghost" style="padding: 10px 12px" data-action="sidebar-close" aria-label="Закрыть">✕</button>
-        </div>
-
-        ${me ? `
-          <div class="soft" style="padding: 12px; margin-bottom: 12px;">
-            <div class="row" style="gap:10px; align-items: center;">
-              <div style="width:40px;height:40px;border-radius:999px;display:grid;place-items:center;border:1px solid var(--border);background:rgba(255,255,255,.03)">${ROLE_META[me.role]?.emoji || '✦'}</div>
-              <div style="min-width: 0;">
-                <div style="font-weight: 800; white-space: nowrap; overflow:hidden; text-overflow: ellipsis;">${escapeHTML(me.name)}</div>
-                <div class="textMuted" style="font-size: 12px; white-space: nowrap; overflow:hidden; text-overflow: ellipsis;">@${escapeHTML(me.login)}</div>
-              </div>
-            </div>
-          </div>
-        ` : ''}
-
-        <div class="grid" style="gap: 10px;">
-          ${item('/path', 'Путь', '🛤️')}
-          ${item('/invite', 'Спутники', '👥')}
-          ${item('/settings', 'Настройки', '⚙️')}
-        </div>
-
-        <div class="divider" style="margin: 14px 0"></div>
-
-        <button class="btn-danger" style="width:100%; text-align:left; padding: 12px; border-radius: 16px;" data-action="logout">🚪 Выйти</button>
-
-      </aside>
-    </div>
-  `;
-}
-
-function ThemeGrid({role, value, onPickAction, idsPrefix=''}={}){
-  const list = THEMES.filter(t => t.role === role);
-  const t = list.find(x=>x.id===value) || list[0];
-  const dots = list.map(x => {
-    const active = x.id === value;
-    return `<button type="button" class="theme-dot" data-action="${onPickAction}" data-theme="${x.id}" data-active="${active}" aria-label="${escapeHTML(x.ru)}"><span aria-hidden="true">${x.emoji}</span></button>`;
-  }).join('');
-
-  return `
-    <div class="grid">
-      <div style="font-size: 14px; font-weight: 800;">Выбери свой путь <span class="textMuted" style="font-weight: 700">/ Elige viam tuam</span></div>
-      <div style="display:grid; grid-template-columns: repeat(auto-fit, 44px); gap: 8px; margin-top: 6px;">${dots}</div>
-      <div class="soft" style="padding: 12px;" id="${idsPrefix}themePreview">
-        <div class="rowBetween" style="align-items: flex-start;">
-          <div>
-            <div style="font-weight: 900;" id="${idsPrefix}themePreviewTitle">${t.emoji} ${escapeHTML(t.ru)}</div>
-            <div class="textMuted" style="font-size: 12px" id="${idsPrefix}themePreviewLa">${escapeHTML(t.la)}</div>
-          </div>
-        </div>
-      </div>
-    </div>
-  `;
-}
-
-function RolePicker({value, onPickAction}){
-  const mk = (role) => {
-    const m = ROLE_META[role];
-    const active = value === role;
-    return `
-      <button type="button" class="soft" style="padding: 14px; width:100%; text-align:left; border-color:${active ? 'color-mix(in srgb, var(--accent) 55%, var(--border))' : 'var(--border)'}; background:${active ? 'color-mix(in srgb, var(--accent) 14%, transparent)' : 'rgba(255,255,255,.02)'}" data-action="${onPickAction}" data-role="${role}">
-        <div class="rowBetween">
-          <div>
-            <div style="font-size: 20px; font-weight: 900;">${m.emoji} ${escapeHTML(m.ru)}</div>
-            <div class="textMuted" style="font-size: 12px">${escapeHTML(m.la)}</div>
-          </div>
-          <div class="textMuted" style="font-size: 13px">${active ? 'выбрано' : 'выбрать'}</div>
-        </div>
-      </button>
-    `;
-  };
-  return `<div class="grid" style="gap: 10px">${mk('warrior')}${mk('amazon')}</div>`;
+function ruDateLabel(iso){
+  const d = new Date(iso);
+  const now = new Date();
+  const isThisYear = d.getFullYear() === now.getFullYear();
+  const fmt = isThisYear
+    ? { month: 'long', day: 'numeric' }
+    : { year: 'numeric', month: 'long', day: 'numeric' };
+  return new Intl.DateTimeFormat('ru-RU', fmt).format(d);
 }
 
 function DateDivider(label){
   return `
-    <div class="row" style="gap: 12px; padding: 8px 0; align-items:center;">
+    <div class="row" style="gap: 12px; padding: 20px 0 10px; align-items:center;">
       <div class="divider" style="flex:1"></div>
       <div class="textMuted" style="font-size: 12px; font-weight: 900; letter-spacing:.18em">${escapeHTML(label)}</div>
       <div class="divider" style="flex:1"></div>
@@ -1571,1526 +1033,920 @@ function DateDivider(label){
   `;
 }
 
-function EntryCard({entry, author, meId, meIsAdmin}){
+function EntryCard({ entry, author, meId, meIsAdmin }){
   const isMine = Number(entry.user_id) === Number(meId);
-  const canManage = !!(isMine || meIsAdmin);
-  const roleEmoji = ROLE_META[author?.role]?.emoji || '✦';
-  const authorName = author?.name || 'Неизвестный';
-  const dateLabel = ruDateLabel(entry.date);
-  
-  // Process created_at to always show time label, regardless of ownership
-  // Always ensure time is displayed by using proper fallbacks
-  // IMPORTANT: Remove any conditional logic based on isMine to ensure consistency
-  let timeLabel = '00:00'; // Default fallback time
-  
-  // Process created_at field to extract time, regardless of ownership
-  if (entry?.created_at) {
-    // Clean the input to handle potential formatting issues
-    const cleanInput = String(entry.created_at).trim();
-    
-    // Check for valid non-empty string
-    if (cleanInput && cleanInput !== 'null' && cleanInput !== 'undefined' && cleanInput !== 'Invalid Date') {
-      // Try to parse as ISO date string
-      const dateObj = new Date(cleanInput);
-      
-      // If valid date object, extract time using ruTimeLabel
-      if (!isNaN(dateObj.getTime())) {
-        const extractedTime = ruTimeLabel(cleanInput);
-        // Only use extracted time if it's not empty
-        if (extractedTime && extractedTime.trim() !== '') {
-          timeLabel = extractedTime;
-        } else {
-          // As a fallback, extract time directly from the ISO string
-          const timePart = cleanInput.split('T')[1]; // Get the time part after 'T'
-          if (timePart) {
-            const [hours, minutes] = timePart.split(':');
-            if (hours && minutes) {
-              timeLabel = `${hours.padStart(2, '0')}:${minutes.padStart(2, '0')}`;
-            }
-          }
-        }
-      } else {
-        // If ISO parsing fails, try to extract time pattern directly from string
-        const timeRegex = /(\d{1,2}):(\d{2})/;
-        const timeMatch = cleanInput.match(timeRegex);
-        if (timeMatch) {
-          const [, hours, minutes] = timeMatch;
-          // Pad hours and minutes to ensure proper format
-          const paddedHours = hours.padStart(2, '0');
-          const paddedMinutes = minutes.padStart(2, '0');
-          timeLabel = `${paddedHours}:${paddedMinutes}`;
-        }
-      }
-    }
-  }
-
-  // Log for debugging purposes
-  console.log('EntryCard data:', {
-    entryId: entry.id,
-    entryDate: entry.date,
-    entryCreatedAt: entry.created_at,
-    entryCreatedAtType: typeof entry.created_at,
-    entryUserId: entry.user_id,
-    meId: meId,
-    isMine: Number(entry.user_id) === Number(meId), // Just for logging
-    dateLabel,
-    timeLabel,
-    rawEntry: entry
-  });
-
-  // Editing is done by tapping the field (bubble). Buttons are only for delete.
-  const editAttrs = canManage ? ` data-action="entry-edit" data-id="${entry.id}"` : '';
+  const date = new Intl.DateTimeFormat('ru-RU', { hour:'numeric', minute:'2-digit' }).format(new Date(entry.created_at));
+  const authorName = author?.name || 'Спутник';
+  const authorLogin = author?.login || '';
+  const canDelete = meIsAdmin || isMine;
 
   return `
-    <article class="card" data-mine="${isMine ? '1' : '0'}" style="padding: 0;">
-      <div class="rowBetween entryHead" style="padding: 10px 10px 0; align-items: flex-start;">
-        <div class="row" style="gap:10px; min-width:0">
-          <div style="width:38px;height:38px;border-radius:999px;display:grid;place-items:center;border:1px solid var(--border);background:rgba(255,255,255,.03)">${roleEmoji}</div>
-          <div style="min-width:0">
-            <div style="font-weight: 900; white-space: nowrap; overflow:hidden; text-overflow: ellipsis;">${escapeHTML(authorName)}</div>
-            <div class="textMuted" style="font-size: 12px">${escapeHTML(dateLabel)} <span aria-hidden="true">·</span> ${escapeHTML(timeLabel)}</div>
-          </div>
+    <div class="soft" style="padding: 16px; margin-bottom: 6px;" data-entry-id="${Number(entry.id)}">
+      <div class="row" style="gap: 12px; margin-bottom: 12px;">
+        <div style="width:36px;height:36px;border-radius:999px;border:1px solid var(--border);display:grid;place-items:center;background:rgba(255,255,255,.03)">${ROLE_META[author?.role || 'warrior']?.emoji || '⚔️'}</div>
+        <div style="flex:1">
+          <div style="font-weight: 900">${escapeHTML(authorName)}</div>
+          <div class="textMuted" style="font-size: 12px">@${escapeHTML(authorLogin)}, ${escapeHTML(date)}</div>
         </div>
-        ${canManage ? `
-          <div class="row" style="gap: 8px; align-items:center;">
-          </div>
-        ` : ''}
+        ${canDelete ? `<button type="button" class="btn-ghost" style="padding: 8px 10px" data-action="entry-delete" data-id="${Number(entry.id)}" aria-label="Удалить шаг">🗑️</button>` : ''}
       </div>
-
-      <div class="grid entryBubbles" style="margin-top: 10px; padding: 0 10px 12px;">
-        <div class="soft" style="padding: 12px; background: var(--victory)"${editAttrs}>
-          <div style="font-size: 12px; font-weight: 900; letter-spacing:.16em">⚔️ VICTORIA</div>
-          <div style="margin-top: 6px; white-space: pre-wrap; word-break: break-word;" data-entry-text="victory" data-id="${entry.id}">…</div>
+      <div class="row" style="gap: 20px; margin-bottom: 12px;">
+        <div style="flex:1">
+          <div class="textMuted" style="font-size: 12px; margin-bottom: 6px">Победа</div>
+          <div class="soft" style="padding: 10px 12px;" data-entry-text="victory" data-id="${Number(entry.id)}">—</div>
         </div>
-        <div class="soft" style="padding: 12px; background: var(--lesson)"${editAttrs}>
-          <div style="font-size: 12px; font-weight: 900; letter-spacing:.16em">🦉 LECTIO</div>
-          <div style="margin-top: 6px; white-space: pre-wrap; word-break: break-word;" data-entry-text="lesson" data-id="${entry.id}">…</div>
-        </div>
-      </div>
-    </article>
-  `;
-}
-
-// Pages
-function pageLanding(){
-  if (APP.state.user) { history.replaceState({}, '', '/path'); render(); return ''; }
-  return `
-    <div class="centerShell">
-      <div class="container" style="text-align:center">
-        <div style="font-size:12px; text-transform:uppercase; opacity:.9">${Logo()}</div>
-        <div style="margin-top: 18px; font-size: 44px; font-weight: 900;">Вместе. Наравне. Вперёд.</div>
-        <div class="textMuted" style="margin-top: 6px;">Ūnā. Pariter. Porro.</div>
-
-        <div class="card" style="margin: 22px auto 0; width: min(720px, 100%); padding: 0; text-align:left">
-          <div id="cosmosRoot" style="padding: 22px;">
-            <canvas id="crystalCanvas" aria-hidden="true"></canvas>
-
-            <div style="font-size:18px; font-weight: 900;">Зачем Pariter</div>
-            <div class="textMuted" style="margin-top: 10px; line-height: 1.6">
-              <div>• Фиксируй победы над страхом.</div>
-              <div>• Забирай уроки из ошибок, не повторяя их.</div>
-              <div>• Видь шаги спутников - и иди вместе.</div>
-            </div>
-
-            <div class="row" style="margin-top: 16px; flex-wrap: wrap">
-              <button class="btn" style="flex:1" data-nav="/register">Начать путь</button>
-              <button class="btn-ghost" style="flex:1" data-nav="/login">Уже в пути? Войти</button>
-            </div>
-
-            <div style="margin-top: 12px; display:flex; justify-content:center">${HealthBadge()}</div>
-          </div>
+        <div style="flex:1">
+          <div class="textMuted" style="font-size: 12px; margin-bottom: 6px">Урок</div>
+          <div class="soft" style="padding: 10px 12px;" data-entry-text="lesson" data-id="${Number(entry.id)}">—</div>
         </div>
       </div>
     </div>
   `;
 }
 
-function pageLogin(){
-  if (APP.state.user) { history.replaceState({}, '', '/path'); render(); return ''; }
-  return PageShell({
-    title: 'Продолжить путь',
-    subtitle: 'Perge iter',
-    body: `
-      <form id="loginForm" class="grid">
-        <div>
-          <div class="label" style="margin-bottom: 6px">Логин</div>
-          <input class="input" name="login" autocomplete="username" placeholder="например: loom" required />
-        </div>
-        <div>
-          <div class="label" style="margin-bottom: 6px">Пароль</div>
-          <input class="input" name="password" type="password" autocomplete="current-password" required />
-        </div>
-        <button class="btn" type="submit">Войти</button>
-      </form>
-      <div style="margin-top: 12px; display:flex; justify-content:center">${HealthBadge()}</div>
-    `,
-    footer: `Нет аккаунта? <a class="link" href="/register" data-nav="/register">Создать команду</a>`
-  });
+function setDocumentTitle(path){
+  const base = 'pariter';
+  const n = Number(APP.state.live.unread || 0);
+  const prefix = n > 0 ? `(${Math.min(n, 99)}) ` : '';
+  
+  let title = base;
+  if (path === '/') title = `${prefix}${base}`;
+  else if (path === '/path') title = `${prefix}${base}.path`;
+  else if (path === '/join') title = `${prefix}${base}.join`;
+  else if (path === '/login') title = `${prefix}${base}.login`;
+  else if (path === '/settings') title = `${prefix}${base}.settings`;
+  
+  document.title = title;
 }
 
-function pageRegister(){
-  if (APP.state.user) { history.replaceState({}, '', '/path'); render(); return ''; }
-  const defaultRole = 'warrior';
-  const defaultTheme = THEMES.find(t=>t.role===defaultRole)?.id || 'dark_warrior';
+function toast(message, { duration = 2500, action = null } = {}){
+  const container = $('#toastContainer');
+  if (!container) return;
 
-  return PageShell({
-    title: 'Начни свой путь',
-    subtitle: 'Incipe iter tuum',
-    body: `
-      <form id="registerForm" class="grid" style="gap: 14px">
-        <div class="grid" style="gap: 12px">
-          <div>
-            <div class="label" style="margin-bottom: 6px">Email (обязательно)</div>
-            <input class="input" name="email" type="email" autocomplete="email" required placeholder="you@example.com" />
-          </div>
-          <div>
-            <div class="label" style="margin-bottom: 6px">Имя (видят спутники)</div>
-            <input class="input" name="name" required placeholder="Твоё имя" />
-          </div>
-          <div>
-            <div class="label" style="margin-bottom: 6px">Логин</div>
-            <input class="input" name="login" autocomplete="username" required placeholder="loom" />
-            <div class="textMuted" style="margin-top: 6px; font-size: 12px">3–32 символа: a-z, 0-9, _ . -</div>
-          </div>
-          <div>
-            <div class="label" style="margin-bottom: 6px">Пароль</div>
-            <input class="input" name="password" type="password" autocomplete="new-password" required />
-          </div>
-        </div>
+  const id = Date.now();
+  const actionHtml = action ? `<button type="button" class="btn-ghost" style="margin-left: 12px; height: 30px;" data-toast-action="${id}">${escapeHTML(action.text)}</button>` : '';
 
-        <div class="divider"></div>
-
-        <div>
-          <div style="font-size: 14px; font-weight: 900; margin-bottom: 10px">Выбери роль</div>
-          <input type="hidden" name="role" value="${escapeHTML(defaultRole)}" />
-          ${RolePicker({ value: defaultRole, onPickAction: 'pick-role-register' })}
-        </div>
-
-        <div class="divider"></div>
-
-        <div>
-          <input type="hidden" name="theme" value="${escapeHTML(defaultTheme)}" />
-          <div id="themeBlock">${ThemeGrid({ role: defaultRole, value: defaultTheme, onPickAction: 'pick-theme-register', idsPrefix:'reg-' })}</div>
-        </div>
-
-        <button class="btn" type="submit">Начать</button>
-      </form>
-      <div style="margin-top: 12px; display:flex; justify-content:center">${HealthBadge()}</div>
-    `,
-    footer: `Уже в пути? <a class="link" href="/login" data-nav="/login">Войти</a>`
-  });
-}
-
-function pageJoin(){
-  if (APP.state.user) { history.replaceState({}, '', '/path'); render(); return ''; }
-  const code = APP.state.route.params.code || '';
-  const defaultRole = 'warrior';
-  const defaultTheme = THEMES.find(t=>t.role===defaultRole)?.id || 'dark_warrior';
-
-  return PageShell({
-    title: 'Присоединиться к пути',
-    subtitle: 'Iunge te itineri',
-    body: `
-      <div class="soft" style="padding: 12px; margin-bottom: 14px" id="joinInfo">Проверяю приглашение…</div>
-      <div class="textMuted" style="margin: -6px 0 12px; font-size: 12px">Логин и пароль ты задаёшь сам(а).</div>
-      <form id="joinForm" class="grid" style="gap: 14px" data-code="${escapeHTML(code)}">
-        <div>
-          <div class="label" style="margin-bottom: 6px">Имя</div>
-          <input class="input" name="name" required disabled />
-        </div>
-        <div>
-          <div class="label" style="margin-bottom: 6px">Логин</div>
-          <input class="input" name="login" required autocomplete="username" disabled />
-        </div>
-        <div>
-          <div class="label" style="margin-bottom: 6px">Пароль</div>
-          <div class="pw-wrap">
-            <input class="input pw-input" name="password" type="password" required autocomplete="new-password" disabled />
-            <button type="button" class="pw-toggle" data-action="toggle-password" aria-label="Показать пароль" title="Показать/скрыть">👁</button>
-          </div>
-        </div>
-
-        <div class="divider"></div>
-
-        <div>
-          <div style="font-size: 14px; font-weight: 900; margin-bottom: 10px">Роль</div>
-          <input type="hidden" name="role" value="${escapeHTML(defaultRole)}" />
-          ${RolePicker({ value: defaultRole, onPickAction: 'pick-role-join' })}
-        </div>
-
-        <div class="divider"></div>
-
-        <div>
-          <input type="hidden" name="theme" value="${escapeHTML(defaultTheme)}" />
-          <div id="themeBlock">${ThemeGrid({ role: defaultRole, value: defaultTheme, onPickAction: 'pick-theme-join', idsPrefix:'join-' })}</div>
-        </div>
-
-        <button class="btn" type="submit" disabled>Присоединиться</button>
-      </form>
-    `,
-    footer: `Уже в пути? <a class="link" href="/login" data-nav="/login">Войти</a>`
-  });
-}
-
-function pagePath(){
-  if (!requireAuth()) return '';
-  const me = APP.state.user;
-  const today = todayYMD();
-
-  return `
-    ${AppHeader()}
-    ${Sidebar()}
-    <main class="container" style="padding: 18px 0 28px">
-      <div class="card" style="padding: 18px">
-        <div class="rowBetween" style="align-items: flex-start">
-          <div>
-            <div class="textMuted" style="font-size: 12px; font-weight: 900; letter-spacing: .18em">✦ Путь героя ✦</div>
-            <div style="margin-top: 6px; font-size: 22px; font-weight: 900">${escapeHTML(ruDateLabel(today))}</div>
-            <div class="textMuted" style="margin-top: 8px; font-size: 12px" id="pathStats">Загрузка статистики…</div>
-          </div>
-          <div class="pill textMuted" style="font-size: 12px">${ROLE_META[me.role]?.emoji || '✦'} <span style="color: var(--text); font-weight: 900">${escapeHTML(me.name)}</span></div>
-        </div>
-
-        <form id="todayForm" class="grid" style="margin-top: 14px">
-          <div class="soft" style="padding: 12px; background: var(--victory)">
-            <div style="font-size: 12px; font-weight: 900; letter-spacing:.16em">⚔️ VICTORIA</div>
-            <div class="ai-wrap" style="margin-top: 10px;">
-              <textarea id="todayVictory" class="textarea ai-textarea" name="victory" placeholder="Что ты ${me.role === 'amazon' ? 'сделала' : 'сделал'} сейчас, несмотря на страх?"></textarea>
-              <button type="button" class="ai-btn" data-action="ai-rewrite" data-target="todayVictory" data-field="victory" title="Переписать с ИИ" aria-label="Переписать с ИИ">✦</button>
-            </div>
-          </div>
-
-          <div class="soft" style="padding: 12px; background: var(--lesson)">
-            <div style="font-size: 12px; font-weight: 900; letter-spacing:.16em">🦉 LECTIO</div>
-            <div class="ai-wrap" style="margin-top: 10px;">
-              <textarea id="todayLesson" class="textarea ai-textarea" name="lesson" placeholder="Какой урок ты забираешь прямо сейчас?"></textarea>
-              <button type="button" class="ai-btn" data-action="ai-rewrite" data-target="todayLesson" data-field="lesson" title="Переписать с ИИ" aria-label="Переписать с ИИ">✦</button>
-            </div>
-          </div>
-
-          <div class="rowBetween">
-            <div class="textMuted" style="font-size: 12px" id="todayHint"></div>
-            <button class="btn" type="submit">✓ Зафиксировать шаг</button>
-          </div>
-        </form>
+  container.insertAdjacentHTML('beforeend', `
+    <div class="toast" id="toast-${id}" style="opacity: 0; transform: translateY(20px); transition: all 180ms cubic-bezier(0.2, 0, 0, 1);">
+      <div class="row" style="align-items: center; gap: 8px; padding: 12px 16px; background: var(--bgSecondary); border: 1px solid var(--border); border-radius: 999px; box-shadow: 0 6px 12px rgba(0,0,0,.1);">
+        <span style="font-size: 13px; flex:1;">${escapeHTML(message)}</span>
+        ${actionHtml}
+        <button type="button" class="btn-ghost" style="padding: 6px 8px; margin-right: -6px;" data-toast-close="${id}" aria-label="Закрыть">×</button>
       </div>
+    </div>
+  `);
 
-      <div style="margin-top: 18px;">
-        <div id="liveBar" class="hidden" style="position: sticky; top: 62px; z-index: 30; margin-bottom: 10px;">
-          <div class="soft" style="padding: 10px 12px; display:flex; align-items:center; justify-content: space-between; gap: 10px; background: color-mix(in srgb, var(--accent) 10%, transparent); border-color: color-mix(in srgb, var(--accent) 40%, var(--border));">
-            <div style="font-weight: 800">Новые шаги <span id="liveCount" class="textMuted" style="font-weight:700"></span></div>
-            <div class="row" style="gap: 8px">
-              <button type="button" class="btn-ghost" style="padding: 10px 12px" data-action="live-dismiss">Скрыть</button>
-              <button type="button" class="btn" style="padding: 10px 14px" data-action="live-refresh">Обновить</button>
-            </div>
-          </div>
-        </div>
+  setTimeout(()=> {
+    const el = document.getElementById(`toast-${id}`);
+    if (el) el.style.opacity = '1';
+  }, 1);
 
-        <div id="feed" class="grid" style="margin-top: 10px"></div>
-        <div id="feedSentinel" style="height: 10px"></div>
-        <div id="feedStatus" class="textMuted" style="text-align:center; font-size: 12px; padding: 12px 0"></div>
-        <div style="display:flex; justify-content:center; padding-bottom: 8px;">
-          <button type="button" id="feedMore" class="btn-ghost hidden" data-action="feed-more" style="padding: 10px 14px;">Загрузить ещё</button>
-        </div>
-      </div>
-    </main>
-  `;
-}
+  const close = (el)=>{
+    if (!el) return;
+    el.style.opacity = '0';
+    el.style.transform = 'translateY(20px)';
+    setTimeout(()=> el.remove(), 180);
+  };
 
-function pageInvite(){
-  if (!requireAuth()) return '';
-  return `
-    ${AppHeader()}
-    ${Sidebar()}
-    <main class="container" style="padding: 18px 0 28px">
-      <div class="card" style="padding: 18px">
-        <div>
-          <div style="font-size: 26px; font-weight: 900">Спутники</div>
-          <div class="textMuted" style="margin-top: 4px">Comitēs</div>
-        </div>
-
-        <div class="grid" style="margin-top: 16px; gap: 14px">
-          <section class="soft" style="padding: 14px">
-            <div style="font-weight: 900">Твоя команда</div>
-            <div id="teamList" class="grid" style="margin-top: 10px"></div>
-          </section>
-
-          <section class="soft" style="padding: 14px">
-            <div style="font-weight: 900">Пригласить <span class="textMuted" style="font-weight: 700">/ Invitā comitem</span></div>
-            <div class="grid" style="margin-top: 10px; gap: 10px">
-              <div>
-                <div class="label">Ссылка (действует 7 дней)</div>
-                <div class="row" style="margin-top: 6px">
-                  <input id="inviteLink" class="input" readonly placeholder="Создай ссылку ниже" />
-                  <button type="button" class="btn-ghost" style="padding: 10px 12px" data-action="copy-invite" title="Скопировать">📋</button>
-                </div>
-              </div>
-              <div class="row">
-                <button type="button" class="btn" data-action="new-invite">+ Новая ссылка</button>
-                <button type="button" class="btn-ghost" data-action="clear-invite">Очистить</button>
-              </div>
-            </div>
-          </section>
-
-          <section class="soft" style="padding: 14px">
-            <div style="font-weight: 900">Приглашения</div>
-            <div id="inviteList" class="grid" style="margin-top: 10px"></div>
-          </section>
-        </div>
-      </div>
-    </main>
-  `;
-}
-
-function pageSettings(){
-  if (!requireAuth()) return '';
-  const me = APP.state.user;
-  const t = themeById(me.theme);
-
-  return `
-    ${AppHeader()}
-    ${Sidebar()}
-    <main class="container" style="padding: 18px 0 28px">
-      <div class="card" style="padding: 18px">
-        <div>
-          <div style="font-size: 26px; font-weight: 900">Настройки</div>
-          <div class="textMuted" style="margin-top: 4px">Optiōnēs</div>
-        </div>
-
-        <div class="soft" style="padding: 14px; margin-top: 14px">
-          <div style="font-weight: 900">Установить как приложение</div>
-          <div class="textMuted" style="margin-top: 6px; font-size: 12px; line-height: 1.45">
-            На Android/desktop появится кнопка установки. На iPhone/iPad: Safari → «Поделиться» → «На экран Домой».
-          </div>
-          <div class="row" style="margin-top: 10px; flex-wrap: wrap">
-            <button type="button" class="btn" data-action="pwa-install" id="pwaInstallBtn" disabled>Установить</button>
-            <span class="pill textMuted" id="pwaStatus" style="font-size: 12px">проверяю…</span>
-          </div>
-        </div>
-
-        <div class="soft" style="padding: 14px; margin-top: 14px">
-          <div style="font-weight: 900">Уведомления</div>
-
-          <div class="row" style="margin-top: 10px; flex-wrap: wrap">
-            <button type="button" class="btn" data-action="notif-enable" id="notifBtn">Разрешить уведомления</button>
-            <span class="pill textMuted" id="notifStatus" style="font-size: 12px">проверяю…</span>
-          </div>
-
-          <div class="row" style="margin-top: 10px; flex-wrap: wrap">
-            <button type="button" class="btn" data-action="push-enable" id="pushBtn">Включить push</button>
-            <button type="button" class="btn-ghost hidden" data-action="push-disable" id="pushOffBtn">Выключить</button>
-            <span class="pill textMuted" id="pushStatus" style="font-size: 12px">проверяю…</span>
-          </div>
-
-          <div class="row" style="margin-top: 10px; flex-wrap: wrap">
-            <button type="button" class="btn-ghost" data-action="sound-toggle" id="soundBtn">Звук</button>
-            <span class="pill textMuted" id="soundStatus" style="font-size: 12px">проверяю…</span>
-          </div>
-        </div>
-
-        <form id="settingsForm" class="grid" style="margin-top: 16px; gap: 14px">
-          <div>
-            <div class="label" style="margin-bottom: 6px">Имя</div>
-            <input class="input" name="name" value="${escapeHTML(me.name)}" required />
-          </div>
-          <div>
-            <div class="label" style="margin-bottom: 6px">Новый пароль (необязательно)</div>
-            <input class="input" name="password" type="password" autocomplete="new-password" placeholder="••••••" />
-          </div>
-
-          <div class="divider"></div>
-
-          <div>
-            <div style="font-size: 14px; font-weight: 900; margin-bottom: 10px">Выбери свой путь</div>
-            <input type="hidden" name="role" value="${escapeHTML(me.role)}" />
-            <div id="settingsRoleBlock">${RolePicker({ value: me.role, onPickAction: 'pick-role-settings' })}</div>
-          </div>
-
-          <div class="divider"></div>
-
-          <div>
-            <input type="hidden" name="theme" value="${escapeHTML(me.theme)}" />
-            <div id="settingsThemeBlock">${ThemeGrid({ role: me.role, value: me.theme, onPickAction: 'pick-theme-settings', idsPrefix:'set-' })}</div>
-            <div class="textMuted" style="margin-top: 10px; font-size: 12px">
-              Выбрано: <span id="settingsThemeLabel" style="color: var(--text); font-weight: 900">${t.emoji} ${escapeHTML(t.ru)}</span>
-              <span aria-hidden="true"> · </span>
-              можно менять в любой момент
-            </div>
-          </div>
-
-          <div class="row" style="flex-wrap: wrap">
-            <button class="btn" type="submit">Сохранить</button>
-            <button class="btn-ghost" type="button" data-action="go-path">Назад</button>
-            <button class="btn-ghost" type="button" data-action="export-json">Экспорт</button>
-            <button class="btn-ghost" type="button" data-action="import-json">Импорт</button>
-            <input id="importFile" type="file" accept="application/json" style="display:none" />
-          </div>
-          <div class="textMuted" style="font-size: 12px; line-height: 1.5">
-            Импорт доступен администратору. Данные будут добавлены/обновлены внутри текущей команды.
-          </div>
-          <div class="divider" style="margin: 10px 0"></div>
-          <button type="button" class="btn-danger" data-action="account-delete" style="padding: 10px 14px; border-radius: 12px">Удалить аккаунт</button>
-        </form>
-      </div>
-    </main>
-  `;
-}
-
-function pageNotFound(){
-  return PageShell({
-    title: 'Страница не найдена',
-    subtitle: 'Errōr',
-    body: `
-      <div class="textMuted">Такого пути нет.</div>
-      <div class="row" style="margin-top: 12px">
-        <button class="btn" data-nav="/">На главную</button>
-        <button class="btn-ghost" data-nav="/path">В путь</button>
-      </div>
-    `
-  });
-}
-
-async function render(){
-  if (APP._rendering) { APP._rerenderRequested = true; return; }
-  APP._rendering = true;
-
-  // SSR bootstrap (one-shot)
-  if (!render._bootstrapConsumed) {
-    render._bootstrapConsumed = true;
-    try {
-      const b = window.__PARITER_BOOTSTRAP__;
-      if (b && typeof b === 'object') {
-        APP.state.user = b.user || null;
-        APP.state.team = b.team || null;
-        if (Array.isArray(b.teamUsers)) {
-          APP.state.teamUsers = b.teamUsers;
-          APP.state.teamUsersFetchedAt = Date.now();
-        }
-      }
-    } catch {}
-    // free memory; next updates happen via API
-    try { delete window.__PARITER_BOOTSTRAP__; } catch {}
-  }
-
-  // auth
-  try {
-    const needsMe = (APP.state.user == null);
-    if (needsMe) {
-      const { user, team } = await api.me();
-      APP.state.user = user;
-      APP.state.team = team;
-    }
-  } catch {
-    APP.state.user = null;
-    APP.state.team = null;
-  }
-
-  // theme
-  if (APP.state.user?.theme) setTheme(APP.state.user.theme);
-  else setTheme('dark_warrior');
-
-  // team users cache (TTL)
-  if (APP.state.user) {
-    const ttlMs = 30_000;
-    const fresh = (Date.now() - (APP.state.teamUsersFetchedAt || 0)) < ttlMs;
-    if (!fresh || !APP.state.teamUsers?.length) {
-      try {
-        const { users } = await api.team();
-        APP.state.teamUsers = users;
-        APP.state.teamUsersFetchedAt = Date.now();
-      } catch {
-        APP.state.teamUsers = [];
-        APP.state.teamUsersFetchedAt = 0;
-      }
-    }
-  } else {
-    APP.state.teamUsers = [];
-    APP.state.teamUsersFetchedAt = 0;
-  }
-
-  APP.state.route = parseRoute();
-  const route = APP.state.route.path;
-
-  // Update document title on every SPA navigation (no full reload needed).
-  setDocumentTitle(route);
-
-  // Cleanup path-only observers when leaving /path.
-  // Prevents observing a removed sentinel node and reduces background work.
-  if (route !== '/path' && hydrateFeed._io) {
-    try { hydrateFeed._io.disconnect(); } catch {}
-    hydrateFeed._io = null;
-  }
-
-  // Background animations: only run when on-screen and in focus.
-  try { ensureStarsLayer(); } catch {}
-
-  // Live updates: run while authed. Feed auto-refresh happens only on /path.
-  if (APP.state.user) liveStart();
-  else liveStop();
-
-  let html = '';
-  if (route === '/') html = pageLanding();
-  else if (route === '/login') html = pageLogin();
-  else if (route === '/register') html = pageRegister();
-  else if (route === '/join') html = pageJoin();
-  else if (route === '/path') html = pagePath();
-  else if (route === '/invite') html = pageInvite();
-  else if (route === '/settings') html = pageSettings();
-  else html = pageNotFound();
-
-  $('#app').innerHTML = html;
-  bindHandlers();
-
-  if (route === '/settings' && APP.state.user) {
-    // ensure installability/notifications UI reflects current browser state
-    setTimeout(()=>{ try { updatePwaUI(); } catch {} }, 0);
-    setTimeout(()=>{ try { updateNotifUI(); } catch {} }, 0);
-    setTimeout(()=>{ try { updatePushUI(); } catch {} }, 0);
-    setTimeout(()=>{ try { updateSoundUI(); } catch {} }, 0);
-    // best-effort: keep push alive without manual toggling
-    setTimeout(()=>{ try { pushAutoMaintain(); } catch {} }, 0);
-  }
-
-  if ((route === '/' || route === '/login' || route === '/register' || route === '/join') && !APP.state.user) {
-    // fire and forget
-    hydrateHealth();
-  }
-
-  if (route === '/join' && !APP.state.user) await hydrateJoin();
-  if (route === '/path' && APP.state.user) {
-    // Do NOT clear unread just because we navigated to /path.
-    // Clear happens when the user is actually viewing the feed (near top) or when the tab becomes visible.
-
-    await hydratePathStats();
-    await hydrateTodayForm();
-    await hydrateFeed(true);
-  }
-  if (route === '/invite' && APP.state.user) await hydrateInvite();
-
-  APP._rendering = false;
-  if (APP._rerenderRequested) {
-    APP._rerenderRequested = false;
-    // fire and forget
-    render();
-  }
+  setTimeout(()=>{
+    const el = document.getElementById(`toast-${id}`);
+    if (el) close(el);
+  }, duration);
 }
 
 function bindHandlers(){
-  // one-time keyboard handler
-  if (!bindHandlers._kbdBound) {
-    bindHandlers._kbdBound = true;
-    document.addEventListener('keydown', (e)=>{
-      if (e.key === 'Escape') {
-        const modal = $('#entryModal');
-        if (modal && !modal.classList.contains('hidden')) {
-          closeEntryModal();
-          return;
-        }
-        if (APP.state.sidebarOpen) {
-          APP.state.sidebarOpen = false;
-          render();
-        }
-      }
-    });
+  document.removeEventListener('click', clickHandler);
+  document.addEventListener('click', clickHandler);
+}
+
+function clickHandler(e){
+  const btn = e.target.closest('button');
+  if (!btn) return;
+
+  if (btn.hasAttribute('data-toast-close')) {
+    e.preventDefault();
+    const id = btn.getAttribute('data-toast-close');
+    const el = document.getElementById(`toast-${id}`);
+    if (el) {
+      el.style.opacity = '0';
+      el.style.transform = 'translateY(20px)';
+      setTimeout(()=> el.remove(), 180);
+    }
+    return;
   }
 
-  // One delegated click handler for all dynamic buttons/links.
-  // Prevents duplicate listeners when feed/invite blocks are re-rendered.
-  if (!bindHandlers._delegated) {
-    bindHandlers._delegated = true;
+  if (btn.hasAttribute('data-toast-action')) {
+    e.preventDefault();
+    const id = btn.getAttribute('data-toast-action');
+    const toastEl = document.getElementById(`toast-${id}`);
+    if (toastEl) {
+      toastEl.remove();
+    }
+    return;
+  }
 
-    // Keep app badge/title in sync when user returns to the tab.
-    document.addEventListener('visibilitychange', ()=>{
-      try {
-        // When the app becomes visible, clear old system notifications (messenger-like).
-        if (!document.hidden && APP.state.user) {
-          try {
-            navigator.serviceWorker?.controller?.postMessage?.({ type: 'clear-notifications' });
-            navigator.serviceWorker?.getRegistration?.().then((reg)=>{
-              try { reg?.active?.postMessage?.({ type: 'clear-notifications' }); } catch {}
-            }).catch(()=>{});
-          } catch {}
+  if (btn.hasAttribute('data-action')) {
+    e.preventDefault();
+    const action = btn.getAttribute('data-action');
+    const id = Number(btn.getAttribute('data-id') || '0');
 
-          // Only mark as read when user is on /path AND near the top (they are actually looking at the feed).
-          if (APP.state.route?.path === '/path') {
-            const nearTop = (window.scrollY || document.documentElement.scrollTop || 0) < 220;
-            if (nearTop) {
-              APP.state.live.unread = 0;
-              updateAttentionIndicators();
-              liveBarHide();
-            }
-          }
-        }
-      } catch {}
-    });
-
-    // Auto-apply new steps when user scrolls back to the top AND the app is in focus.
-    window.addEventListener('scroll', ()=>{
-      try {
-        if (!APP.state.user) return;
-        if (APP.state.route?.path !== '/path') return;
-        if (!APP.state.live.unread) return;
-        const nearTop = (window.scrollY || document.documentElement.scrollTop || 0) < 220;
-        if (!nearTop) return;
-
-        const inFocus = (!document.hidden) && (typeof document.hasFocus !== 'function' || document.hasFocus());
-        if (!inFocus) return;
-
-        clearTimeout(bindHandlers._scrollT);
-        bindHandlers._scrollT = setTimeout(()=>{
-          liveApplyIfNeeded({ force: true });
-        }, 120);
-      } catch {}
-    }, { passive: true });
-
-    document.addEventListener('click', async (e)=>{
-      // Best-effort: if VAPID rotated, resubscribe on the next user gesture (no manual steps).
-      try {
-        if (APP.state.user && readPushDesired() && Notification?.permission === 'granted') {
-          const need = readPushNeedsResub();
-          if (need) {
-            // Use a soft guard to avoid looping.
-            if (!pushResubscribeIfNeeded._busy) {
-              pushResubscribeIfNeeded._busy = true;
-              setTimeout(()=>{ pushResubscribeIfNeeded._busy = false; }, 5000);
-              pushResubscribeIfNeeded().catch(()=>{});
-            }
-          }
-        }
-      } catch {}
-
-      // Let modal handle its own buttons.
-      if (e.target?.closest?.('#entryModal')) return;
-
-      // data-nav
-      const navEl = e.target?.closest?.('[data-nav]');
-      if (navEl) {
-        e.preventDefault();
-        e.stopPropagation();
-        APP.state.sidebarOpen = false;
-        nav(navEl.getAttribute('data-nav'));
-        return;
-      }
-
-      // data-action
-      const actionEl = e.target?.closest?.('[data-action]');
-      const action = actionEl?.getAttribute?.('data-action');
-      if (!action) return;
-
-      e.preventDefault();
-      e.stopPropagation();
-
-      // Sidebar
-      if (action === 'sidebar-open') {
-        APP.state.sidebarOpen = true;
-        render();
-        setTimeout(()=>{ try { $('[data-action="sidebar-close"]')?.focus?.(); } catch {} }, 0);
-        return;
-      }
-      if (action === 'sidebar-close') {
-        APP.state.sidebarOpen = false;
-        render();
-        return;
-      }
-      if (action === 'go-settings') {
-        APP.state.sidebarOpen = false;
-        nav('/settings');
-        return;
-      }
-      if (action === 'go-path') {
-        APP.state.sidebarOpen = false;
-        nav('/path');
-        return;
-      }
-      if (action === 'logout') {
-        try { await api.logout(); } catch {}
-        APP.state.sidebarOpen = false;
-        toast('До встречи на пути.');
-        history.replaceState({}, '', '/');
-        render();
-        return;
-      }
-
-      // PWA install
-      if (action === 'pwa-install') {
+    if (action === 'entry-delete' && id) {
+      if (!confirm('Удалить шаг?')) return;
+      (async ()=>{
         try {
-          const dp = APP.pwa.deferredPrompt;
-          if (!dp) {
-            toast('Установка недоступна. Открой в Chrome/Edge или используй "На экран Домой" в Safari.');
-            updatePwaUI();
-            return;
-          }
-          dp.prompt();
-          const choice = await dp.userChoice.catch(()=> null);
-          APP.pwa.deferredPrompt = null;
-          updatePwaUI();
-          if (choice && choice.outcome === 'accepted') toast('Установка началась.');
-          else toast('Отменено.');
-        } catch {
-          toast('Не удалось запустить установку.');
-        }
-        return;
-      }
-
-      // Notifications permission
-      if (action === 'notif-enable') {
-        try {
-          if (typeof Notification === 'undefined') {
-            toast('Уведомления не поддерживаются в этом браузере.');
-            updateNotifUI();
-            return;
-          }
-          const p = await Notification.requestPermission();
-          updateNotifUI();
-          if (p === 'granted') {
-            toast('Уведомления включены.');
-            // small confirmation (best-effort)
-            try {
-              await notifyNewEntry({ id: 0, date: todayYMD(), user_id: APP.state.user?.id || 0, victory: null, lesson: null, created_at: nowISO() });
-            } catch {}
-          } else if (p === 'denied') {
-            toast('Уведомления запрещены в браузере.');
-          } else {
-            toast('Уведомления не включены.');
-          }
-        } catch {
-          toast('Не удалось запросить разрешение на уведомления.');
-        }
-        return;
-      }
-
-      // Push (Android/desktop messenger-like notifications)
-      if (action === 'push-enable') {
-        // Prevent double-click storms (Android can be slow)
-        if (APP._pushBusy) return;
-        APP._pushBusy = true;
-        try {
-          toast('Включаю push…');
-          await enablePush();
-          toast('Push включен.');
+          await api.entryDelete({ id });
+          const card = btn.closest(`[data-entry-id="${id}"]`);
+          if (card) card.remove();
+          toast('Удалено.');
         } catch (err) {
-          toast(err.message || 'Не удалось включить push.');
-        } finally {
-          APP._pushBusy = false;
-          try { updateNotifUI(); } catch {}
-          try { updatePushUI(); } catch {}
+          toast(err.message || 'Ошибка удаления.');
         }
-        return;
+      })();
+    } else if (action === 'team-user-delete' && id) {
+      if (!confirm('Исключить спутника из команды?')) return;
+      (async ()=>{
+        try {
+          await api.teamUserDelete({ id });
+          toast('Спутник исключен.');
+          await hydrateInvite();
+        } catch (err) {
+          toast(err.message || 'Ошибка исключения.');
+        }
+      })();
+    } else if (action === 'invite-delete') {
+      if (!confirm('Удалить приглашение?')) return;
+      (async ()=>{
+        try {
+          const inviteId = Number(btn.getAttribute('data-id') || '0');
+          await api.inviteDelete({ id: inviteId });
+          toast('Приглашение удалено.');
+          await hydrateInvite();
+        } catch (err) {
+          toast(err.message || 'Ошибка удаления.');
+        }
+      })();
+    } else if (action === 'invite-copy') {
+      const code = btn.getAttribute('data-code');
+      if (code) {
+        (async ()=>{
+          try {
+            await navigator.clipboard.writeText(`${location.origin}/join#${code}`);
+            toast('Ссылка скопирована.');
+          } catch {
+            toast('Не удалось скопировать ссылку.');
+          }
+        })();
       }
-
-      if (action === 'push-disable') {
-        if (APP._pushBusy) return;
-        APP._pushBusy = true;
+    } else if (action === 'invite-use') {
+      const code = btn.getAttribute('data-code');
+      const f = $('#inviteForm');
+      const inp = f?.querySelector('input[name="code"]');
+      if (inp && code) {
+        inp.value = code;
+        toast('Код подставлен в поле.');
+      }
+    } else if (action === 'pwa-install') {
+      (async ()=>{
+        if (APP.pwa.deferredPrompt) {
+          APP.pwa.deferredPrompt.prompt();
+          const result = await APP.pwa.deferredPrompt.userChoice;
+          if (result.outcome === 'accepted') {
+            APP.pwa.installed = true;
+            APP.pwa.deferredPrompt = null;
+          }
+          updatePwaUI();
+        } else {
+          toast('Установка недоступна.');
+        }
+      })();
+    } else if (action === 'notif-permission') {
+      if (typeof Notification !== 'undefined') {
+        Notification.requestPermission().then(()=>{
+          updateNotifUI();
+          if (Notification.permission === 'granted') {
+            toast('Разрешение на уведомления выдано.');
+          }
+        });
+      }
+    } else if (action === 'push-enable') {
+      (async ()=>{
+        try {
+          await enablePush();
+          toast('Push включён.');
+          updatePushUI();
+        } catch (err) {
+          toast(err.message || 'Не удалось включить Push.');
+        }
+      })();
+    } else if (action === 'push-disable') {
+      (async ()=>{
         try {
           await disablePush();
           toast('Push выключен.');
-        } catch {
-          toast('Не удалось выключить push.');
-        } finally {
-          APP._pushBusy = false;
-          try { updatePushUI(); } catch {}
-        }
-        return;
-      }
-
-
-      // Sound toggle
-      if (action === 'sound-toggle') {
-        const next = !readSoundEnabled();
-        writeSoundEnabled(next);
-        APP.state.sound.enabled = next;
-        updateSoundUI();
-        toast(next ? 'Звук включен.' : 'Звук выключен.');
-        // Try to unlock audio on a user gesture
-        if (next) {
-          try { playCosmicChime({ quiet: true }); } catch {}
-        }
-        return;
-      }
-
-      // Account delete (self)
-      if (action === 'account-delete') {
-        if (!confirm('Удалить аккаунт? Это действие необратимо.')) return;
-        try {
-          await api.profileDelete();
+          updatePushUI();
         } catch (err) {
-          toast(err.message || 'Не удалось удалить аккаунт.');
-          return;
+          toast(err.message || 'Не удалось выключить Push.');
         }
-        try { await api.logout(); } catch {}
-        APP.state.user = null;
-        APP.state.team = null;
-        APP.state.teamUsers = [];
-        toast('Аккаунт удален.');
-        history.replaceState({}, '', '/');
-        render();
-        return;
-      }
-
-      // Team: delete teammate (admin)
-      if (action === 'team-user-delete') {
-        const id = Number(actionEl.getAttribute('data-id') || '0');
-        if (!id) return;
-        if (!confirm('Удалить спутника? Его записи тоже будут удалены.')) return;
-        try {
-          await api.teamDelete(id);
-          toast('Удалено.');
-          APP.state.teamUsersFetchedAt = 0;
-          await hydrateInvite();
-        } catch (err) {
-          toast(err.message || 'Не удалось удалить спутника.');
-        }
-        return;
-      }
-
-      // Settings: export/import
-      if (action === 'export-json') {
-        try {
-          const data = await api.export();
-          const ymd = todayYMD();
-          const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json; charset=utf-8' });
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = `pariter-export-${ymd}.json`;
-          document.body.appendChild(a);
-          a.click();
-          a.remove();
-          URL.revokeObjectURL(url);
-          toast('Экспорт готов.');
-        } catch (err) {
-          toast(err.message || 'Ошибка экспорта.');
-        }
-        return;
-      }
-
-      if (action === 'import-json') {
-        const input = $('#importFile');
-        if (!input) return toast('Не найден элемент выбора файла.');
-
-        input.value = '';
-        input.onchange = async ()=>{
-          try {
-            const file = input.files?.[0];
-            if (!file) return;
-            const text = await file.text();
-            const data = JSON.parse(text);
-
-            const defaultPassword = prompt(
-              'Импорт.\n\n' +
-              'Если в текущей команде нет пользователя с таким login, он будет создан.\n' +
-              'Укажи пароль по умолчанию для НОВЫХ пользователей (минимум 6 символов).\n' +
-              'Оставь пустым — Pariter сгенерирует пароли и отдаст их списком.',
-              ''
-            );
-
-            const pass = (defaultPassword == null) ? null : String(defaultPassword).trim();
-            if (pass === null) return; // cancelled
-
-            const r = await api.import({ data, defaultPassword: pass || '' });
-
-            const msg = [
-              `Импорт: пользователи +${Number(r.usersCreated||0)} (сопоставлено ${Number(r.usersMapped||0)}),`,
-              `инвайты +${Number(r.invitesCreated||0)} (пропущено ${Number(r.invitesSkipped||0)}),`,
-              `записи +${Number(r.entriesCreated||0)} / обновлено ${Number(r.entriesUpdated||0)} (пропущено ${Number(r.entriesSkipped||0)}).`
-            ].join(' ');
-            toast('Импорт выполнен.');
-
-            if (Array.isArray(r.createdCreds) && r.createdCreds.length) {
-              const ymd = todayYMD();
-              const lines = [
-                'PARITER — созданные пользователи (сгенерированные пароли)',
-                `Дата: ${ymd}`,
-                '',
-                ...r.createdCreds.map(x => `${x.login}: ${x.password}`),
-                '',
-                msg
-              ].join('\n');
-              const blob = new Blob([lines], { type: 'text/plain; charset=utf-8' });
-              const url = URL.createObjectURL(blob);
-              const a = document.createElement('a');
-              a.href = url;
-              a.download = `pariter-import-creds-${ymd}.txt`;
-              document.body.appendChild(a);
-              a.click();
-              a.remove();
-              URL.revokeObjectURL(url);
-            }
-
-            APP.state.teamUsersFetchedAt = 0;
-            await render();
-          } catch (err) {
-            toast(err.message || 'Ошибка импорта.');
-          } finally {
-            input.value = '';
-            input.onchange = null;
-          }
-        };
-
-        input.click();
-        return;
-      }
-
-      // Register/join role selection
-      if (action === 'pick-role-register' || action === 'pick-role-join') {
-        const role = actionEl.getAttribute('data-role');
-        const form = action === 'pick-role-register' ? $('#registerForm') : $('#joinForm');
-        if (!form || !role) return;
-
-        form.querySelector('input[name="role"]').value = role;
-        const theme = (THEMES.find(t=>t.role===role)?.id) || 'dark_warrior';
-        form.querySelector('input[name="theme"]').value = theme;
-        setTheme(theme);
-
-        const themeBlock = $('#themeBlock');
-        if (themeBlock) themeBlock.innerHTML = ThemeGrid({
-          role,
-          value: theme,
-          onPickAction: action === 'pick-role-register' ? 'pick-theme-register' : 'pick-theme-join',
-          idsPrefix: action === 'pick-role-register' ? 'reg-' : 'join-'
-        });
-        return;
-      }
-
-      // Theme selection
-      if (action === 'pick-theme-register' || action === 'pick-theme-join') {
-        const theme = actionEl.getAttribute('data-theme');
-        const form = action === 'pick-theme-register' ? $('#registerForm') : $('#joinForm');
-        if (!form || !theme) return;
-
-        form.querySelector('input[name="theme"]').value = theme;
-        setTheme(theme);
-        $('#themeBlock').innerHTML = ThemeGrid({
-          role: form.querySelector('input[name="role"]').value,
-          value: theme,
-          onPickAction: action,
-          idsPrefix: action === 'pick-theme-register' ? 'reg-' : 'join-'
-        });
-        return;
-      }
-
-      if (action === 'pick-role-settings') {
-        const role = actionEl.getAttribute('data-role');
-        const f = $('#settingsForm');
-        if (!f || !role) return;
-
-        const nextTheme = defaultThemeForRole(role);
-        f.querySelector('input[name="role"]').value = role;
-        f.querySelector('input[name="theme"]').value = nextTheme;
-
-        setTheme(nextTheme);
-
-        const rb = $('#settingsRoleBlock');
-        if (rb) rb.innerHTML = RolePicker({ value: role, onPickAction: 'pick-role-settings' });
-
-        const tb = $('#settingsThemeBlock');
-        if (tb) tb.innerHTML = ThemeGrid({ role, value: nextTheme, onPickAction: 'pick-theme-settings', idsPrefix:'set-' });
-
-        const lbl = $('#settingsThemeLabel');
-        if (lbl) {
-          const t = themeById(nextTheme);
-          lbl.textContent = `${t.emoji} ${t.ru}`;
-        }
-        return;
-      }
-
-      if (action === 'pick-theme-settings') {
-        const theme = actionEl.getAttribute('data-theme');
-        const f = $('#settingsForm');
-        if (!f || !theme) return;
-
-        const role = f.querySelector('input[name="role"]')?.value || APP.state.user?.role || 'warrior';
-        f.querySelector('input[name="theme"]').value = theme;
-
-        setTheme(theme);
-
-        const tb = $('#settingsThemeBlock');
-        if (tb) tb.innerHTML = ThemeGrid({ role, value: theme, onPickAction: 'pick-theme-settings', idsPrefix:'set-' });
-
-        const lbl = $('#settingsThemeLabel');
-        if (lbl) {
-          const t = themeById(theme);
-          lbl.textContent = `${t.emoji} ${t.ru}`;
-        }
-        return;
-      }
-
-      // Invite page actions
-      if (action === 'new-invite') {
-        try {
-          const { invite } = await api.invitesCreate();
-          const link = `${location.origin}/join/${invite.code}`;
-          const el = $('#inviteLink');
-          if (el) el.value = link;
-          toast('Ссылка создана.');
-          await hydrateInvite();
-        } catch (err) {
-          toast(err.message || 'Ошибка создания ссылки.');
-        }
-        return;
-      }
-
-      if (action === 'clear-invite') {
-        const el = $('#inviteLink');
-        if (el) el.value = '';
-        return;
-      }
-
-      if (action === 'copy-invite') {
-        const el = $('#inviteLink');
-        const text = el?.value || '';
-        if (!text) return toast('Сначала создай ссылку.');
-        try {
-          await navigator.clipboard.writeText(text);
-          toast('Скопировано.');
-        } catch {
-          el.select();
-          document.execCommand('copy');
-          toast('Скопировано.');
-        }
-        return;
-      }
-
-      if (action === 'invite-use') {
-        const code = actionEl.getAttribute('data-code');
-        const link = `${location.origin}/join/${code}`;
-        const el = $('#inviteLink');
-        if (el) el.value = link;
-        toast('Ссылка подготовлена.');
-        return;
-      }
-
-      if (action === 'invite-copy') {
-        const code = actionEl.getAttribute('data-code');
-        const link = `${location.origin}/join/${code}`;
-        try {
-          await navigator.clipboard.writeText(link);
-          toast('Скопировано.');
-        } catch {
-          const el = $('#inviteLink');
-          if (el) {
-            el.value = link;
-            el.focus();
-            el.select();
-            document.execCommand('copy');
-            toast('Скопировано.');
-          } else {
-            toast('Не удалось скопировать.');
-          }
-        }
-        return;
-      }
-
-      if (action === 'invite-delete') {
-        const id = Number(actionEl.getAttribute('data-id'));
-        if (!confirm('Удалить приглашение?')) return;
-        try {
-          await api.invitesDelete(id);
-          toast('Удалено.');
-          await hydrateInvite();
-        } catch (err) {
-          toast(err.message || 'Ошибка удаления.');
-        }
-        return;
-      }
-
-      // Join/register: toggle password visibility
-      if (action === 'toggle-password') {
-        const wrap = actionEl.closest('.pw-wrap') || document;
-        const input = wrap.querySelector('input[name="password"]');
-        if (!input) return;
-        const next = (input.getAttribute('type') === 'password') ? 'text' : 'password';
-        input.setAttribute('type', next);
-        const btn = actionEl;
-        if (btn) {
-          const shown = next === 'text';
-          btn.setAttribute('aria-label', shown ? 'Скрыть пароль' : 'Показать пароль');
-          btn.textContent = shown ? '🙈' : '👁';
-        }
-        return;
-      }
-
-      // AI rewrite for textareas
-      if (action === 'ai-rewrite') {
-        const field = actionEl.getAttribute('data-field');
-        const targetId = actionEl.getAttribute('data-target');
-        const target = targetId ? document.getElementById(targetId) : null;
-        if (!target || !('value' in target)) return;
-
-        const text = String(target.value || '').trim();
-        if (!text) return toast('Сначала напиши текст.');
-
-        // Find (or create) a small accept/undo bar under the textarea
-        const host = target.closest('.ai-wrap') || target.parentElement || target;
-        const barId = `${targetId || 'ai'}-aiBar`;
-        let bar = host.querySelector(`#${CSS.escape(barId)}`);
-        if (!bar) {
-          bar = document.createElement('div');
-          bar.id = barId;
-          bar.className = 'ai-bar hidden';
-          bar.innerHTML = `
-            <button type="button" class="btn-ghost" style="padding:10px 12px" data-action="ai-undo" data-target="${escapeHTML(targetId || '')}">Вернуть</button>
-            <button type="button" class="btn" style="padding:10px 14px" data-action="ai-accept" data-target="${escapeHTML(targetId || '')}">Принять</button>
-          `;
-          host.appendChild(bar);
-        }
-
-        // store original text for undo
-        target.dataset.aiOriginal = target.value;
-
-        // lock button
-        const btn = actionEl;
-        const prev = btn.textContent;
-        btn.disabled = true;
-        btn.textContent = '…';
-
-        try {
-          const r = await api.aiRewrite({ field, text });
-          const out = String(r?.text || '').trim();
-          if (!out) throw new Error('Пустой ответ ИИ.');
-
-          target.value = out;
-          // trigger draft autosave if present
-          try { target.dispatchEvent(new Event('input', { bubbles: true })); } catch {}
-
-          bar.classList.remove('hidden');
-          toast('ИИ предложил вариант.');
-        } catch (err) {
-          toast(err.message || 'Ошибка ИИ.');
-          // restore original on error
-          if (target.dataset.aiOriginal != null) target.value = target.dataset.aiOriginal;
-        } finally {
-          btn.disabled = false;
-          btn.textContent = prev || '✦';
-        }
-        return;
-      }
-
-      // AI accept/undo
-      if (action === 'ai-undo' || action === 'ai-accept') {
-        const targetId = actionEl.getAttribute('data-target');
-        const target = targetId ? document.getElementById(targetId) : null;
-        if (!target || !('value' in target)) return;
-        const host = target.closest('.ai-wrap') || target.parentElement || target;
-        const bar = targetId ? host.querySelector(`#${CSS.escape(targetId + '-aiBar')}`) : null;
-
-        if (action === 'ai-undo') {
-          if (target.dataset.aiOriginal != null) {
-            target.value = target.dataset.aiOriginal;
-            try { target.dispatchEvent(new Event('input', { bubbles: true })); } catch {}
-          }
-          toast('Возвращено.');
-        } else {
-          toast('Принято.');
-        }
-
-        // cleanup
-        delete target.dataset.aiOriginal;
-        if (bar) bar.classList.add('hidden');
-        return;
-      }
-
-      // Live updates bar
-      if (action === 'live-refresh') {
-        await liveApplyIfNeeded({ force: true });
-        return;
-      }
-      if (action === 'live-dismiss') {
-        liveBarHide();
-        return;
-      }
-
-      // Feed (fallback for browsers without IntersectionObserver)
-      if (action === 'feed-more') {
-        await loadMoreFeed();
-        return;
-      }
-
-      // Entry actions
-      if (action === 'entry-delete') {
-        const id = Number(actionEl.getAttribute('data-id'));
-        if (!confirm('Удалить запись?')) return;
-        try {
-          await api.entryDelete(id);
-          toast('Удалено.');
-          await hydratePathStats();
-          await hydrateFeed(true);
-        } catch (err) {
-          toast(err.message || 'Ошибка удаления.');
-        }
-        return;
-      }
-
-      if (action === 'entry-edit') {
-        const id = Number(actionEl.getAttribute('data-id'));
-        const cached = APP.state.cache.entryText.get(id);
-        if (!cached) return toast('Запись ещё загружается. Попробуй через секунду.');
-        openEntryModal(id);
-        return;
-      }
-    });
-  }
-
-  // Forms are re-rendered, but each form is new in DOM, so we bind once via a flag.
-  const loginForm = $('#loginForm');
-  if (loginForm && !loginForm._bound) {
-    loginForm._bound = true;
-    loginForm.addEventListener('submit', async (e)=>{
-      e.preventDefault();
-      const fd = new FormData(loginForm);
-      try {
-        const r = await api.login({ login: fd.get('login'), password: fd.get('password') });
-        if (r?.user) {
-          // optimistic UI
-          APP.state.user = r.user;
-          APP.state.teamUsersFetchedAt = 0;
-          if (APP.state.user?.theme) setTheme(APP.state.user.theme);
-
-          // hard sync (prevents rare mismatches in role/theme/team after auth transitions)
-          try {
-            const m = await api.me();
-            APP.state.user = m.user;
-            APP.state.team = m.team;
-            if (APP.state.user?.theme) setTheme(APP.state.user.theme);
-
-            const t = await api.team();
-            if (Array.isArray(t?.users)) {
-              APP.state.teamUsers = t.users;
-              APP.state.teamUsersFetchedAt = Date.now();
-            }
-          } catch {}
-        }
-        toast('Вход выполнен.');
-        history.replaceState({}, '', '/path');
-        render();
-        // best-effort: keep push alive if user enabled it before
-        try { pushAutoMaintain(); } catch {}
-      } catch (err) {
-        toast(err.message || 'Ошибка входа.');
-      }
-    });
-  }
-
-  const registerForm = $('#registerForm');
-  if (registerForm && !registerForm._bound) {
-    registerForm._bound = true;
-    registerForm.addEventListener('submit', async (e)=>{
-      e.preventDefault();
-      const fd = new FormData(registerForm);
-      try {
-        const r = await api.register({
-          email: fd.get('email'),
-          name: fd.get('name'),
-          login: fd.get('login'),
-          password: fd.get('password'),
-          role: fd.get('role'),
-          theme: fd.get('theme'),
-        });
-        if (r?.user) {
-          // optimistic UI
-          APP.state.user = r.user;
-          APP.state.teamUsersFetchedAt = 0;
-          if (APP.state.user?.theme) setTheme(APP.state.user.theme);
-
-          // hard sync
-          try {
-            const m = await api.me();
-            APP.state.user = m.user;
-            APP.state.team = m.team;
-            if (APP.state.user?.theme) setTheme(APP.state.user.theme);
-
-            const t = await api.team();
-            if (Array.isArray(t?.users)) {
-              APP.state.teamUsers = t.users;
-              APP.state.teamUsersFetchedAt = Date.now();
-            }
-          } catch {}
-        }
-        toast('Команда создана. Путь начался.');
-        history.replaceState({}, '', '/path');
-        render();
-        try { pushAutoMaintain(); } catch {}
-      } catch (err) {
-        toast(err.message || 'Ошибка регистрации.');
-      }
-    });
-  }
-
-  const joinForm = $('#joinForm');
-  if (joinForm && !joinForm._bound) {
-    joinForm._bound = true;
-    joinForm.addEventListener('submit', async (e)=>{
-      e.preventDefault();
-      const fd = new FormData(joinForm);
-      const code = joinForm.getAttribute('data-code') || '';
-      try {
-        const r = await api.join(code, {
-          name: fd.get('name'),
-          login: fd.get('login'),
-          password: fd.get('password'),
-          role: fd.get('role'),
-          theme: fd.get('theme'),
-        });
-        if (r?.user) {
-          // optimistic UI
-          APP.state.user = r.user;
-          APP.state.teamUsersFetchedAt = 0;
-          if (APP.state.user?.theme) setTheme(APP.state.user.theme);
-
-          // hard sync
-          try {
-            const m = await api.me();
-            APP.state.user = m.user;
-            APP.state.team = m.team;
-            if (APP.state.user?.theme) setTheme(APP.state.user.theme);
-
-            const t = await api.team();
-            if (Array.isArray(t?.users)) {
-              APP.state.teamUsers = t.users;
-              APP.state.teamUsersFetchedAt = Date.now();
-            }
-          } catch {}
-        }
-        toast('Добро пожаловать на путь.');
-        history.replaceState({}, '', '/path');
-        render();
-        try { pushAutoMaintain(); } catch {}
-      } catch (err) {
-        const reason = err?.reason;
-        if (reason === 'invalid') toast('Приглашение недействительно.');
-        else if (reason === 'expired') toast('Срок действия приглашения истёк.');
-        else if (reason === 'used') toast('Приглашение уже использовано.');
-        else toast(err.message || 'Ошибка присоединения.');
-        try { await hydrateJoin(); } catch {}
-      }
-    });
-  }
-
-  const settingsForm = $('#settingsForm');
-  if (settingsForm && !settingsForm._bound) {
-    settingsForm._bound = true;
-    settingsForm.addEventListener('submit', async (e)=>{
-      e.preventDefault();
-      const fd = new FormData(settingsForm);
-      try {
-        const pass = String(fd.get('password') || '').trim() || null;
-        const r = await api.settingsUpdate({
-          name: fd.get('name'),
-          role: fd.get('role'),
-          theme: fd.get('theme'),
-          password: pass,
-        });
-
-        if (r?.user) {
-          APP.state.user = r.user;
-          if (APP.state.user?.theme) setTheme(APP.state.user.theme);
-        }
-
-        // hard sync (prevents edge cases where role/theme UI gets out of sync)
-        try {
-          const m = await api.me();
-          APP.state.user = m.user;
-          APP.state.team = m.team;
-          if (APP.state.user?.theme) setTheme(APP.state.user.theme);
-
-          const t = await api.team();
-          if (Array.isArray(t?.users)) {
-            APP.state.teamUsers = t.users;
-            APP.state.teamUsersFetchedAt = Date.now();
-          }
-        } catch {}
-
-        // refresh team cache (role/theme icon may change)
-        APP.state.teamUsersFetchedAt = 0;
-        toast('Сохранено.');
-        await render();
-      } catch (err) {
-        toast(err.message || 'Ошибка сохранения.');
-      }
-    });
+      })();
+    } else if (action === 'sound-toggle') {
+      const enabled = !readSoundEnabled();
+      writeSoundEnabled(enabled);
+      updateSoundUI();
+      toast(enabled ? 'Звук включён.' : 'Звук выключен.');
+    }
   }
 }
 
-async function hydrateHealth(){
-  const el = $('#healthBadge');
-  if (!el) return;
+const api = {
+  async whoami() {
+    const r = await fetch('/api/whoami', { credentials: 'include' });
+    if (!r.ok) throw new Error((await r.json()).error || 'Network error');
+    return await r.json();
+  },
+
+  async login({ login, password }) {
+    const r = await fetch('/api/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ login, password }),
+      credentials: 'include',
+    });
+    if (!r.ok) throw new Error((await r.json()).error || 'Network error');
+    return await r.json();
+  },
+
+  async logout() {
+    const r = await fetch('/api/logout', {
+      method: 'POST',
+      credentials: 'include',
+    });
+    if (!r.ok) throw new Error((await r.json()).error || 'Network error');
+    return await r.json();
+  },
+
+  async register({ name, login, password, role }) {
+    const r = await fetch('/api/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, login, password, role }),
+      credentials: 'include',
+    });
+    if (!r.ok) throw new Error((await r.json()).error || 'Network error');
+    return await r.json();
+  },
+
+  async joinTeam({ code }) {
+    const r = await fetch('/api/join', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code }),
+      credentials: 'include',
+    });
+    if (!r.ok) throw new Error((await r.json()).error || 'Network error');
+    return await r.json();
+  },
+
+  async themeSet({ themeId }) {
+    const r = await fetch('/api/theme/set', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ themeId }),
+      credentials: 'include',
+    });
+    if (!r.ok) throw new Error((await r.json()).error || 'Network error');
+    return await r.json();
+  },
+
+  async entryCreate({ victory, lesson }) {
+    const r = await fetch('/api/entry/create', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ victory, lesson }),
+      credentials: 'include',
+    });
+    if (!r.ok) throw new Error((await r.json()).error || 'Network error');
+    return await r.json();
+  },
+
+  async entryDelete({ id }) {
+    const r = await fetch('/api/entry/delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id }),
+      credentials: 'include',
+    });
+    if (!r.ok) throw new Error((await r.json()).error || 'Network error');
+    return await r.json();
+  },
+
+  async entriesGet({ limit, before }) {
+    const params = new URLSearchParams({ limit: String(limit) });
+    if (before?.date) params.append('before_date', before.date);
+    if (before?.id) params.append('before_id', String(before.id));
+
+    const r = await fetch(`/api/entries?${params}`, { credentials: 'include' });
+    if (!r.ok) throw new Error((await r.json()).error || 'Network error');
+    return await r.json();
+  },
+
+  async entriesNew({ after, limit }) {
+    const params = new URLSearchParams({ limit: String(limit) });
+    if (after?.date) params.append('after_date', after.date);
+    if (after?.id) params.append('after_id', String(after.id));
+
+    const r = await fetch(`/api/entries/new?${params}`, { credentials: 'include' });
+    if (!r.ok) throw new Error((await r.json()).error || 'Network error');
+    return await r.json();
+  },
+
+  async team() {
+    const r = await fetch('/api/team', { credentials: 'include' });
+    if (!r.ok) throw new Error((await r.json()).error || 'Network error');
+    return await r.json();
+  },
+
+  async teamUserDelete({ id }) {
+    const r = await fetch('/api/team/user/delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id }),
+      credentials: 'include',
+    });
+    if (!r.ok) throw new Error((await r.json()).error || 'Network error');
+    return await r.json();
+  },
+
+  async invitesList() {
+    const r = await fetch('/api/invites', { credentials: 'include' });
+    if (!r.ok) throw new Error((await r.json()).error || 'Network error');
+    return await r.json();
+  },
+
+  async inviteCreate({ expiresAt }) {
+    const r = await fetch('/api/invite/create', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ expires_at: expiresAt }),
+      credentials: 'include',
+    });
+    if (!r.ok) throw new Error((await r.json()).error || 'Network error');
+    return await r.json();
+  },
+
+  async inviteDelete({ id }) {
+    const r = await fetch('/api/invite/delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id }),
+      credentials: 'include',
+    });
+    if (!r.ok) throw new Error((await r.json()).error || 'Network error');
+    return await r.json();
+  },
+
+  async pushVapidKey() {
+    const r = await fetch('/api/push/vapid-key', { credentials: 'include' });
+    if (!r.ok) throw new Error((await r.json()).error || 'Network error');
+    return await r.json();
+  },
+
+  async pushSubscribe({ endpoint, keys, token }) {
+    const r = await fetch('/api/push/subscribe', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ endpoint, keys, token }),
+      credentials: 'include',
+    });
+    if (!r.ok) throw new Error((await r.json()).error || 'Network error');
+    return await r.json();
+  },
+
+  async pushUnsubscribe({ endpoint }) {
+    const r = await fetch('/api/push/unsubscribe', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ endpoint }),
+      credentials: 'include',
+    });
+    if (!r.ok) throw new Error((await r.json()).error || 'Network error');
+    return await r.json();
+  },
+};
+
+async function setTheme(themeId, { persist = true } = {}){
+  const t = themeById(themeId);
+  if (!t) return;
+
+  const root = document.documentElement;
+  root.setAttribute('data-theme', t.id);
+  root.setAttribute('data-role', t.role);
+  root.style.setProperty('--lunar-bg-deep', t.colors.bg);
+  root.style.setProperty('--lunar-bg-main', t.colors.bgSecondary);
+  root.style.setProperty('--text', t.colors.text);
+  root.style.setProperty('--text-muted', t.colors.textMuted);
+  root.style.setProperty('--accent', t.colors.accent);
+  root.style.setProperty('--accent-hover', t.colors.accentHover);
+  root.style.setProperty('--border', t.colors.border);
+  root.style.setProperty('--victory', t.colors.victory);
+  root.style.setProperty('--lesson', t.colors.lesson);
+
+  if (persist) {
+    try { await api.themeSet({ themeId: t.id }); } catch {}
+  }
+}
+
+async function hydrateAuth(){
   try {
-    const r = await api.health();
-    if (r && r.ok) {
-      el.innerHTML = `связь: <span style="color: var(--text); font-weight: 900">ok</span>`;
-      return;
-    }
-    el.innerHTML = `связь: <span style="color: var(--danger); font-weight: 900">offline</span>`;
+    const { user } = await api.whoami();
+    APP.state.user = user;
+    APP.pwa.installed = Boolean(user?.pwa_installed);
+    updatePwaUI();
   } catch {
-    el.innerHTML = `связь: <span style="color: var(--danger); font-weight: 900">offline</span>`;
-  }
-}
-
-async function hydrateJoin(){
-  const form = $('#joinForm');
-  const info = $('#joinInfo');
-  if (!form || !info) return;
-  const code = form.getAttribute('data-code') || '';
-
-  const setEnabled = (enabled)=>{
-    $$('input, button', form).forEach(el=>{
-      if (el.type === 'hidden') return;
-      el.disabled = !enabled;
-    });
-  };
-
-  try {
-    const r = await api.inviteResolve(code);
-
-    if (r && r.ok === true) {
-      info.innerHTML = `Тебя пригласил: <span style="font-weight: 900">${escapeHTML(r.inviter?.name || 'Спутник')}</span>`;
-      setEnabled(true);
-      setTimeout(()=>{ try { form.querySelector('input[name="name"]')?.focus?.(); } catch {} }, 0);
-      return;
-    }
-
-    const reason = r?.reason;
-    let msg = 'Код недействителен или истёк';
-    if (reason === 'invalid') msg = 'Приглашение недействительно';
-    else if (reason === 'expired') msg = 'Срок действия приглашения истёк';
-    else if (reason === 'used') msg = 'Приглашение уже использовано';
-
-    info.innerHTML = `<span style="font-weight: 900; color: var(--danger)">${escapeHTML(msg)}</span>`;
-    setEnabled(false);
-  } catch (e) {
-    info.innerHTML = `<span style="font-weight: 900; color: var(--danger)">Не удалось проверить приглашение</span>`;
-    setEnabled(false);
+    APP.state.user = null;
   }
 }
 
 async function hydratePathStats(){
-  const el = $('#pathStats');
-  if (!el) return;
+  if (!APP.state.user) return;
   try {
-    const s = await api.stats();
-    const bits = [];
-    bits.push(`Серия: <span style="color: var(--text); font-weight: 900">${Number(s.streak || 0)}</span>`);
-    bits.push(`Шагов сегодня: <span style="color: var(--text); font-weight: 900">${Number(s.userTodaySteps || 0)}</span>`);
-    bits.push(`Спутников сегодня: <span style="color: var(--text); font-weight: 900">${Number(s.teamToday || 0)}</span>`);
-    bits.push(`Шагов в команде сегодня: <span style="color: var(--text); font-weight: 900">${Number(s.teamTodaySteps || 0)}</span>`);
-    bits.push(`Всего шагов в команде: <span style="color: var(--text); font-weight: 900">${Number(s.teamTotal || 0)}</span>`);
-    el.innerHTML = bits.join(' · ');
-  } catch {
-    el.textContent = '';
+    const { stats } = await api.team();
+    const el = $('#pathStats');
+    if (!el) return;
+
+    const s = stats || { members: 0, entries: 0, days: 0 };
+    el.innerHTML = `
+      <div class="row" style="gap: 20px; justify-content: center;">
+        <div class="textCenter">
+          <div style="font-size: 32px; font-weight: 900; line-height: 1.2;">${s.members || 0}</div>
+          <div class="textMuted" style="font-size: 12px;">СПУТНИКИ</div>
+        </div>
+        <div class="textCenter">
+          <div style="font-size: 32px; font-weight: 900; line-height: 1.2;">${s.entries || 0}</div>
+          <div class="textMuted" style="font-size: 12px;">ШАГОВ</div>
+        </div>
+        <div class="textCenter">
+          <div style="font-size: 32px; font-weight: 900; line-height: 1.2;">${s.days || 0}</div>
+          <div class="textMuted" style="font-size: 12px;">ДНЕЙ</div>
+        </div>
+      </div>
+    `;
+  } catch {}
+}
+
+async function render(){
+  APP._rendering = true;
+  APP._rerenderRequested = false;
+
+  await hydrateAuth();
+
+  const route = parseRoute();
+  APP.state.route = route;
+
+  const main = $('main');
+  if (!main) return;
+
+  setDocumentTitle(route.path);
+
+  if (!APP.state.user && route.path !== '/join' && route.path !== '/login' && route.path !== '/register') {
+    main.innerHTML = `
+      <div class="page">
+        <div class="col" style="min-height: 40vh; place-content: center; gap: 20px;">
+          <h2 style="margin: 0; text-align: center;">pariter</h2>
+          <div class="row" style="gap: 12px; place-content: center;">
+            <a href="/login" class="btn" style="padding: 12px 24px;">Вход</a>
+            <a href="/register" class="btn" style="padding: 12px 24px;">Регистрация</a>
+          </div>
+        </div>
+      </div>
+    `;
+    nav.update();
+    APP._rendering = false;
+    return;
+  }
+
+  if (APP.state.user && (route.path === '/login' || route.path === '/register')) {
+    nav('/');
+    return;
+  }
+
+  if (route.path === '/') {
+    main.innerHTML = `
+      <div class="page">
+        <div class="col" style="min-height: 40vh; place-content: center; gap: 20px;">
+          <h2 style="margin: 0; text-align: center;">pariter</h2>
+          <div class="row" style="gap: 12px; place-content: center;">
+            <a href="/path" class="btn" style="padding: 12px 24px;">Перейти</a>
+          </div>
+          <div class="textMuted" style="font-size: 12px; text-align: center;">(лат. поровну, в равной степени)</div>
+        </div>
+      </div>
+    `;
+  } else if (route.path === '/path') {
+    main.innerHTML = `
+      <div class="page">
+        <div id="pathStats" class="soft" style="padding: 16px; margin: 16px auto; max-width: 400px;"></div>
+        <div id="entryModal" class="modal-backdrop hidden">
+          <div class="modal" style="width: 90%; max-width: 600px; margin: 5vh auto;">
+            <div style="padding: 20px;">
+              <form id="entryForm">
+                <div class="col" style="gap: 20px;">
+                  <div>
+                    <div class="row" style="align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                      <label for="victory" class="textMuted" style="font-size: 12px; font-weight: 900; letter-spacing:.18em;">ПОБЕДА</label>
+                      <span id="victoryCounter" class="textMuted" style="font-size: 12px;">0</span>
+                    </div>
+                    <textarea id="victory" name="victory" rows="3" placeholder="Что получилось?" style="width: 100%; padding: 12px; resize: vertical; min-height: 80px;" maxlength="4000"></textarea>
+                  </div>
+                  <div>
+                    <div class="row" style="align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                      <label for="lesson" class="textMuted" style="font-size: 12px; font-weight: 900; letter-spacing:.18em;">УРОК</label>
+                      <span id="lessonCounter" class="textMuted" style="font-size: 12px;">0</span>
+                    </div>
+                    <textarea id="lesson" name="lesson" rows="3" placeholder="Что можно улучшить?" style="width: 100%; padding: 12px; resize: vertical; min-height: 80px;" maxlength="4000"></textarea>
+                  </div>
+                  <div class="row" style="gap: 12px; justify-content: flex-end;">
+                    <button type="button" id="modalCancel" class="btn-ghost" style="padding: 12px 20px;">Отмена</button>
+                    <button type="submit" class="btn" style="padding: 12px 20px;">Зафиксировать</button>
+                  </div>
+                  <div id="draftHint" class="textMuted" style="font-size: 12px; text-align: center;"></div>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+        <div id="liveBar" class="soft row" style="position: sticky; top: 16px; margin: 0 16px 16px; padding: 8px 16px; justify-content: center; z-index: 100; display: none;">
+          <a href="/path" class="row" style="gap: 6px; align-items: center; text-decoration: none; color: inherit;">
+            <span>новые шаги</span>
+            <span id="liveCount" class="pill" style="padding: 2px 8px; font-size: 11px;"></span>
+          </a>
+        </div>
+        <div id="feed" style="max-width: 600px; margin: 0 auto;"></div>
+        <div class="textCenter textMuted" id="feedStatus" style="padding: 40px 16px; font-size: 13px;"></div>
+        <div id="feedSentinel" style="height: 1px;"></div>
+        <button id="feedMore" type="button" class="btn-ghost row" style="width: 100%; gap: 8px; padding: 20px; display: none;">Загрузить ещё<div></div></button>
+      </div>
+    `;
+    await hydratePathStats();
+    await hydrateFeed(true);
+    ensureEntryModal();
+  } else if (route.path === '/join') {
+    main.innerHTML = `
+      <div class="page">
+        <div class="col" style="min-height: 40vh; place-content: center; gap: 20px;">
+          <h3 style="margin: 0; text-align: center;">Присоединиться к команде</h3>
+          <form id="inviteForm" class="soft" style="padding: 20px; width: min(100% - 32px, 400px); margin: 0 auto;">
+            <div class="col" style="gap: 16px;">
+              <div>
+                <label for="code" class="textMuted" style="display: block; font-size: 12px; margin-bottom: 6px;">КОД ПРИГЛАШЕНИЯ</label>
+                <input type="text" id="code" name="code" required autocomplete="off" style="width: 100%; padding: 12px;" placeholder="XXXXX-XXXXX">
+              </div>
+              <button type="submit" class="btn" style="padding: 12px 20px;">Присоединиться</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    `;
+    const form = $('#inviteForm');
+    if (form) {
+      if (route.params.code) {
+        const inp = form.querySelector('input[name="code"]');
+        if (inp) inp.value = route.params.code;
+      }
+      form.addEventListener('submit', async (e)=>{
+        e.preventDefault();
+        const fd = new FormData(form);
+        const code = String(fd.get('code') || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+        if (code.length !== 11 || !code.includes('-')) {
+          toast('Неверный формат кода.');
+          return;
+        }
+        try {
+          await api.joinTeam({ code });
+          toast('Присоединились!');
+          nav('/');
+        } catch (err) {
+          toast(err.message || 'Ошибка присоединения.');
+        }
+      });
+    }
+  } else if (route.path === '/login') {
+    main.innerHTML = `
+      <div class="page">
+        <div class="col" style="min-height: 40vh; place-content: center; gap: 20px;">
+          <h3 style="margin: 0; text-align: center;">Вход</h3>
+          <form id="loginForm" class="soft" style="padding: 20px; width: min(100% - 32px, 400px); margin: 0 auto;">
+            <div class="col" style="gap: 16px;">
+              <div>
+                <label for="login" class="textMuted" style="display: block; font-size: 12px; margin-bottom: 6px;">ЛОГИН</label>
+                <input type="text" id="login" name="login" required autocomplete="username" style="width: 100%; padding: 12px;" placeholder="Логин">
+              </div>
+              <div>
+                <label for="password" class="textMuted" style="display: block; font-size: 12px; margin-bottom: 6px;">ПАРОЛЬ</label>
+                <input type="password" id="password" name="password" required autocomplete="current-password" style="width: 100%; padding: 12px;" placeholder="Пароль">
+              </div>
+              <button type="submit" class="btn" style="padding: 12px 20px;">Войти</button>
+              <div class="textCenter" style="margin-top: 10px;">
+                <a href="/register" style="font-size: 13px;">Регистрация</a>
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+    `;
+    const form = $('#loginForm');
+    if (form) {
+      form.addEventListener('submit', async (e)=>{
+        e.preventDefault();
+        const fd = new FormData(form);
+        const login = String(fd.get('login') || '').trim();
+        const password = String(fd.get('password') || '');
+        if (!login || !password) {
+          toast('Заполните все поля.');
+          return;
+        }
+        try {
+          await api.login({ login, password });
+          toast('Вошли!');
+          nav('/');
+        } catch (err) {
+          toast(err.message || 'Ошибка входа.');
+        }
+      });
+    }
+  } else if (route.path === '/register') {
+    main.innerHTML = `
+      <div class="page">
+        <div class="col" style="min-height: 40vh; place-content: center; gap: 20px;">
+          <h3 style="margin: 0; text-align: center;">Регистрация</h3>
+          <form id="registerForm" class="soft" style="padding: 20px; width: min(100% - 32px, 400px); margin: 0 auto;">
+            <div class="col" style="gap: 16px;">
+              <div>
+                <label for="name" class="textMuted" style="display: block; font-size: 12px; margin-bottom: 6px;">ИМЯ</label>
+                <input type="text" id="name" name="name" required autocomplete="name" style="width: 100%; padding: 12px;" placeholder="Имя">
+              </div>
+              <div>
+                <label for="login" class="textMuted" style="display: block; font-size: 12px; margin-bottom: 6px;">ЛОГИН</label>
+                <input type="text" id="login" name="login" required autocomplete="username" style="width: 100%; padding: 12px;" placeholder="Логин">
+              </div>
+              <div>
+                <label for="password" class="textMuted" style="display: block; font-size: 12px; margin-bottom: 6px;">ПАРОЛЬ</label>
+                <input type="password" id="password" name="password" required autocomplete="new-password" style="width: 100%; padding: 12px;" placeholder="Пароль">
+              </div>
+              <div>
+                <label class="textMuted" style="display: block; font-size: 12px; margin-bottom: 6px;">РОЛЬ</label>
+                <div class="row" style="gap: 10px; flex-wrap: wrap;">
+                  <label class="btn-ghost col soft" style="flex:1; max-width: 140px; padding: 16px 10px; text-align: center; gap: 8px; cursor: pointer; margin: 0;">
+                    <input type="radio" name="role" value="warrior" checked style="display: none;">
+                    <div style="font-size: 24px;">⚔️</div>
+                    <div style="font-size: 12px;">Воин</div>
+                  </label>
+                  <label class="btn-ghost col soft" style="flex:1; max-width: 140px; padding: 16px 10px; text-align: center; gap: 8px; cursor: pointer; margin: 0;">
+                    <input type="radio" name="role" value="amazon" style="display: none;">
+                    <div style="font-size: 24px;">🏹</div>
+                    <div style="font-size: 12px;">Амазонка</div>
+                  </label>
+                </div>
+              </div>
+              <button type="submit" class="btn" style="padding: 12px 20px;">Зарегистрироваться</button>
+              <div class="textCenter" style="margin-top: 10px;">
+                <a href="/login" style="font-size: 13px;">Вход</a>
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+    `;
+    const form = $('#registerForm');
+    if (form) {
+      form.addEventListener('submit', async (e)=>{
+        e.preventDefault();
+        const fd = new FormData(form);
+        const name = String(fd.get('name') || '').trim();
+        const login = String(fd.get('login') || '').trim();
+        const password = String(fd.get('password') || '');
+        const role = String(fd.get('role') || 'warrior');
+        if (!name || !login || !password) {
+          toast('Заполните все поля.');
+          return;
+        }
+        try {
+          await api.register({ name, login, password, role });
+          toast('Зарегистрировались!');
+          nav('/login');
+        } catch (err) {
+          toast(err.message || 'Ошибка регистрации.');
+        }
+      });
+      form.addEventListener('click', (e)=>{
+        if (e.target.type === 'radio') {
+          const labels = form.querySelectorAll('label.btn-ghost');
+          labels.forEach(lbl => lbl.classList.remove('active'));
+          const activeLabel = e.target.closest('label');
+          if (activeLabel) activeLabel.classList.add('active');
+        }
+      });
+    }
+  } else if (route.path === '/settings') {
+    main.innerHTML = `
+      <div class="page">
+        <div class="soft" style="padding: 20px; margin: 16px auto; max-width: 600px;">
+          <div class="col" style="gap: 24px;">
+            <div>
+              <h4 style="margin: 0 0 16px;">Тема</h4>
+              <div class="row wrap" style="gap: 10px;">
+                ${THEMES.map(t => `
+                  <button type="button" class="theme-btn" data-theme="${t.id}" style="
+                    width: 50px; height: 50px; border-radius: 8px; border: 2px solid var(--border);
+                    background: ${t.colors.bg}; ${t.id === APP.state.user?.theme_id ? 'border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 30%, transparent);' : ''}
+                    position: relative; place-content: center;
+                  ">
+                    <div style="font-size: 20px; filter: brightness(1.4);">${t.emoji}</div>
+                  </button>
+                `).join('')}
+              </div>
+            </div>
+            
+            <div>
+              <h4 style="margin: 0 0 16px;">Команда</h4>
+              <div id="teamList" style="margin-bottom: 20px;"></div>
+              <div id="inviteList"></div>
+              <div class="row" style="gap: 12px; margin-top: 20px;">
+                <button type="button" id="inviteAdd" class="btn-ghost" style="padding: 10px 16px;">Создать приглашение</button>
+              </div>
+            </div>
+
+            <div>
+              <h4 style="margin: 0 0 16px;">Установка</h4>
+              <div class="row" style="gap: 12px; align-items: center; padding: 12px 0;">
+                <button type="button" id="pwaInstallBtn" class="btn-ghost" style="padding: 10px 16px;">Установить</button>
+                <div class="textMuted" style="font-size: 13px; flex:1;">PWA: <span id="pwaStatus">проверяю…</span></div>
+              </div>
+            </div>
+
+            <div>
+              <h4 style="margin: 0 0 16px;">Уведомления</h4>
+              <div class="row" style="gap: 12px; align-items: center; padding: 12px 0;">
+                <button type="button" id="notifBtn" class="btn-ghost" style="padding: 10px 16px;">Разрешить</button>
+                <div class="textMuted" style="font-size: 13px; flex:1;">OS: <span id="notifStatus">проверяю…</span></div>
+              </div>
+              <div class="row" style="gap: 12px; align-items: center; padding: 12px 0;">
+                <button type="button" id="pushBtn" class="btn-ghost" style="padding: 10px 16px;">Включить</button>
+                <button type="button" id="pushOffBtn" class="btn-ghost" style="padding: 10px 16px; display: none;">Выключить</button>
+                <div class="textMuted" style="font-size: 13px; flex:1;">Push: <span id="pushStatus">проверяю…</span></div>
+              </div>
+              <div class="row" style="gap: 12px; align-items: center; padding: 12px 0;">
+                <button type="button" id="soundBtn" class="btn-ghost" style="padding: 10px 16px;">Звук: выкл</button>
+                <div class="textMuted" style="font-size: 13px; flex:1;">Cosmic chime: <span id="soundStatus">проверяю…</span></div>
+              </div>
+            </div>
+
+            <div>
+              <h4 style="margin: 0 0 16px;">Аккаунт</h4>
+              <div class="row" style="gap: 12px;">
+                <button type="button" id="logoutBtn" class="btn-ghost" style="padding: 10px 16px;">Выйти</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+    const themeBtns = document.querySelectorAll('.theme-btn');
+    themeBtns.forEach(btn => {
+      btn.addEventListener('click', ()=>{
+        const id = btn.getAttribute('data-theme');
+        setTheme(id);
+        themeBtns.forEach(b => b.style.borderColor = 'var(--border)');
+        btn.style.borderColor = 'var(--accent)';
+        btn.style.boxShadow = '0 0 0 2px color-mix(in srgb, var(--accent) 30%, transparent)';
+      });
+    });
+
+    $('#inviteAdd')?.addEventListener('click', async ()=>{
+      const now = new Date();
+      const inOneWeek = new Date(now.getTime() + 7*24*60*60*1000);
+      try {
+        await api.inviteCreate({ expiresAt: inOneWeek.toISOString() });
+        toast('Приглашение создано.');
+        await hydrateInvite();
+      } catch (err) {
+        toast(err.message || 'Ошибка создания приглашения.');
+      }
+    });
+
+    $('#logoutBtn')?.addEventListener('click', async ()=>{
+      try {
+        await api.logout();
+        toast('Вышли.');
+        nav('/');
+      } catch (err) {
+        toast(err.message || 'Ошибка выхода.');
+      }
+    });
+
+    updatePwaUI();
+    updateNotifUI();
+    updatePushUI();
+    updateSoundUI();
+    await hydrateInvite();
+  }
+
+  nav.update();
+  bindHandlers();
+
+  if (APP._rerenderRequested) {
+    setTimeout(render, 0);
+  } else {
+    APP._rendering = false;
   }
 }
 
-async function hydrateTodayForm(){
-  const form = $('#todayForm');
-  if (!form) return;
-  const hint = $('#todayHint');
+nav.update = ()=>{
+  const all = document.querySelectorAll('a[href]');
+  for (const a of all) {
+    if (a.host !== location.host) continue;
+    if (a.pathname.startsWith('/static/')) continue;
+    if (a.pathname.includes('.')) continue;
+    a.setAttribute('data-nav', 'true');
+    if (!a.onclick) {
+      a.onclick = (e)=>{
+        e.preventDefault();
+        nav(a.href);
+      };
+    }
+  }
+};
 
-  // Infinite path: draft is per-user (not per-day), because you can write many times a day.
-  const draftKey = ()=>{
-    const uid = APP.state.user?.id;
-    if (!uid) return null;
-    return `pariter_draft_${uid}`;
+async function gunzipB64(input) {
+  if (!input) return '';
+  try {
+    const s = String(input || '').trim();
+    if (!s) return '';
+
+    const bin = atob(s);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) {
+      bytes[i] = bin.charCodeAt(i);
+    }
+
+    const b = await (new Response(bytes)).blob();
+    const tb = await b.arrayBuffer();
+    const ds = new DecompressionStream('gzip');
+    const uc = new Blob([tb]).stream().pipeThrough(ds);
+    const ab = await new Response(uc).arrayBuffer();
+    const txt = new TextDecoder().decode(new Uint8Array(ab));
+    return txt;
+  } catch {
+    return '(ошибка распаковки)';
+  }
+}
+
+function ensureEntryModal(){
+  const modal = $('#entryModal');
+  const openBtn = document.querySelector('a[href="/path"]') || document.querySelector('button[data-action="open-modal"]');
+  if (!modal || !openBtn) return;
+
+  const form = $('#entryForm');
+  if (!form) return;
+
+  const closeModal = ()=>{
+    modal.classList.add('hidden');
+    try { ensureStarsLayer()._bound = false; } catch {}
   };
+
+  const openModal = ()=>{
+    modal.classList.remove('hidden');
+    const victoryEl = $('#victory');
+    const lessonEl = $('#lesson');
+    if (victoryEl) victoryEl.focus();
+    try { ensureStarsLayer()._bound = true; } catch {}
+  };
+
+  $('#modalCancel')?.addEventListener('click', closeModal);
+
+  const updateCounter = (el, counterEl)=>{
+    if (!el || !counterEl) return;
+    const len = el.value.length;
+    const max = Number(el.getAttribute('maxlength') || 0);
+    counterEl.textContent = max ? `${len}/${max}` : String(len);
+    counterEl.style.color = len > (max * 0.9) ? 'var(--accent)' : '';
+  };
+
+  const victoryEl = $('#victory');
+  const lessonEl = $('#lesson');
+  const victoryCounter = $('#victoryCounter');
+  const lessonCounter = $('#lessonCounter');
+  const hint = $('#draftHint');
+
+  if (victoryEl && victoryCounter) {
+    updateCounter(victoryEl, victoryCounter);
+    victoryEl.addEventListener('input', ()=> updateCounter(victoryEl, victoryCounter));
+  }
+  if (lessonEl && lessonCounter) {
+    updateCounter(lessonEl, lessonCounter);
+    lessonEl.addEventListener('input', ()=> updateCounter(lessonEl, lessonCounter));
+  }
+
+  const draftKey = ()=> APP.state.user ? `draft:${APP.state.user.id}:${location.pathname}` : null;
   const readDraft = ()=>{
     const k = draftKey();
     if (!k) return null;
@@ -3123,7 +1979,6 @@ async function hydrateTodayForm(){
     } catch {}
   };
 
-  // restore draft into empty form
   const d = readDraft();
   const vEl = form.querySelector('textarea[name="victory"]');
   const lEl = form.querySelector('textarea[name="lesson"]');
@@ -3131,7 +1986,6 @@ async function hydrateTodayForm(){
   if (lEl && !lEl.value) lEl.value = d?.lesson || '';
   if (hint) hint.textContent = d ? 'Черновик восстановлен.' : '';
 
-  // draft autosave (debounced)
   if (!form._draftBound) {
     form._draftBound = true;
     const schedule = ()=>{
@@ -3154,16 +2008,15 @@ async function hydrateTodayForm(){
         const lesson = String(fd.get('lesson') || '').trim();
         if (!victory && !lesson) return toast('Заполни хотя бы одну часть: победу или урок.');
 
-        // creates a new entry every time
         await api.entryCreate({ victory, lesson });
         clearDraft();
 
-        // reset form for the next step
         try { vEl.value = ''; lEl.value = ''; } catch {}
 
         toast('Зафиксировано.');
         await hydratePathStats();
         await hydrateFeed(true);
+        closeModal();
       } catch (err) {
         toast(err.message || 'Ошибка сохранения.');
       }
@@ -3203,16 +2056,12 @@ function liveBarHide(){
 
 function updateAttentionIndicators(){
   const n = Math.max(0, Number(APP.state.live.unread || 0));
-  // Taskbar/app badge (Chrome/Edge, Android, some desktop PWAs)
   try {
     if (typeof navigator !== 'undefined' && 'setAppBadge' in navigator) {
-      // @ts-ignore
       if (n > 0) navigator.setAppBadge(Math.min(n, 99));
-      // @ts-ignore
       else navigator.clearAppBadge();
     }
   } catch {}
-  // Title prefix
   try { setDocumentTitle(APP.state.route?.path || parseRoute().path); } catch {}
 }
 
@@ -3227,7 +2076,6 @@ async function notifyNewEntry(entry){
       return;
     }
 
-    // Do not spam when user is actively reading the app.
     const shouldNotify = document.hidden || (typeof document.hasFocus === 'function' && !document.hasFocus());
     if (!shouldNotify) return;
 
@@ -3243,7 +2091,6 @@ async function notifyNewEntry(entry){
       body = pick ? pick.split(/\r?\n/)[0].slice(0, 140) : '';
     } catch {}
 
-    // Aggregation hint: if we got a batch, show “and more”.
     const extra = Math.max(0, Number(entry._extraCount || 0));
     if (extra > 0) {
       body = body
@@ -3251,7 +2098,6 @@ async function notifyNewEntry(entry){
         : `Новых шагов: ${extra + 1}`;
     }
 
-    // If server push is enabled, do not duplicate OS notifications from the in-page code.
     try {
       if (readPushDesired && readPushDesired()) return;
     } catch {}
@@ -3265,7 +2111,6 @@ async function notifyNewEntry(entry){
       data: { url: '/path' },
     };
 
-    // Prefer showing notification through Service Worker for better OS integration.
     try {
       const reg = await navigator.serviceWorker?.getRegistration?.();
       if (reg && reg.showNotification) {
@@ -3275,8 +2120,6 @@ async function notifyNewEntry(entry){
     } catch {}
 
     try {
-      // Fallback: in-page notification
-      // @ts-ignore
       new Notification(title, opts);
     } catch {}
   } catch {}
@@ -3295,12 +2138,10 @@ async function liveApplyIfNeeded({ force=false }={}){
 
   APP.state.live.pending = true;
   try {
-    // User is effectively "caught up".
     APP.state.live.unread = 0;
     updateAttentionIndicators();
 
     liveBarHide();
-    // Full refresh to keep things simple and consistent.
     await hydratePathStats();
     await hydrateFeed(true);
   } finally {
@@ -3313,7 +2154,6 @@ async function liveTick(){
   if (APP.state.sidebarOpen) return;
 
   try {
-    // Prime baseline if missing: latest entry in team feed.
     if (!APP.state.live.topKey) {
       const r0 = await api.entriesGet({ limit: 1, before: null });
       const top0 = (r0?.entries && r0.entries[0]) ? r0.entries[0] : null;
@@ -3339,39 +2179,29 @@ async function liveTick(){
     const newKey = liveKeyOf(newest);
     if (!newKey) return;
 
-    // Advance our baseline to the newest known entry (so next tick is incremental).
     APP.state.live.topKey = newKey;
 
     const route = APP.state.route?.path;
     const nearTop = (window.scrollY || document.documentElement.scrollTop || 0) < 220;
 
-    // Auto-apply only when the app is actually in focus.
-    // If the tab/PWA is in background (document.hidden), we must NOT silently refresh,
-    // otherwise the user will miss notifications while the app sits open on /path.
     const inFocus = (!document.hidden) && (typeof document.hasFocus !== 'function' || document.hasFocus());
 
     if (route === '/path' && nearTop && inFocus) {
-      // user is looking at the top and is actively using the app - auto-refresh
       APP.state.live.unread = 0;
       updateAttentionIndicators();
       await liveApplyIfNeeded({ force: true });
       return;
     }
 
-    // user is not at the top (or not on /path): accumulate unread precisely
     APP.state.live.unread = Math.min(99, Number(APP.state.live.unread || 0) + Math.min(99, count));
     updateAttentionIndicators();
     if (route === '/path') liveBarShow();
 
-    // Notifications: one per newKey (aggregated)
     if (APP.state.live.lastNotifiedKey !== newKey) {
       APP.state.live.lastNotifiedKey = newKey;
-      // If push is enabled, OS notification will be shown by Service Worker.
-      // In-page notifications would duplicate it.
       if (!(readPushDesired && readPushDesired())) {
         await notifyNewEntry({ ...newest, _extraCount: Math.max(0, count - 1) });
       }
-      // Soft cosmic sound (messenger-like: only when app is NOT in focus)
       try { playCosmicChime(); } catch {}
     }
 
@@ -3382,7 +2212,6 @@ async function liveTick(){
 
 function liveStart(){
   if (liveStart._timer) return;
-  // prime baseline in background
   liveTick();
   liveStart._timer = setInterval(liveTick, 7000);
 }
@@ -3416,12 +2245,10 @@ async function hydrateFeed(reset=false){
     feed.innerHTML = '';
     status.textContent = '';
     if (moreBtn) moreBtn.classList.add('hidden');
-    // re-prime live top key on next load
     APP.state.live.topKey = null;
     liveBarHide();
   }
 
-  // Infinite scroll when IntersectionObserver is available.
   if (typeof IntersectionObserver !== 'undefined') {
     if (!hydrateFeed._io) {
       hydrateFeed._io = new IntersectionObserver(async (entries)=>{
@@ -3432,7 +2259,6 @@ async function hydrateFeed(reset=false){
     hydrateFeed._io.observe(sentinel);
     if (moreBtn) moreBtn.classList.add('hidden');
   } else {
-    // Fallback: manual "Load more" button.
     if (moreBtn) moreBtn.classList.remove('hidden');
   }
 
@@ -3460,7 +2286,6 @@ async function loadMoreFeed(){
       return;
     }
 
-    // prime live baseline (latest entry in team feed)
     if (!APP.state.live.topKey) {
       APP.state.live.topKey = liveKeyOf(entries[0]);
     }
@@ -3468,7 +2293,6 @@ async function loadMoreFeed(){
     const map = teamUserMap();
 
     for (const e of entries) {
-      console.log('Processing entry in loadMoreFeed:', e);
       if (APP.state.feed.lastRenderedDate !== e.date) {
         feed.insertAdjacentHTML('beforeend', DateDivider(ruDateLabel(e.date)));
         APP.state.feed.lastRenderedDate = e.date;
@@ -3476,12 +2300,10 @@ async function loadMoreFeed(){
 
       const author = map.get(e.user_id) || null;
       const meIsAdmin = Number(APP.state.user?.is_admin || 0) === 1;
-      console.log('Calling EntryCard with:', { entry: e, author, meId: APP.state.user.id, meIsAdmin });
       feed.insertAdjacentHTML('beforeend', EntryCard({ entry: e, author, meId: APP.state.user.id, meIsAdmin }));
       APP.state.feed.renderedCount++;
     }
 
-    // fill texts for freshly appended cards (decode in parallel)
     const entryById = new Map(entries.map(x => [Number(x.id), x]));
     const fresh = Array.from(feed.querySelectorAll('[data-entry-text][data-id]')).slice(-entries.length*2);
     await Promise.all(fresh.map(async (el) => {
@@ -3502,7 +2324,6 @@ async function loadMoreFeed(){
     APP.state.feed.cursor = nextCursor || (nextBefore ? { date: nextBefore, id: 0 } : null);
     status.textContent = '';
 
-    // update fallback button visibility
     const moreBtn = $('#feedMore');
     if (moreBtn) {
       const io = (typeof IntersectionObserver !== 'undefined');
@@ -3542,7 +2363,7 @@ async function hydrateInvite(){
     return `
       <div class="soft" style="padding: 10px 12px; display:flex; align-items:center; justify-content: space-between; gap: 10px">
         <div class="row" style="min-width:0; gap:10px">
-          <div style="width:36px;height:36px;border-radius:999px;border:1px solid var(--border);display:grid;place-items:center;background:rgba(255,255,255,.03)">${ROLE_META[u.role]?.emoji || '✦'}</div>
+          <div style="width:36px;height:36px;border-radius:999px;border:1px solid var(--border);display:grid;place-items:center;background:rgba(255,255,255,.03)">${ROLE_META[u.role]?.emoji || '⚔️'}</div>
           <div style="min-width:0">
             <div style="font-weight: 800; white-space: nowrap; overflow:hidden; text-overflow: ellipsis;">${escapeHTML(u.name)}</div>
             <div class="textMuted" style="font-size: 12px">присоединился: ${escapeHTML(joined)}</div>
@@ -3591,7 +2412,7 @@ async function hydrateInvite(){
             <button type="button" class="btn-ghost" style="padding: 10px 12px" data-action="invite-copy" data-code="${escapeHTML(i.code)}" title="Скопировать ссылку">📋</button>
             <button type="button" class="btn-ghost" style="padding: 10px 12px" data-action="invite-use" data-code="${escapeHTML(i.code)}" title="Подставить в поле">↗</button>
           ` : ''}
-          <button type="button" class="btn-ghost" style="padding: 10px 12px" data-action="invite-delete" data-id="${i.id}" aria-label="Удалить">✕</button>
+          <button type="button" class="btn-ghost" style="padding: 10px 12px" data-action="invite-delete" data-id="${i.id}" aria-label="Удалить">×</button>
         </div>
       </div>
     `;
@@ -3610,13 +2431,11 @@ async function hydrateInvite(){
 
   inviteList.innerHTML = html;
 
-  // Clicks are handled via delegated handler in bindHandlers()
   bindHandlers();
 }
 
 window.addEventListener('popstate', render);
 
-// PWA install hooks (best-effort)
 window.addEventListener('beforeinstallprompt', (e)=>{
   try {
     e.preventDefault();
@@ -3673,7 +2492,6 @@ function updateNotifUI(){
   }
   btn.disabled = false;
   st.textContent = 'не разрешено';
-  // Push UI depends on notification permission too.
   try { updatePushUI(); } catch {}
 }
 
@@ -3695,17 +2513,12 @@ function withTimeout(promise, ms, msg){
   return Promise.race([promise, timeout]).finally(()=>{ try { clearTimeout(t); } catch {} });
 }
 
-// --- Push helpers (Android/desktop messenger-like notifications)
-// Important: do NOT rely on navigator.serviceWorker.ready for Push.
-// On Android it may not resolve until the SW controls the page.
-// PushManager works with the registration returned by register().
 async function ensureServiceWorkerForPush(){
   if (ensureServiceWorkerForPush._p) return ensureServiceWorkerForPush._p;
 
   ensureServiceWorkerForPush._p = (async ()=>{
     if (!('serviceWorker' in navigator)) throw new Error('Service Worker не поддерживается.');
 
-    // Auto-clean old/incorrect registrations (no manual "unregister" needed).
     try {
       const regs = await navigator.serviceWorker.getRegistrations();
       await Promise.all(regs.map(async (r)=>{
@@ -3716,12 +2529,9 @@ async function ensureServiceWorkerForPush(){
           const waitingUrl = r.waiting?.scriptURL ? new URL(r.waiting.scriptURL).pathname : '';
           const anyUrl = activeUrl || waitingUrl || installingUrl;
 
-          // We want only /sw.js with scope '/'. Remove /static/sw.js and other stray scopes.
-          // Keep only a root-scope service worker (/sw.js). Remove any legacy /static scope or wrong script.
           const badScope = scopePath !== '/';
           const badScript = anyUrl && anyUrl !== '/sw.js';
           if (badScope || badScript) {
-            // Best-effort: unsubscribe old push subscription to stop duplicate notifications.
             try {
               const sub = await r.pushManager?.getSubscription?.();
               if (sub) await sub.unsubscribe().catch(()=>{});
@@ -3733,7 +2543,6 @@ async function ensureServiceWorkerForPush(){
       }));
     } catch {}
 
-    // Register root-scope SW.
     let reg = null;
     try {
       reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
@@ -3742,8 +2551,6 @@ async function ensureServiceWorkerForPush(){
       throw new Error('Service worker не зарегистрирован');
     }
 
-    // Important on Android: ensure the registration is activated. ready can hang until SW controls the page.
-    // We avoid hanging by waiting for statechange with a timeout.
     try {
       const active = reg.active || reg.waiting || reg.installing;
       if (active && active.state !== 'activated') {
@@ -3764,7 +2571,6 @@ async function ensureServiceWorkerForPush(){
 
     return reg;
   })().catch((e)=>{
-    // allow re-try if we failed
     ensureServiceWorkerForPush._p = null;
     throw e;
   });
@@ -3801,7 +2607,6 @@ async function updatePushUI(){
     const sub = await reg.pushManager.getSubscription();
 
     if (sub) {
-      // If a subscription already exists, treat push as enabled (helps after SW migrations/updates).
       try { writePushDesired(true); } catch {}
       btn.disabled = true;
       if (off) off.classList.remove('hidden');
@@ -3860,10 +2665,8 @@ async function sendPushTokenToSW(token){
     const tok = String(token || '').trim();
     if (!tok) return;
 
-    // Prefer controller
     try { navigator.serviceWorker?.controller?.postMessage?.({ type: 'push-token', token: tok }); } catch {}
 
-    // Also try active reg
     try {
       const reg = await navigator.serviceWorker?.getRegistration?.();
       reg?.active?.postMessage?.({ type: 'push-token', token: tok });
@@ -3888,16 +2691,13 @@ async function enablePush(){
   const { publicKey } = await api.pushVapidKey();
   if (!publicKey) throw new Error('Push ключ не получен.');
 
-  // Detect VAPID key rotation and schedule resubscribe if needed.
   const prev = readVapidPublicKey();
   if (prev && prev !== publicKey) {
     writePushNeedsResub(publicKey);
   }
 
-  // Subscribe (idempotent-ish)
   let sub = await reg.pushManager.getSubscription();
 
-  // If server VAPID key changed, rotate subscription on a user gesture (this function is called from a click).
   const need = readPushNeedsResub();
   if (sub && need && need === publicKey) {
     try { await sub.unsubscribe(); } catch {}
@@ -3915,7 +2715,6 @@ async function enablePush(){
   const token = readPushToken() || null;
   const r = await api.pushSubscribe({ endpoint: json.endpoint, keys: json.keys, token });
 
-  // Persist token for background resubscribe (pushsubscriptionchange)
   if (r?.token) {
     writePushToken(String(r.token));
     sendPushTokenToSW(String(r.token));
@@ -3943,13 +2742,11 @@ async function disablePush(){
   writePushNeedsResub('');
   writePushToken('');
   try {
-    // also clear token from SW storage
     sendPushTokenToSW('');
   } catch {}
   try { await updatePushUI(); } catch {}
 }
 
-// Resubscribe when VAPID key rotates (runs on user gesture, so no manual "unregister" needed).
 async function pushResubscribeIfNeeded(){
   const need = readPushNeedsResub();
   if (!need) return false;
@@ -3986,9 +2783,6 @@ async function pushResubscribeIfNeeded(){
   return true;
 }
 
-// Best-effort: keep push alive without manual re-enable.
-// - If user once enabled push (pushDesired=1), we try to (re)subscribe automatically when possible.
-// - Also "ping" server with existing subscription to refresh last_seen_at.
 async function pushAutoMaintain(){
   try {
     if (!APP.state.user) return;
@@ -3998,7 +2792,6 @@ async function pushAutoMaintain(){
     if (typeof PushManager === 'undefined') return;
     if (!(window.isSecureContext || location.hostname === 'localhost')) return;
 
-    // throttle
     const now = Date.now();
     if (pushAutoMaintain._last && (now - pushAutoMaintain._last < 30_000)) return;
     pushAutoMaintain._last = now;
@@ -4009,18 +2802,12 @@ async function pushAutoMaintain(){
     const { publicKey } = await api.pushVapidKey().catch(()=> ({ publicKey: '' }));
     if (!publicKey) return;
 
-    // If server VAPID key rotated, mark that we need resubscribe.
     const prev = readVapidPublicKey();
     if (prev && prev !== publicKey) {
       writePushNeedsResub(publicKey);
     }
 
-    // We do NOT unsubscribe/resubscribe automatically here to avoid breaking push in browsers
-    // that require a user gesture for subscribe(). The actual rotation happens on the next
-    // user gesture (any click) via pushResubscribeIfNeeded().
-
     if (!sub) {
-      // Auto re-subscribe (permission already granted) - usually allowed without gesture.
       try {
         sub = await reg.pushManager.subscribe({
           userVisibleOnly: true,
@@ -4029,13 +2816,11 @@ async function pushAutoMaintain(){
         writeVapidPublicKey(publicKey);
         writePushNeedsResub('');
       } catch {
-        // Can't subscribe silently. Wait for a user gesture.
         writePushNeedsResub(publicKey);
         return;
       }
     }
 
-    // Refresh server record (upsert). Pass a persistent token so endpoint rotation can be bound to the same device.
     const j = sub.toJSON();
     if (j?.endpoint && j?.keys?.p256dh && j?.keys?.auth) {
       const token = readPushToken() || null;
@@ -4050,7 +2835,6 @@ async function pushAutoMaintain(){
   }
 }
 
-// --- Sound (gentle cosmic chime)
 const SOUND_KEY = 'pariter_sound_enabled';
 
 function readSoundEnabled(){
@@ -4086,9 +2870,6 @@ function playCosmicChime({ quiet=false }={}){
   if (!quiet && (now - (APP.state.sound.lastAt || 0) < minGap)) return;
   APP.state.sound.lastAt = now;
 
-  // Messenger-like behavior: play only when the app is NOT in focus.
-  // When the app is focused, we stay silent.
-  // Note: some browsers may restrict audio in background tabs.
   if (!quiet) {
     try {
       const inFocus = !document.hidden && (typeof document.hasFocus !== 'function' || document.hasFocus());
@@ -4096,14 +2877,11 @@ function playCosmicChime({ quiet=false }={}){
     } catch {}
   }
 
-  // WebAudio synth: short "cosmic" bell (two detuned sines + soft noise)
   const Ctx = window.AudioContext || window.webkitAudioContext;
   if (!Ctx) return;
   const ctx = playCosmicChime._ctx || (playCosmicChime._ctx = new Ctx());
 
-  // Some browsers require resume on user gesture.
   if (ctx.state === 'suspended') {
-    // best-effort
     ctx.resume().catch(()=>{});
   }
 
@@ -4114,7 +2892,6 @@ function playCosmicChime({ quiet=false }={}){
   out.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.9);
   out.connect(ctx.destination);
 
-  // Main tone
   const o1 = ctx.createOscillator();
   o1.type = 'sine';
   o1.frequency.setValueAtTime(660, t0);
@@ -4125,7 +2902,6 @@ function playCosmicChime({ quiet=false }={}){
   o2.frequency.setValueAtTime(660 * 1.008, t0);
   o2.frequency.exponentialRampToValueAtTime(520 * 1.01, t0 + 0.35);
 
-  // Gentle filter
   const lp = ctx.createBiquadFilter();
   lp.type = 'lowpass';
   lp.frequency.setValueAtTime(1400, t0);
@@ -4146,7 +2922,6 @@ function playCosmicChime({ quiet=false }={}){
   g1.connect(lp);
   g2.connect(lp);
 
-  // Tiny noise shimmer
   const noiseBuf = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 0.12), ctx.sampleRate);
   const ch = noiseBuf.getChannelData(0);
   for (let i=0;i<ch.length;i++) ch[i] = (Math.random() * 2 - 1) * 0.25;
@@ -4166,7 +2941,6 @@ function playCosmicChime({ quiet=false }={}){
   hp.connect(ng);
   ng.connect(lp);
 
-  // Slight reverb-ish feel via short delay
   const delay = ctx.createDelay(1.0);
   delay.delayTime.setValueAtTime(0.14, t0);
   const fb = ctx.createGain();
@@ -4191,15 +2965,12 @@ function playCosmicChime({ quiet=false }={}){
   noise.stop(t0 + 0.22);
 }
 
-// restore sound setting early
 try { APP.state.sound.enabled = readSoundEnabled(); } catch {}
 
 
 document.addEventListener('click', (e)=>{
-  // intercept plain <a href="/..."></a>
   const a = e.target?.closest?.('a');
   if (!a) return;
-  // If a link already uses SPA data-nav, the delegated handler will process it.
   if (a.hasAttribute('data-nav')) return;
   const href = a.getAttribute('href');
   if (!href) return;
@@ -4212,40 +2983,31 @@ document.addEventListener('click', (e)=>{
 (async function init(){
   setTheme('dark_warrior');
   ensureEntryModal();
-  // Restore sound state early
   try { APP.state.sound.enabled = readSoundEnabled(); } catch {}
 
-  // Stars + landing canvas: start only when visible to save battery.
   try { ensureStarsLayer(); } catch {}
 
-  // Best-effort: ensure root-scope Service Worker is registered early (needed for Push on Android).
   try {
     const reg = await ensureServiceWorkerForPush();
 
-    // If a PushSubscription already exists, treat push as enabled.
-    // This prevents duplicate OS notifications (SW + in-page) if localStorage flag was lost.
     try {
       const sub = await reg.pushManager.getSubscription();
       if (sub) writePushDesired(true);
     } catch {}
 
-    // Send stored token to SW so pushsubscriptionchange can resubscribe without cookies.
     try {
       const tok = readPushToken();
       if (tok) sendPushTokenToSW(tok);
     } catch {}
   } catch {}
 
-  // If a push arrives while the app is open, the SW can postMessage to update UI faster.
   try {
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.addEventListener('message', (ev)=>{
         try {
           if (!ev?.data || typeof ev.data !== 'object') return;
           if (ev.data.type !== 'push') return;
-          // Nudge live refresh quickly (do not block)
           if (APP.state.user && APP.state.route?.path === '/path') {
-            // mark unread and refresh attention indicators
             APP.state.live.unread = Math.min(99, Number(APP.state.live.unread || 0) + 1);
             updateAttentionIndicators();
             liveBarShow();
@@ -4257,13 +3019,9 @@ document.addEventListener('click', (e)=>{
 
   await render();
 
-  // After initial render, try to keep push subscription alive (if user enabled it before)
   try { pushAutoMaintain(); } catch {}
 
-  // Keep-alive while the app is open (best-effort). Helps recover after short inactivity.
   setInterval(()=>{ try { pushAutoMaintain(); } catch {} }, 90_000);
 
-  // Also keep live polling going for badge updates even if user stays off /path.
-  // (push should work in background; this is just an extra safety net while the app is open)
   setInterval(()=>{ try { liveTick(); } catch {} }, 30_000);
 })();

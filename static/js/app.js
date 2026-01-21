@@ -2756,7 +2756,8 @@ function bindHandlers(){
           bar.classList.remove('hidden');
           toast('ИИ предложил вариант.');
         } catch (err) {
-          toast(err.message || 'Ошибка ИИ.');
+          const errorMessage = err?.message || (typeof err === 'string' ? err : 'Ошибка ИИ.');
+          toast(errorMessage);
           // restore original on error
           if (target.dataset.aiOriginal != null) target.value = target.dataset.aiOriginal;
         } finally {

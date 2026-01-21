@@ -1,3 +1,5 @@
+// PARITER client (Vanilla JS) — talks to Bun backend via /api/*
+
 const APP = {
   _authRedirectScheduled: false,
   _rendering: false,
@@ -39,6 +41,7 @@ const THEMES = [
   { id:'dawn_guard', role:'amazon', emoji:'🌅', ru:'Рассветная стража', la:'Custōs Aurōrae', light:false, colors:{ bg:'#140c07', bgSecondary:'#21130b', text:'#fff2e8', textMuted:'#d0ad95', accent:'#ff9f43', accentHover:'#ff8a1f', border:'rgba(255,255,255,.12)', victory:'rgba(255,159,67,.16)', lesson:'rgba(255,77,109,.10)' } },
   { id:'quiet_storm', role:'amazon', emoji:'🦋', ru:'Тихая буря', la:'Tempestās Tacita', light:false, colors:{ bg:'#0b1014', bgSecondary:'#0f1a22', text:'#eef8ff', textMuted:'#9ab3c2', accent:'#7dd3fc', accentHover:'#5ec7f8', border:'rgba(255,255,255,.11)', victory:'rgba(125,211,252,.14)', lesson:'rgba(179,146,255,.10)' } },
 
+  // Synchronization (shared palette for both roles)
   { id:'sync_warrior', role:'warrior', emoji:'🖤', ru:'Синхронизация', la:'Synchronizatio', light:false, colors:{ bg:'#0a0a0f', bgSecondary:'#14141f', text:'#d4dbe8', textMuted:'#7a8599', accent:'#8fa4c9', accentHover:'#b8c8e8', border:'rgba(150,160,180,.12)', victory:'rgba(143,164,201,.12)', lesson:'rgba(255,190,225,.10)' } },
   { id:'sync_amazon', role:'amazon', emoji:'🖤', ru:'Синхронизация', la:'Synchronizatio', light:false, colors:{ bg:'#0a0a0f', bgSecondary:'#14141f', text:'#d4dbe8', textMuted:'#7a8599', accent:'#8fa4c9', accentHover:'#b8c8e8', border:'rgba(150,160,180,.12)', victory:'rgba(143,164,201,.12)', lesson:'rgba(255,190,225,.10)' } },
 ];
@@ -47,11 +50,13 @@ function themeById(id){
   return THEMES.find(t => t.id === id) || THEMES[0];
 }
 
+// --- Stars + landing crystal background (battery-friendly)
 function shouldAnimateNow(){
   try {
     const inFocus = !document.hidden && (typeof document.hasFocus !== 'function' || document.hasFocus());
     if (!inFocus) return false;
 
+    // Only animate when a route exists (SPA mounted)
     const p = APP.state?.route?.path || parseRoute().path;
     return !!p;
   } catch { return false; }
@@ -59,29 +64,33 @@ function shouldAnimateNow(){
 
 function shouldAnimateBlackHoles(){
   try {
+    // Even with reduced motion, we still want to show black holes (with reduced intensity)
     const prefersReducedMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
+    
     const inFocus = !document.hidden && (typeof document.hasFocus !== 'function' || document.hasFocus());
     if (!inFocus) return false;
 
+    // Only animate when a route exists (SPA mounted)
     const p = APP.state?.route?.path || parseRoute().path;
-    return !!p && !prefersReducedMotion;
+    return !!p && !prefersReducedMotion; // Only animate black holes if not reduced motion
   } catch { return false; }
 }
 
 function shouldAnimateWithReducedIntensity(){
   try {
     const prefersReducedMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
+    
     const inFocus = !document.hidden && (typeof document.hasFocus !== 'function' || document.hasFocus());
     if (!inFocus) return false;
 
+    // Only animate when a route exists (SPA mounted)
     const p = APP.state?.route?.path || parseRoute().path;
-    return !!p && prefersReducedMotion;
+    return !!p && prefersReducedMotion; // Return true only if reduced motion is preferred but other conditions are met
   } catch { return false; }
 }
 
 function ensureStarsLayer(){
+  // Mount global stars canvas once
   if (!document.getElementById('starsCanvas')) {
     const old = document.querySelector('.stars-bg');
     if (old) old.remove();
@@ -93,15 +102,19 @@ function ensureStarsLayer(){
     bg.appendChild(canvas);
     document.body.insertBefore(bg, document.body.firstChild || null);
 
+    // enable transparent html/body backgrounds
     document.documentElement.classList.add('l00m-stars-on');
   }
 
+  // Start animation loop (paused when app is not active)
   if (!ensureStarsLayer._stars) ensureStarsLayer._stars = new StarsEngine(document.getElementById('starsCanvas'));
   ensureStarsLayer._stars.start();
 
+  // Landing crystal: start/stop based on route
   if (!ensureStarsLayer._crystal) ensureStarsLayer._crystal = new CrystalEngine();
   ensureStarsLayer._crystal.syncToRoute();
 
+  // Pause/resume on visibility
   if (!ensureStarsLayer._bound) {
     ensureStarsLayer._bound = true;
 
@@ -144,6 +157,7 @@ function StarsEngine(canvas){
 
   this.W = 0; this.H = 0;
   this.stars = []; this.twinkle = []; this.ghosts = [];
+  // extra layer: comets + black holes (subtle, global)
   this.holes = [];
   this.comets = [];
   this._lastCometAt = 0;
@@ -207,6 +221,7 @@ function StarsEngine(canvas){
   };
 
   this.generateHoles = ()=>{
+    // 1-2 subtle black holes for depth
     this.holes = [];
     if (!this.W || !this.H) return;
     const n = (Math.random() > 0.55) ? 2 : 1;
@@ -224,6 +239,7 @@ function StarsEngine(canvas){
         ph: Math.random()*Math.PI*2,
       });
     }
+    // reset comets on hole regen
     this.comets = [];
     this._lastCometAt = 0;
   };
@@ -250,6 +266,7 @@ function StarsEngine(canvas){
     const vx = (dx/dist)*speed;
     const vy = (dy/dist)*speed;
 
+    // tint: ice or pink
     const tint = (Math.random() > 0.5)
       ? { r: 190, g: 215, b: 255 }
       : { r: 255, g: 190, b: 225 };
@@ -279,6 +296,7 @@ function StarsEngine(canvas){
     this.H = window.innerHeight || document.documentElement.clientHeight || 0;
     if (!this.W || !this.H) return;
 
+    // canvas size
     this.canvas.width = this.W;
     this.canvas.height = this.H;
     this.baseCanvas.width = this.W;
@@ -292,7 +310,7 @@ function StarsEngine(canvas){
     this.stars = [];
     this.twinkle = [];
 
-    const count = 900;
+    const count = 900; // reduce from 1500 for battery
     for (let i=0;i<count;i++) {
       const sp = this.pickSpectral();
       const fill = SPECTRAL[sp];
@@ -327,6 +345,7 @@ function StarsEngine(canvas){
     }
 
     this.renderBase();
+    // extra layer
     this.generateHoles();
   };
 
@@ -364,6 +383,7 @@ function StarsEngine(canvas){
     const ctx = this.ctx;
     if (!this.holes?.length) return;
 
+    // Check if we should animate black holes specifically
     if (!shouldAnimateBlackHoles() && !shouldAnimateWithReducedIntensity()) return;
 
     ctx.save();
@@ -477,8 +497,10 @@ function StarsEngine(canvas){
     ctx.globalCompositeOperation = 'source-over';
     ctx.drawImage(this.baseCanvas, 0, 0);
 
+    // black holes beneath
     this.drawHoles(t);
 
+    // twinkle
     for (const st of this.twinkle) {
       const twk = 0.55 + 0.45 * Math.sin(t * st.tw + st.ph);
       const a = st.a0 * twk;
@@ -534,24 +556,29 @@ function StarsEngine(canvas){
     for (let i=this.comets.length-1;i>=0;i--) {
       const c = this.comets[i];
 
+      // enhanced gravitational effects near holes
       for (const h of this.holes || []) {
         const dx = h.x - c.x;
         const dy = h.y - c.y;
         const dist = Math.hypot(dx, dy) || 1;
         
         if (dist < (h.r*4.6)) {
+          // Коэффициент влияния в зависимости от расстояния
           const k = 1 - dist/(h.r*4.6);
           
-          const pull = 0.040 * k;
+          // Сила притяжения
+          const pull = 0.040 * k; // Увеличенная сила притяжения
           c.vx += (dx/dist) * pull;
           c.vy += (dy/dist) * pull;
           
-          const swirl = 0.035 * k * h.spin;
+          // Сила вращения (вихревое движение)
+          const swirl = 0.035 * k * h.spin; // Увеличенная сила вращения
           c.vx += (-dy/dist) * swirl;
           c.vy += ( dx/dist) * swirl;
           
+          // Если комета слишком близко к центру, она может быть "поглощена"
           if (dist < h.r * 0.8) {
-            c.life = 0;
+            c.life = 0; // Уничтожаем комету
           }
         }
       }
@@ -568,6 +595,7 @@ function StarsEngine(canvas){
   };
 
   this._loop = (ts)=>{
+    // Check if we should run the full animation or just black holes
     const fullAnimation = shouldAnimateNow();
     const blackHoleAnimation = shouldAnimateBlackHoles() || shouldAnimateWithReducedIntensity();
     
@@ -578,6 +606,7 @@ function StarsEngine(canvas){
 
     const now = ts;
 
+    // refresh ghost constellations if page height changes (SPA / infinite feed)
     if (fullAnimation && (!this._ghostCheckAt || (now - this._ghostCheckAt) > 1800)) {
       this._ghostCheckAt = now;
       const dh = this.getDocHeight();
@@ -586,10 +615,12 @@ function StarsEngine(canvas){
       }
     }
 
+    // spawn comets sometimes - only if full animation is enabled
     if (fullAnimation) {
       if (!this._lastCometAt) this._lastCometAt = now;
       if ((now - this._lastCometAt) > (2600 + Math.random()*1200)) {
         this.spawnComet();
+        // rare double-comet
         if (Math.random() < 0.18) {
           setTimeout(()=>{ try { this.spawnComet(); } catch {} }, 220);
         }
@@ -597,10 +628,12 @@ function StarsEngine(canvas){
       }
     }
 
+    // update comets only if full animation is enabled
     if (fullAnimation) {
       this.updateComets();
     }
     
+    // Apply black hole forces to stars for gravitational effects
     for (const s of this.stars) {
       this.applyBlackHoleForces(s);
       
@@ -618,6 +651,7 @@ function StarsEngine(canvas){
       if (s.y > this.H + 30) s.y = -30;
     }
     
+    // Render frame - always render if either animation is enabled
     this.renderFrame(ts/1000);
     this._raf = requestAnimationFrame(this._loop);
   };
@@ -636,6 +670,7 @@ function StarsEngine(canvas){
     try { window.removeEventListener('resize', this._onResize); } catch {}
   };
 
+  // init
   try { this.rebuild(); this.generateGhosts(); } catch {}
 }
 
@@ -667,6 +702,7 @@ function CrystalEngine(){
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     this._ctx = ctx;
 
+    // rebuild state
     this._state = this._makeState(W, H);
   };
 
@@ -769,6 +805,8 @@ function CrystalEngine(){
 
     ctx.clearRect(0,0,st.W,st.H);
 
+    // holes
+    // Check if we should animate black holes specifically
     if (shouldAnimateBlackHoles() || shouldAnimateWithReducedIntensity()) {
       ctx.save();
       ctx.globalCompositeOperation = 'source-over';
@@ -830,6 +868,7 @@ function CrystalEngine(){
       ctx.restore();
     }
 
+    // links
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
     ctx.lineWidth = 0.6;
@@ -855,6 +894,7 @@ function CrystalEngine(){
     }
     ctx.restore();
 
+    // stars
     ctx.save();
     ctx.globalCompositeOperation='lighter';
     for (const s of st.stars){
@@ -868,6 +908,7 @@ function CrystalEngine(){
     }
     ctx.restore();
 
+    // comets
     ctx.save();
     ctx.globalCompositeOperation='lighter';
     ctx.lineCap='round';
@@ -900,6 +941,7 @@ function CrystalEngine(){
   };
 
   this._loop = (now)=>{
+    // Check if we should run the full animation or just black holes
     const fullAnimation = shouldAnimateNow();
     const blackHoleAnimation = shouldAnimateBlackHoles() || shouldAnimateWithReducedIntensity();
     
@@ -910,6 +952,7 @@ function CrystalEngine(){
     
     const st = this._state;
     if (st) {
+      // Only update comets and stars if full animation is enabled
       if (fullAnimation) {
         if (now - st.lastCometAt > 2600) { this._spawnComet(); st.lastCometAt = now; }
         for (const s of st.stars){
@@ -925,6 +968,7 @@ function CrystalEngine(){
         for (let i=st.comets.length-1;i>=0;i--){
           const c=st.comets[i];
           
+          // Apply black hole forces to comets
           for (const h of st.holes || []) {
             const dx = h.x - c.x;
             const dy = h.y - c.y;
@@ -945,6 +989,7 @@ function CrystalEngine(){
         }
       }
       
+      // Always render if either animation is enabled
       this._render(now*0.001);
     }
     this._raf = requestAnimationFrame(this._loop);
@@ -953,668 +998,2117 @@ function CrystalEngine(){
   this.start = ()=>{
     if (this._raf) return;
     const p = APP.state?.route?.path || parseRoute().path;
-    if (!p) return;
-    if (!this._root) this._root = document.getElementById('crystalCanvas');
-    if (!this._canvas) {
-      if (!this._root) return;
-      this._canvas = document.createElement('canvas');
-      this._canvas.style.position = 'absolute';
-      this._canvas.style.left = '0';
-      this._canvas.style.top = '0';
-      this._canvas.style.width = '100%';
-      this._canvas.style.height = '100%';
-      this._canvas.style.pointerEvents = 'none';
-      this._root.appendChild(this._canvas);
-    }
+    if (p !== '/') return; // only landing
+    this._root = document.getElementById('cosmosRoot');
+    this._canvas = document.getElementById('crystalCanvas');
+    if (!this._root || !this._canvas) return;
     this._setSize();
+    if (typeof ResizeObserver !== 'undefined') {
+      this._ro = new ResizeObserver(()=> this._setSize());
+      this._ro.observe(this._root);
+    }
     this._raf = requestAnimationFrame(this._loop);
-    window.addEventListener('resize', this._onResize, { passive: true });
   };
 
   this.stop = ()=>{
     if (this._raf) cancelAnimationFrame(this._raf);
     this._raf = 0;
-    try { window.removeEventListener('resize', this._onResize); } catch {}
+    try { this._ro?.disconnect?.(); } catch {}
+    this._ro = null;
   };
 
   this.syncToRoute = ()=>{
     const p = APP.state?.route?.path || parseRoute().path;
-    if (p === '/') {
-      if (!this._root) this._root = document.getElementById('crystalCanvas');
-      if (this._root) this._root.style.display = 'block';
-      this.start();
-    } else {
-      this.stop();
-      if (this._root) this._root.style.display = 'none';
-    }
+    if (p === '/') this.start();
+    else this.stop();
   };
-
-  this._onResize = ()=>{ this._setSize(); };
-
-  try { this.syncToRoute(); } catch {}
 }
 
-function $(sel, parent=document){
-  try { return parent.querySelector(sel); } catch { return null; }
+function defaultThemeForRole(role){
+  return (THEMES.find(t => t.role === role) || THEMES[0]).id;
 }
 
-function $$(sel, parent=document){
-  try { return Array.from(parent.querySelectorAll(sel)); } catch { return []; }
+const $ = (sel, el=document) => el.querySelector(sel);
+const $$ = (sel, el=document) => Array.from(el.querySelectorAll(sel));
+
+function escapeHTML(s){
+  return String(s)
+    .replaceAll('&','&amp;')
+    .replaceAll('<','&lt;')
+    .replaceAll('>','&gt;')
+    .replaceAll('"','&quot;')
+    .replaceAll("'", '&#039;');
 }
 
-function escapeHTML(str){
-  const div = document.createElement('div');
-  div.textContent = String(str || '');
-  return div.innerHTML;
+function toast(msg){
+  const el = $('#toast');
+  if (!el) return;
+  el.textContent = msg;
+  el.classList.remove('hidden');
+  el.classList.add('fade-in');
+  clearTimeout(toast._t);
+  toast._t = setTimeout(()=>{
+    el.classList.add('hidden');
+    el.classList.remove('fade-in');
+  }, 2200);
 }
 
-function parseRoute(path=location.pathname){
-  const segments = (path || location.pathname).split('/').filter(Boolean);
-  return { path: path || location.pathname, segments, params: {} };
-}
+function ensureEntryModal(){
+  if ($('#entryModal')) return;
+  const wrap = document.createElement('div');
+  wrap.id = 'entryModal';
+  wrap.className = 'hidden';
+  wrap.innerHTML = `
+    <div class="modalWrap">
+      <div class="modalScrim" data-action="modal-close" aria-hidden="true"></div>
+      <div class="modalPanel card" role="dialog" aria-modal="true" aria-label="Редактировать запись" style="padding: 16px;">
+        <div class="rowBetween" style="align-items:flex-start;">
+          <div>
+            <div style="font-size: 18px; font-weight: 900">Редактировать</div>
+            <div class="textMuted" style="font-size: 12px">Обнови победу и/или урок</div>
+          </div>
+          <button type="button" class="btn-ghost" style="padding: 10px 12px" data-action="modal-close" aria-label="Закрыть">✕</button>
+        </div>
 
-function nav(to){
-  if (to === location.pathname) return;
-  history.pushState({}, '', to);
-  render();
-}
+        <div class="grid" style="margin-top: 12px;">
+          <div class="soft" style="padding: 12px; background: var(--victory)">
+            <div style="font-size: 12px; font-weight: 900; letter-spacing:.16em">⚔️ VICTORIA</div>
+            <div class="ai-wrap" style="margin-top: 10px;">
+              <textarea class="textarea ai-textarea" id="entryModalVictory" placeholder="Текст победы"></textarea>
+              <button type="button" class="ai-btn" data-action="ai-rewrite" data-target="entryModalVictory" data-field="victory" title="Переписать с ИИ" aria-label="Переписать с ИИ">✦</button>
+            </div>
+          </div>
 
-async function render(){
-  if (APP._rendering) {
-    APP._rerenderRequested = true;
-    return;
-  }
-  APP._rendering = true;
-  try {
-    const route = parseRoute();
-    APP.state.route = route;
-    document.title = `Pariter — ${route.path === '/' ? 'Главная' : route.path === '/path' ? 'Путь' : route.path === '/stats' ? 'Статистика' : route.path === '/settings' ? 'Настройки' : 'Регистрация'}`;
+          <div class="soft" style="padding: 12px; background: var(--lesson)">
+            <div style="font-size: 12px; font-weight: 900; letter-spacing:.16em">🦉 LECTIO</div>
+            <div class="ai-wrap" style="margin-top: 10px;">
+              <textarea class="textarea ai-textarea" id="entryModalLesson" placeholder="Текст урока"></textarea>
+              <button type="button" class="ai-btn" data-action="ai-rewrite" data-target="entryModalLesson" data-field="lesson" title="Переписать с ИИ" aria-label="Переписать с ИИ">✦</button>
+            </div>
+          </div>
 
-    const content = $('#content');
-    if (!content) return;
+          <div class="rowBetween" style="flex-wrap: wrap; gap: 10px">
+            <button type="button" class="btn-danger" style="padding: 10px 14px; border-radius: 999px" data-action="modal-delete">🗑️ Удалить</button>
+            <div class="row" style="flex-wrap: wrap">
+              <button type="button" class="btn-ghost" data-action="modal-close">Отмена</button>
+              <button type="button" class="btn" data-action="modal-save">Сохранить</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(wrap);
 
-    if (route.path === '/') {
-      content.innerHTML = await landingPage();
-    } else if (route.path === '/path') {
-      content.innerHTML = await pathPage();
-    } else if (route.path === '/stats') {
-      content.innerHTML = await statsPage();
-    } else if (route.path === '/settings') {
-      content.innerHTML = await settingsPage();
-    } else if (route.path === '/join') {
-      content.innerHTML = await joinPage();
-    } else if (route.path === '/register') {
-      content.innerHTML = await registerPage();
-    } else if (route.path === '/login') {
-      content.innerHTML = await loginPage();
-    } else {
-      content.innerHTML = '<div>Страница не найдена</div>';
-    }
+  const close = ()=> closeEntryModal();
+  wrap.addEventListener('click', async (e)=>{
+    const t = e.target?.closest?.('[data-action]');
+    const action = t?.getAttribute?.('data-action');
+    if (!action) return;
 
-    bindHandlers();
-    if (route.path === '/') {
-      try { ensureStarsLayer(); } catch {}
-    } else {
+    if (action === 'modal-close') return close();
+
+    const id = Number(wrap.getAttribute('data-id') || '0');
+    if (!id) return close();
+
+    if (action === 'modal-save') {
+      const v = String($('#entryModalVictory')?.value || '').trim();
+      const l = String($('#entryModalLesson')?.value || '').trim();
+      if (!v && !l) return toast('Заполни хотя бы одну часть.');
       try {
-        if (ensureStarsLayer._stars) ensureStarsLayer._stars.stop();
-        if (ensureStarsLayer._crystal) ensureStarsLayer._crystal.stop();
-        document.documentElement.classList.remove('l00m-stars-on');
-      } catch {}
-    }
-    if (route.path === '/path') {
-      try { liveStart(); } catch {}
-    } else {
-      try { liveStop(); } catch {}
-    }
-  } finally {
-    APP._rendering = false;
-    if (APP._rerenderRequested) {
-      APP._rerenderRequested = false;
-      setTimeout(render, 0);
-    }
-  }
-}
-
-function bindHandlers(){
-  $$('[data-action]').forEach(el => {
-    if (el._handlersBound) return;
-    el._handlersBound = true;
-    const action = el.getAttribute('data-action');
-    if (action === 'nav') {
-      el.addEventListener('click', (e) => {
-        e.preventDefault();
-        const to = el.getAttribute('data-to');
-        if (to) nav(to);
-      });
-    } else if (action === 'logout') {
-      el.addEventListener('click', async (e) => {
-        e.preventDefault();
-        try {
-          await api.logout();
-          APP.state.user = null;
-          APP.state.team = null;
-          APP.state.teamUsers = [];
-          nav('/');
-        } catch (err) {
-          toast(err.message || 'Ошибка выхода');
-        }
-      });
-    } else if (action === 'entry-create') {
-      el.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const fd = new FormData(e.target);
-        try {
-          const victory = String(fd.get('victory') || '').trim();
-          const lesson = String(fd.get('lesson') || '').trim();
-          if (!victory && !lesson) return toast('Заполните хотя бы одну часть: победу или урок.');
-
-          await api.entryCreate({ victory, lesson });
-          toast('Зафиксировано.');
-          e.target.reset();
-          if (location.pathname === '/path') {
-            await hydratePathStats();
-            await hydrateFeed(true);
-          }
-        } catch (err) {
-          toast(err.message || 'Ошибка сохранения.');
-        }
-      });
-    } else if (action === 'theme-select') {
-      el.addEventListener('click', (e) => {
-        e.preventDefault();
-        const themeId = el.getAttribute('data-theme');
-        if (themeId) {
-          setTheme(themeId);
-          $$('[data-action="theme-select"]').forEach(btn => {
-            btn.classList.toggle('active', btn.getAttribute('data-theme') === themeId);
-          });
-        }
-      });
-    } else if (action === 'team-user-delete') {
-      el.addEventListener('click', async () => {
-        if (!confirm('Удалить спутника из команды?')) return;
-        const id = Number(el.getAttribute('data-id'));
-        try {
-          await api.teamUserDelete({ id });
-          toast('Спутник удален');
-          if (location.pathname === '/settings') await hydrateInvite();
-        } catch (err) {
-          toast(err.message || 'Ошибка удаления');
-        }
-      });
-    } else if (action === 'invite-create') {
-      el.addEventListener('click', async () => {
-        try {
-          const { code } = await api.inviteCreate();
-          toast('Приглашение создано');
-          if (location.pathname === '/settings') await hydrateInvite();
-        } catch (err) {
-          toast(err.message || 'Ошибка создания приглашения');
-        }
-      });
-    } else if (action === 'invite-delete') {
-      el.addEventListener('click', async () => {
-        if (!confirm('Удалить приглашение?')) return;
-        const id = Number(el.getAttribute('data-id'));
-        try {
-          await api.inviteDelete({ id });
-          toast('Приглашение удалено');
-          if (location.pathname === '/settings') await hydrateInvite();
-        } catch (err) {
-          toast(err.message || 'Ошибка удаления');
-        }
-      });
-    } else if (action === 'invite-copy') {
-      const code = el.getAttribute('data-code');
-      if (code) {
-        el.addEventListener('click', async () => {
-          try {
-            await navigator.clipboard.writeText(`${location.origin}/join/${code}`);
-            toast('Ссылка скопирована');
-          } catch {
-            toast('Не удалось скопировать ссылку');
-          }
-        });
+        await api.entryUpdate(id, { victory: v, lesson: l });
+        toast('Обновлено.');
+        APP.state.cache.entryText.delete(id);
+        close();
+        await hydratePathStats();
+        await hydrateFeed(true);
+      } catch (err) {
+        toast(err.message || 'Ошибка обновления.');
       }
-    } else if (action === 'invite-use') {
-      const code = el.getAttribute('data-code');
-      if (code) {
-        el.addEventListener('click', () => {
-          const input = $('#inviteCode');
-          if (input) {
-            input.value = code;
-            input.focus();
-          }
-        });
+      return;
+    }
+
+    if (action === 'modal-delete') {
+      if (!confirm('Удалить запись?')) return;
+      try {
+        await api.entryDelete(id);
+        toast('Удалено.');
+        APP.state.cache.entryText.delete(id);
+        close();
+        await hydratePathStats();
+        await hydrateFeed(true);
+      } catch (err) {
+        toast(err.message || 'Ошибка удаления.');
       }
-    } else if (action === 'pwa-install') {
-      el.addEventListener('click', async () => {
-        if (APP.pwa.deferredPrompt) {
-          APP.pwa.deferredPrompt.prompt();
-          const { outcome } = await APP.pwa.deferredPrompt.userChoice;
-          if (outcome === 'accepted') {
-            APP.pwa.installed = true;
-            APP.pwa.deferredPrompt = null;
-          }
-          updatePwaUI();
-        }
-      });
-    } else if (action === 'notif-request') {
-      el.addEventListener('click', async () => {
-        if (typeof Notification === 'undefined') {
-          toast('Уведомления не поддерживаются');
-          return;
-        }
-        const p = await Notification.requestPermission();
-        updateNotifUI();
-        if (p === 'granted') {
-          toast('Уведомления разрешены');
-        } else {
-          toast('Уведомления запрещены');
-        }
-      });
-    } else if (action === 'push-toggle') {
-      el.addEventListener('click', async () => {
-        try {
-          if (readPushDesired()) {
-            await disablePush();
-            toast('Push выключен');
-          } else {
-            await enablePush();
-            toast('Push включён');
-          }
-          updatePushUI();
-        } catch (err) {
-          toast(err.message || 'Ошибка настройки Push');
-        }
-      });
-    } else if (action === 'push-off') {
-      el.addEventListener('click', async () => {
-        try {
-          await disablePush();
-          toast('Push выключен');
-          updatePushUI();
-        } catch (err) {
-          toast(err.message || 'Ошибка отключения Push');
-        }
-      });
-    } else if (action === 'sound-toggle') {
-      el.addEventListener('click', () => {
-        const enabled = !readSoundEnabled();
-        writeSoundEnabled(enabled);
-        updateSoundUI();
-        if (enabled) {
-          toast('Звук включён');
-          playCosmicChime({ quiet: true });
-        } else {
-          toast('Звук выключен');
-        }
-      });
-    } else if (action === 'modal-open') {
-      el.addEventListener('click', (e) => {
-        e.preventDefault();
-        const modalId = el.getAttribute('data-modal');
-        if (modalId) openModal(modalId);
-      });
-    } else if (action === 'modal-close') {
-      el.addEventListener('click', () => closeModal());
+      return;
     }
   });
 }
 
-function setTheme(id){
-  const theme = themeById(id);
-  if (!theme) return;
-  const root = document.documentElement;
-  root.style.setProperty('--bg', theme.colors.bg);
-  root.style.setProperty('--bg-secondary', theme.colors.bgSecondary);
-  root.style.setProperty('--text', theme.colors.text);
-  root.style.setProperty('--text-muted', theme.colors.textMuted);
-  root.style.setProperty('--accent', theme.colors.accent);
-  root.style.setProperty('--accent-hover', theme.colors.accentHover);
-  root.style.setProperty('--border', theme.colors.border);
-  root.style.setProperty('--victory', theme.colors.victory);
-  root.style.setProperty('--lesson', theme.colors.lesson);
-  root.setAttribute('data-theme', theme.id);
-  root.setAttribute('data-role', theme.role);
-  root.setAttribute('data-light', theme.light ? '1' : '0');
+function openEntryModal(id){
+  ensureEntryModal();
+  const wrap = $('#entryModal');
+  const cached = APP.state.cache.entryText.get(id);
+  if (!wrap || !cached) return;
+  wrap.setAttribute('data-id', String(id));
+  $('#entryModalVictory').value = cached.victory ?? '';
+  $('#entryModalLesson').value = cached.lesson ?? '';
+  wrap.classList.remove('hidden');
+  // prevent background scroll while modal is open
+  try { document.body.style.overflow = 'hidden'; } catch {}
+  setTimeout(()=>{ try { $('#entryModalVictory')?.focus?.(); } catch {} }, 0);
 }
 
-function toast(msg){
-  let t = $('#toast');
-  if (!t) {
-    t = document.createElement('div');
-    t.id = 'toast';
-    t.style.cssText = 'position:fixed;bottom:20px;right:20px;z-index:10000;padding:12px 16px;border-radius:8px;background:var(--bg-secondary);color:var(--text);font-size:14px;box-shadow:0 4px 12px rgba(0,0,0,0.15);transform:translateY(100px);opacity:0;transition:all 0.2s ease;';
-    document.body.appendChild(t);
+function closeEntryModal(){
+  const wrap = $('#entryModal');
+  if (!wrap) return;
+  wrap.classList.add('hidden');
+  wrap.removeAttribute('data-id');
+  // restore background scroll
+  try { document.body.style.overflow = ''; } catch {}
+}
+
+function setTheme(themeId){
+  const t = THEMES.find(x=>x.id===themeId) || THEMES[0];
+  const r = document.documentElement;
+  const b = document.body;
+
+  // Important: SSR can set CSS variables inline on <body>. If we only set vars on <html>,
+  // body vars will win and theme switching will look “stuck”. So we set vars on BOTH.
+  Object.entries(t.colors).forEach(([k,v]) => {
+    r.style.setProperty(`--${k}`, v);
+    b.style.setProperty(`--${k}`, v);
+  });
+
+  // If stars background is enabled, canvas draws the “night”, so we keep body transparent.
+  if (document.documentElement.classList.contains('l00m-stars-on')) {
+    b.style.background = 'transparent';
+    return;
   }
-  t.textContent = msg;
-  t.style.transform = 'translateY(0)';
-  t.style.opacity = '1';
-  setTimeout(() => {
-    t.style.transform = 'translateY(100px)';
-    t.style.opacity = '0';
-    setTimeout(() => t.remove(), 200);
-  }, 2000);
-}
 
-function formatDate(dateStr){
-  const d = new Date(dateStr);
-  const today = new Date();
-  const yesterday = new Date(today);
-  yesterday.setDate(yesterday.getDate() - 1);
-
-  if (d.toDateString() === today.toDateString()) {
-    return `сегодня, ${d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}`;
-  } else if (d.toDateString() === yesterday.toDateString()) {
-    return `вчера, ${d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}`;
+  if (t.light) {
+    b.style.background = `radial-gradient(1100px 560px at 20% -10%, rgba(76,111,255,.12), transparent 55%),
+                          radial-gradient(900px 520px at 110% 10%, rgba(31,185,129,.12), transparent 60%),
+                          var(--bg)`;
   } else {
-    return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
+    b.style.background = `radial-gradient(1200px 600px at 20% -10%, rgba(124,92,255,.22), transparent 55%),
+                          radial-gradient(900px 520px at 110% 10%, rgba(46,212,167,.20), transparent 60%),
+                          var(--bg)`;
   }
 }
 
-function ruDateLabel(dateStr){
-  const d = new Date(dateStr);
-  return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
+function nowISO(){ return new Date().toISOString(); }
+function todayYMD(){
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth()+1).padStart(2,'0');
+  const day = String(d.getDate()).padStart(2,'0');
+  return `${y}-${m}-${day}`;
+}
+function ruDateLabel(ymd){
+  const [y,m,d] = ymd.split('-').map(Number);
+  const date = new Date(y, m-1, d);
+  return new Intl.DateTimeFormat('ru-RU', { day:'numeric', month:'long' }).format(date);
+}
+
+function ruTimeLabel(iso){
+  try {
+    const dt = new Date(iso);
+    if (Number.isNaN(dt.getTime())) return '';
+    return new Intl.DateTimeFormat('ru-RU', { hour:'2-digit', minute:'2-digit' }).format(dt);
+  } catch { return ''; }
+}
+
+async function apiFetch(path, { method='GET', body=null }={}){
+  const headers = { 'accept': 'application/json' };
+  if (body !== null) headers['content-type'] = 'application/json';
+
+  const res = await fetch(path, {
+    method,
+    headers,
+    body: body !== null ? JSON.stringify(body) : undefined,
+    cache: 'no-store',
+    credentials: 'include',
+  });
+
+  let data = null;
+  try { data = await res.json(); } catch { data = {}; }
+
+  if (!res.ok) {
+    // global auth handling
+    if (res.status === 401) {
+      APP.state.user = null;
+      APP.state.team = null;
+
+      const curPath = location.pathname;
+      const isAuthPage = curPath === '/login' || curPath === '/register' || curPath.startsWith('/join/');
+      if (!isAuthPage && !APP._authRedirectScheduled) {
+        APP._authRedirectScheduled = true;
+        setTimeout(()=>{
+          try {
+            // Use replace to avoid back-button loops
+            history.replaceState({}, '', '/login');
+          } finally {
+            APP._authRedirectScheduled = false;
+            // render is safe here: it will call /api/me, which will again 401,
+            // but will NOT schedule another redirect because we're already on /login.
+            render();
+          }
+        }, 0);
+      }
+    }
+
+    const err = new Error(data?.error || 'Ошибка API.');
+    err.status = res.status;
+    err.reason = data?.reason;
+    err.data = data;
+    throw err;
+  }
+  return data;
+}
+
+const api = {
+  health: ()=> apiFetch('/api/health'),
+  me: ()=> apiFetch('/api/me'),
+  register: (payload)=> apiFetch('/api/register', { method:'POST', body: payload }),
+  login: (payload)=> apiFetch('/api/login', { method:'POST', body: payload }),
+  logout: ()=> apiFetch('/api/logout', { method:'POST', body: {} }),
+  inviteResolve: (code)=> apiFetch('/api/invites/resolve/' + encodeURIComponent(code)),
+  join: (code, payload)=> apiFetch('/api/join/' + encodeURIComponent(code), { method:'POST', body: payload }),
+  team: ()=> apiFetch('/api/team'),
+  invitesList: ()=> apiFetch('/api/invites'),
+  invitesCreate: ()=> apiFetch('/api/invites', { method:'POST', body: {} }),
+  invitesDelete: (id)=> apiFetch('/api/invites/' + Number(id), { method:'DELETE' }),
+  // legacy, not used in infinite-path mode
+  today: ()=> apiFetch('/api/today'),
+  entriesGet: ({limit=20, before=null}={}) => {
+    const p = new URLSearchParams();
+    p.set('limit', String(limit));
+    if (before?.date && before?.id) {
+      p.set('beforeDate', before.date);
+      p.set('beforeId', String(before.id));
+    } else if (before?.date) {
+      // legacy cursor mode: only date
+      p.set('before', before.date);
+    }
+    return apiFetch('/api/entries?' + p.toString());
+  },
+  entriesNew: ({after, limit=3}={})=>{
+    const p = new URLSearchParams();
+    if (after?.date && after?.id) {
+      p.set('afterDate', after.date);
+      p.set('afterId', String(after.id));
+    }
+    p.set('limit', String(limit));
+    return apiFetch('/api/entries/new?' + p.toString());
+  },
+  entryCreate: ({victory, lesson})=> apiFetch('/api/entries', { method:'POST', body: { victory, lesson, pushToken: readPushToken() || null } }),
+  // legacy name (kept for older code paths)
+  entryUpsertToday: ({victory, lesson})=> apiFetch('/api/entries', { method:'POST', body: { victory, lesson, pushToken: readPushToken() || null } }),
+  entryUpdate: (id, {victory, lesson})=> apiFetch('/api/entries/' + Number(id), { method:'PUT', body: { victory, lesson } }),
+  entryDelete: (id)=> apiFetch('/api/entries/' + Number(id), { method:'DELETE' }),
+  settingsUpdate: ({name, role, theme, password})=> apiFetch('/api/settings', { method:'PUT', body: { name, role, theme, password } }),
+  export: ()=> apiFetch('/api/export'),
+  import: ({data, defaultPassword})=> apiFetch('/api/import', { method:'POST', body: { data, defaultPassword } }),
+  stats: ()=> apiFetch('/api/stats'),
+  aiRewrite: ({field, text})=> apiFetch('/api/ai/rewrite', { method:'POST', body: { field, text } }),
+
+  // Push
+  pushVapidKey: ()=> apiFetch('/api/push/vapidPublicKey'),
+  pushSubscribe: ({ endpoint, keys, token=null })=> apiFetch('/api/push/subscribe', { method:'POST', body: { endpoint, keys, token } }),
+  pushResubscribe: ({ token, endpoint, keys })=> apiFetch('/api/push/resubscribe', { method:'POST', body: { token, endpoint, keys } }),
+  pushUnsubscribe: ({ endpoint=null }={})=> apiFetch('/api/push/unsubscribe', { method:'POST', body: { endpoint } }),
+
+  // Account / Team management
+  profileDelete: ()=> apiFetch('/api/profile', { method:'DELETE' }),
+  teamDelete: (id)=> apiFetch('/api/team/' + Number(id), { method:'DELETE' }),
+};
+
+// server returns base64(Bun.gzipSync(text)) in entry.victory / entry.lesson
+// Prefer client-side gunzip (DecompressionStream). Fallback to /api/gunzip.
+const _gunzipCache = new Map();
+const GUNZIP_CACHE_MAX = 600;
+
+function gunzipCacheSet(key, value){
+  _gunzipCache.set(key, value);
+  // simple FIFO cap to avoid unbounded memory growth
+  while (_gunzipCache.size > GUNZIP_CACHE_MAX) {
+    const first = _gunzipCache.keys().next().value;
+    _gunzipCache.delete(first);
+  }
+}
+
+function b64ToU8(b64){
+  const bin = atob(b64);
+  const u8 = new Uint8Array(bin.length);
+  for (let i=0;i<bin.length;i++) u8[i] = bin.charCodeAt(i);
+  return u8;
+}
+
+async function gunzipB64(b64){
+  if (!b64) return '';
+  if (_gunzipCache.has(b64)) return _gunzipCache.get(b64);
+
+  // client path
+  try {
+    if (typeof DecompressionStream !== 'undefined') {
+      const ds = new DecompressionStream('gzip');
+      const blob = new Blob([b64ToU8(b64)]);
+      const stream = blob.stream().pipeThrough(ds);
+      const ab = await new Response(stream).arrayBuffer();
+      const text = new TextDecoder().decode(new Uint8Array(ab));
+      gunzipCacheSet(b64, text);
+      return text;
+    }
+  } catch {}
+
+  // fallback to server helper
+  try {
+    const r = await apiFetch('/api/gunzip', { method:'POST', body: { b64 } });
+    const text = String(r.text || '');
+    gunzipCacheSet(b64, text);
+    return text;
+  } catch {
+    return '';
+  }
+}
+
+function parseRoute(){
+  const path = location.pathname;
+  const parts = path.split('/').filter(Boolean);
+  if (parts.length === 0) return { path: '/', params: {} };
+  if (parts[0] === 'join') return { path: '/join', params: { code: parts[1] || '' } };
+  return { path: '/' + parts[0], params: {} };
+}
+
+function setDocumentTitle(routePath){
+  // Keep titles in sync with server-side pages.ts (so no F5 needed for title updates).
+  const base = '✦ PARITER ✦';
+  let t = base;
+  if (routePath === '/login') t = `Вход — ${base}`;
+  else if (routePath === '/register') t = `Регистрация — ${base}`;
+  else if (routePath === '/join') t = `Присоединиться — ${base}`;
+  else if (routePath === '/path') t = `Путь — ${base}`;
+  else if (routePath === '/invite') t = `Спутники — ${base}`;
+  else if (routePath === '/settings') t = `Настройки — ${base}`;
+
+  const n = Number(APP?.state?.live?.unread || 0);
+  const prefix = (n > 0) ? `(${Math.min(n, 99)}) ` : '';
+  try { document.title = prefix + t; } catch {}
+}
+
+function nav(path){
+  history.pushState({}, '', path);
+  render();
+}
+
+function requireAuth(){
+  if (!APP.state.user) {
+    history.replaceState({}, '', '/login');
+    render();
+    return false;
+  }
+  return true;
+}
+
+function Logo(){
+  return `<span style="letter-spacing:.18em; font-weight:800">✦ PARITER ✦</span>`;
+}
+
+function HealthBadge(){
+  return `<span id="healthBadge" class="pill textMuted" style="font-size: 12px">связь: …</span>`;
+}
+
+function PageShell({title, subtitle, body, footer}={}){
+  return `
+    <div class="centerShell">
+      <div class="centerMax">
+        <div style="text-align:center; margin-bottom: 18px;">
+          <div style="font-size:12px; text-transform:uppercase; opacity:.9">${Logo()}</div>
+          ${title ? `<div style="margin-top: 16px; font-size: 28px; font-weight: 800;">${escapeHTML(title)}</div>` : ''}
+          ${subtitle ? `<div style="margin-top: 8px; font-size: 14px; color: var(--textMuted);">${escapeHTML(subtitle)}</div>` : ''}
+        </div>
+        <div class="card" style="padding: 18px;">${body || ''}</div>
+        ${footer ? `<div style="text-align:center; margin-top: 14px; font-size: 13px; color: var(--textMuted);">${footer}</div>` : ''}
+      </div>
+    </div>
+  `;
+}
+
+function AppHeader(){
+  const me = APP.state.user;
+  const mates = (APP.state.teamUsers || []).filter(u => me && Number(u.id) !== Number(me.id));
+  const show = mates.slice(0, 6);
+  const more = mates.length - show.length;
+
+  return `
+    <header class="header">
+      <div class="container">
+        <div class="headerRow">
+          <button class="btn-ghost" style="padding: 10px 12px" data-action="sidebar-open" aria-label="Меню">☰</button>
+          <button type="button" class="btn-ghost" style="padding: 8px 10px; border:0; background:transparent; letter-spacing:.16em" data-nav="/" aria-label="На главную">PARITER</button>
+          <div class="row">
+            <div class="row" style="display:none" id="mateIcons"></div>
+            <div class="row" style="gap:6px" aria-hidden="true">
+              ${show.map(u=>`<div title="Спутник: ${escapeHTML(u.name)}" style="width:32px;height:32px;border-radius:999px;border:1px solid var(--border);display:grid;place-items:center;background:rgba(255,255,255,.03)">${ROLE_META[u.role]?.emoji || '✦'}</div>`).join('')}
+              ${more>0 ? `<div title="Ещё спутники" style="width:32px;height:32px;border-radius:999px;border:1px solid var(--border);display:grid;place-items:center;background:rgba(255,255,255,.03);font-size:12px">+${more}</div>` : ''}
+            </div>
+            <div aria-hidden="true" style="width:1px; height: 22px; background: var(--border); margin: 0 8px;"></div>
+            <button class="btn-ghost" style="padding: 10px 12px" data-action="go-settings" aria-label="Настройки">⚙️</button>
+          </div>
+        </div>
+      </div>
+    </header>
+  `;
+}
+
+function Sidebar(){
+  const open = APP.state.sidebarOpen;
+  const me = APP.state.user;
+  const current = location.pathname;
+
+  const item = (path, label, icon) => {
+    const is = current === path || (path === '/path' && current === '/');
+    return `
+      <button class="soft" style="width:100%; text-align:left; padding: 12px; border-radius: 16px; border-color: ${is ? 'color-mix(in srgb, var(--accent) 55%, var(--border))' : 'var(--border)'}; background: ${is ? 'color-mix(in srgb, var(--accent) 14%, transparent)' : 'rgba(255,255,255,.02)'}" data-nav="${path}">
+        <div class="rowBetween">
+          <div class="row" style="gap:10px">
+            <span>${icon}</span>
+            <span style="font-weight:700">${label}</span>
+          </div>
+          ${is ? `<span class="textMuted" style="font-size: 12px">активно</span>` : ''}
+        </div>
+      </button>
+    `;
+  };
+
+  return `
+    <div class="${open ? '' : 'hidden'}" style="position:fixed; inset:0; z-index: 50;">
+      <div class="sidebar-scrim" style="position:absolute; inset:0" data-action="sidebar-close"></div>
+      <aside class="sidebar" style="position:absolute; left:0; top:0; height:100%; width: min(320px, 86vw); padding: 16px;">
+        <div class="rowBetween" style="margin-bottom: 12px;">
+          <div style="font-size: 12px; text-transform: uppercase; letter-spacing: .16em; font-weight: 900;">✦ PARITER ✦</div>
+          <button class="btn-ghost" style="padding: 10px 12px" data-action="sidebar-close" aria-label="Закрыть">✕</button>
+        </div>
+
+        ${me ? `
+          <div class="soft" style="padding: 12px; margin-bottom: 12px;">
+            <div class="row" style="gap:10px; align-items: center;">
+              <div style="width:40px;height:40px;border-radius:999px;display:grid;place-items:center;border:1px solid var(--border);background:rgba(255,255,255,.03)">${ROLE_META[me.role]?.emoji || '✦'}</div>
+              <div style="min-width: 0;">
+                <div style="font-weight: 800; white-space: nowrap; overflow:hidden; text-overflow: ellipsis;">${escapeHTML(me.name)}</div>
+                <div class="textMuted" style="font-size: 12px; white-space: nowrap; overflow:hidden; text-overflow: ellipsis;">@${escapeHTML(me.login)}</div>
+              </div>
+            </div>
+          </div>
+        ` : ''}
+
+        <div class="grid" style="gap: 10px;">
+          ${item('/path', 'Путь', '🛤️')}
+          ${item('/invite', 'Спутники', '👥')}
+          ${item('/settings', 'Настройки', '⚙️')}
+        </div>
+
+        <div class="divider" style="margin: 14px 0"></div>
+
+        <button class="btn-danger" style="width:100%; text-align:left; padding: 12px; border-radius: 16px;" data-action="logout">🚪 Выйти</button>
+
+      </aside>
+    </div>
+  `;
+}
+
+function ThemeGrid({role, value, onPickAction, idsPrefix=''}={}){
+  const list = THEMES.filter(t => t.role === role);
+  const t = list.find(x=>x.id===value) || list[0];
+  const dots = list.map(x => {
+    const active = x.id === value;
+    return `<button type="button" class="theme-dot" data-action="${onPickAction}" data-theme="${x.id}" data-active="${active}" aria-label="${escapeHTML(x.ru)}"><span aria-hidden="true">${x.emoji}</span></button>`;
+  }).join('');
+
+  return `
+    <div class="grid">
+      <div style="font-size: 14px; font-weight: 800;">Выбери свой путь <span class="textMuted" style="font-weight: 700">/ Elige viam tuam</span></div>
+      <div style="display:grid; grid-template-columns: repeat(auto-fit, 44px); gap: 8px; margin-top: 6px;">${dots}</div>
+      <div class="soft" style="padding: 12px;" id="${idsPrefix}themePreview">
+        <div class="rowBetween" style="align-items: flex-start;">
+          <div>
+            <div style="font-weight: 900;" id="${idsPrefix}themePreviewTitle">${t.emoji} ${escapeHTML(t.ru)}</div>
+            <div class="textMuted" style="font-size: 12px" id="${idsPrefix}themePreviewLa">${escapeHTML(t.la)}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function RolePicker({value, onPickAction}){
+  const mk = (role) => {
+    const m = ROLE_META[role];
+    const active = value === role;
+    return `
+      <button type="button" class="soft" style="padding: 14px; width:100%; text-align:left; border-color:${active ? 'color-mix(in srgb, var(--accent) 55%, var(--border))' : 'var(--border)'}; background:${active ? 'color-mix(in srgb, var(--accent) 14%, transparent)' : 'rgba(255,255,255,.02)'}" data-action="${onPickAction}" data-role="${role}">
+        <div class="rowBetween">
+          <div>
+            <div style="font-size: 20px; font-weight: 900;">${m.emoji} ${escapeHTML(m.ru)}</div>
+            <div class="textMuted" style="font-size: 12px">${escapeHTML(m.la)}</div>
+          </div>
+          <div class="textMuted" style="font-size: 13px">${active ? 'выбрано' : 'выбрать'}</div>
+        </div>
+      </button>
+    `;
+  };
+  return `<div class="grid" style="gap: 10px">${mk('warrior')}${mk('amazon')}</div>`;
 }
 
 function DateDivider(label){
   return `
-    <div class="date-divider" style="display:flex;align-items:center;justify-content:center;margin:24px 0;gap:16px">
-      <div class="divider" style="flex:1;max-width:200px;height:1px;background:var(--border)"></div>
-      <div class="textMuted" style="font-size:13px;font-weight:500;text-align:center;white-space:nowrap;">${escapeHTML(label)}</div>
-      <div class="divider" style="flex:1;max-width:200px;height:1px;background:var(--border)"></div>
+    <div class="row" style="gap: 12px; padding: 8px 0; align-items:center;">
+      <div class="divider" style="flex:1"></div>
+      <div class="textMuted" style="font-size: 12px; font-weight: 900; letter-spacing:.18em">${escapeHTML(label)}</div>
+      <div class="divider" style="flex:1"></div>
     </div>
   `;
 }
 
-function EntryCard({ entry, author, meId, meIsAdmin }){
+function EntryCard({entry, author, meId, meIsAdmin}){
   const isMine = Number(entry.user_id) === Number(meId);
-  const canDelete = meIsAdmin || isMine;
-  const dateFormatted = formatDate(entry.created_at);
-  const authorName = author?.name || 'Спутник';
-  const authorRoleEmoji = ROLE_META[author?.role]?.emoji || '⚔️';
+  const canManage = !!(isMine || meIsAdmin);
+  const roleEmoji = ROLE_META[author?.role]?.emoji || '✦';
+  const authorName = author?.name || 'Неизвестный';
+  const dateLabel = ruDateLabel(entry.date);
+  
+  // Process created_at to always show time label, regardless of ownership
+  // Always ensure time is displayed by using proper fallbacks
+  // IMPORTANT: Remove any conditional logic based on isMine to ensure consistency
+  let timeLabel = '00:00'; // Default fallback time
+  
+  // Process created_at field to extract time, regardless of ownership
+  if (entry?.created_at) {
+    // Clean the input to handle potential formatting issues
+    const cleanInput = String(entry.created_at).trim();
+    
+    // Check for valid non-empty string
+    if (cleanInput && cleanInput !== 'null' && cleanInput !== 'undefined' && cleanInput !== 'Invalid Date') {
+      // Try to parse as ISO date string
+      const dateObj = new Date(cleanInput);
+      
+      // If valid date object, extract time using ruTimeLabel
+      if (!isNaN(dateObj.getTime())) {
+        const extractedTime = ruTimeLabel(cleanInput);
+        // Only use extracted time if it's not empty
+        if (extractedTime && extractedTime.trim() !== '') {
+          timeLabel = extractedTime;
+        } else {
+          // As a fallback, extract time directly from the ISO string
+          const timePart = cleanInput.split('T')[1]; // Get the time part after 'T'
+          if (timePart) {
+            const [hours, minutes] = timePart.split(':');
+            if (hours && minutes) {
+              timeLabel = `${hours.padStart(2, '0')}:${minutes.padStart(2, '0')}`;
+            }
+          }
+        }
+      } else {
+        // If ISO parsing fails, try to extract time pattern directly from string
+        const timeRegex = /(\d{1,2}):(\d{2})/;
+        const timeMatch = cleanInput.match(timeRegex);
+        if (timeMatch) {
+          const [, hours, minutes] = timeMatch;
+          // Pad hours and minutes to ensure proper format
+          const paddedHours = hours.padStart(2, '0');
+          const paddedMinutes = minutes.padStart(2, '0');
+          timeLabel = `${paddedHours}:${paddedMinutes}`;
+        }
+      }
+    }
+  }
+
+  // Log for debugging purposes
+  console.log('EntryCard data:', {
+    entryId: entry.id,
+    entryDate: entry.date,
+    entryCreatedAt: entry.created_at,
+    entryCreatedAtType: typeof entry.created_at,
+    entryUserId: entry.user_id,
+    meId: meId,
+    isMine: Number(entry.user_id) === Number(meId), // Just for logging
+    dateLabel,
+    timeLabel,
+    rawEntry: entry
+  });
+
+  // Editing is done by tapping the field (bubble). Buttons are only for delete.
+  const editAttrs = canManage ? ` data-action="entry-edit" data-id="${entry.id}"` : '';
 
   return `
-    <div class="entry-card soft" style="margin:16px;padding:20px;position:relative;" data-entry-id="${entry.id}">
-      <div class="entry-header" style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;">
-        <div class="row" style="gap:12px;align-items:center;">
-          <div style="font-weight:800;font-size:16px;">${escapeHTML(authorName)}</div>
-          <div>${authorRoleEmoji}</div>
-          <div class="textMuted" style="font-size:13px;">${escapeHTML(dateFormatted)}</div>
+    <article class="card" data-mine="${isMine ? '1' : '0'}" style="padding: 0;">
+      <div class="rowBetween entryHead" style="padding: 10px 10px 0; align-items: flex-start;">
+        <div class="row" style="gap:10px; min-width:0">
+          <div style="width:38px;height:38px;border-radius:999px;display:grid;place-items:center;border:1px solid var(--border);background:rgba(255,255,255,.03)">${roleEmoji}</div>
+          <div style="min-width:0">
+            <div style="font-weight: 900; white-space: nowrap; overflow:hidden; text-overflow: ellipsis;">${escapeHTML(authorName)}</div>
+            <div class="textMuted" style="font-size: 12px">${escapeHTML(dateLabel)} <span aria-hidden="true">·</span> ${escapeHTML(timeLabel)}</div>
+          </div>
         </div>
-        ${canDelete ? `<button type="button" data-action="entry-delete" data-id="${entry.id}" class="btn-ghost" style="padding:8px;" aria-label="Удалить запись">🗑️</button>` : ''}
+        ${canManage ? `
+          <div class="row" style="gap: 8px; align-items:center;">
+          </div>
+        ` : ''}
       </div>
-      <div class="entry-content" style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
-        <div>
-          <div class="entry-section-header" style="display:flex;align-items:center;margin-bottom:8px;color:var(--accent);">
-            <div style="font-weight:800;font-size:12px;letter-spacing:0.05em;text-transform:uppercase;">Победа</div>
-          </div>
-          <div class="entry-victory" data-entry-text="victory" data-id="${entry.id}" style="min-height:24px;">—</div>
+
+      <div class="grid entryBubbles" style="margin-top: 10px; padding: 0 10px 12px;">
+        <div class="soft" style="padding: 12px; background: var(--victory)"${editAttrs}>
+          <div style="font-size: 12px; font-weight: 900; letter-spacing:.16em">⚔️ VICTORIA</div>
+          <div style="margin-top: 6px; white-space: pre-wrap; word-break: break-word;" data-entry-text="victory" data-id="${entry.id}">…</div>
         </div>
-        <div>
-          <div class="entry-section-header" style="display:flex;align-items:center;margin-bottom:8px;color:var(--lesson);">
-            <div style="font-weight:800;font-size:12px;letter-spacing:0.05em;text-transform:uppercase;">Урок</div>
+        <div class="soft" style="padding: 12px; background: var(--lesson)"${editAttrs}>
+          <div style="font-size: 12px; font-weight: 900; letter-spacing:.16em">🦉 LECTIO</div>
+          <div style="margin-top: 6px; white-space: pre-wrap; word-break: break-word;" data-entry-text="lesson" data-id="${entry.id}">…</div>
+        </div>
+      </div>
+    </article>
+  `;
+}
+
+// Pages
+function pageLanding(){
+  if (APP.state.user) { history.replaceState({}, '', '/path'); render(); return ''; }
+  return `
+    <div class="centerShell">
+      <div class="container" style="text-align:center">
+        <div style="font-size:12px; text-transform:uppercase; opacity:.9">${Logo()}</div>
+        <div style="margin-top: 18px; font-size: 44px; font-weight: 900;">Вместе. Наравне. Вперёд.</div>
+        <div class="textMuted" style="margin-top: 6px;">Ūnā. Pariter. Porro.</div>
+
+        <div class="card" style="margin: 22px auto 0; width: min(720px, 100%); padding: 0; text-align:left">
+          <div id="cosmosRoot" style="padding: 22px;">
+            <canvas id="crystalCanvas" aria-hidden="true"></canvas>
+
+            <div style="font-size:18px; font-weight: 900;">Зачем Pariter</div>
+            <div class="textMuted" style="margin-top: 10px; line-height: 1.6">
+              <div>• Фиксируй победы над страхом.</div>
+              <div>• Забирай уроки из ошибок, не повторяя их.</div>
+              <div>• Видь шаги спутников - и иди вместе.</div>
+            </div>
+
+            <div class="row" style="margin-top: 16px; flex-wrap: wrap">
+              <button class="btn" style="flex:1" data-nav="/register">Начать путь</button>
+              <button class="btn-ghost" style="flex:1" data-nav="/login">Уже в пути? Войти</button>
+            </div>
+
+            <div style="margin-top: 12px; display:flex; justify-content:center">${HealthBadge()}</div>
           </div>
-          <div class="entry-lesson" data-entry-text="lesson" data-id="${entry.id}" style="min-height:24px;">—</div>
         </div>
       </div>
     </div>
   `;
 }
 
-async function apiCall(endpoint, options = {}) {
-  const { method = 'GET', body = null, headers = {} } = options;
-  const url = `/api${endpoint}`;
-  
-  const config = { method, headers: { 'Content-Type': 'application/json', ...headers } };
-  if (body) config.body = JSON.stringify(body);
-  
-  const response = await fetch(url, config);
-  if (!response.ok) {
-    const err = await response.text();
-    throw new Error(err || `HTTP ${response.status}`);
-  }
-  return response.json();
+function pageLogin(){
+  if (APP.state.user) { history.replaceState({}, '', '/path'); render(); return ''; }
+  return PageShell({
+    title: 'Продолжить путь',
+    subtitle: 'Perge iter',
+    body: `
+      <form id="loginForm" class="grid">
+        <div>
+          <div class="label" style="margin-bottom: 6px">Логин</div>
+          <input class="input" name="login" autocomplete="username" placeholder="например: loom" required />
+        </div>
+        <div>
+          <div class="label" style="margin-bottom: 6px">Пароль</div>
+          <input class="input" name="password" type="password" autocomplete="current-password" required />
+        </div>
+        <button class="btn" type="submit">Войти</button>
+      </form>
+      <div style="margin-top: 12px; display:flex; justify-content:center">${HealthBadge()}</div>
+    `,
+    footer: `Нет аккаунта? <a class="link" href="/register" data-nav="/register">Создать команду</a>`
+  });
 }
 
-const api = {
-  async entriesGet({ limit = 20, before = null } = {}) {
-    const params = new URLSearchParams({ limit: String(limit) });
-    if (before) {
-      if (before.date) params.append('before_date', before.date);
-      if (before.id) params.append('before_id', String(before.id));
-    }
-    return await apiCall(`/entries?${params}`);
-  },
+function pageRegister(){
+  if (APP.state.user) { history.replaceState({}, '', '/path'); render(); return ''; }
+  const defaultRole = 'warrior';
+  const defaultTheme = THEMES.find(t=>t.role===defaultRole)?.id || 'dark_warrior';
 
-  async entriesNew({ after, limit = 20 } = {}) {
-    const params = new URLSearchParams({ limit: String(limit) });
-    if (after) {
-      if (after.date) params.append('after_date', after.date);
-      if (after.id) params.append('after_id', String(after.id));
-    }
-    return await apiCall(`/entries/new?${params}`);
-  },
+  return PageShell({
+    title: 'Начни свой путь',
+    subtitle: 'Incipe iter tuum',
+    body: `
+      <form id="registerForm" class="grid" style="gap: 14px">
+        <div class="grid" style="gap: 12px">
+          <div>
+            <div class="label" style="margin-bottom: 6px">Email (обязательно)</div>
+            <input class="input" name="email" type="email" autocomplete="email" required placeholder="you@example.com" />
+          </div>
+          <div>
+            <div class="label" style="margin-bottom: 6px">Имя (видят спутники)</div>
+            <input class="input" name="name" required placeholder="Твоё имя" />
+          </div>
+          <div>
+            <div class="label" style="margin-bottom: 6px">Логин</div>
+            <input class="input" name="login" autocomplete="username" required placeholder="loom" />
+            <div class="textMuted" style="margin-top: 6px; font-size: 12px">3–32 символа: a-z, 0-9, _ . -</div>
+          </div>
+          <div>
+            <div class="label" style="margin-bottom: 6px">Пароль</div>
+            <input class="input" name="password" type="password" autocomplete="new-password" required />
+          </div>
+        </div>
 
-  async entryCreate(data) {
-    return await apiCall('/entry', { method: 'POST', body: data });
-  },
+        <div class="divider"></div>
 
-  async entryDelete({ id }) {
-    return await apiCall(`/entry/${id}`, { method: 'DELETE' });
-  },
+        <div>
+          <div style="font-size: 14px; font-weight: 900; margin-bottom: 10px">Выбери роль</div>
+          <input type="hidden" name="role" value="${escapeHTML(defaultRole)}" />
+          ${RolePicker({ value: defaultRole, onPickAction: 'pick-role-register' })}
+        </div>
 
-  async authMe() {
-    return await apiCall('/auth/me');
-  },
+        <div class="divider"></div>
 
-  async login(data) {
-    return await apiCall('/auth/login', { method: 'POST', body: data });
-  },
+        <div>
+          <input type="hidden" name="theme" value="${escapeHTML(defaultTheme)}" />
+          <div id="themeBlock">${ThemeGrid({ role: defaultRole, value: defaultTheme, onPickAction: 'pick-theme-register', idsPrefix:'reg-' })}</div>
+        </div>
 
-  async register(data) {
-    return await apiCall('/auth/register', { method: 'POST', body: data });
-  },
+        <button class="btn" type="submit">Начать</button>
+      </form>
+      <div style="margin-top: 12px; display:flex; justify-content:center">${HealthBadge()}</div>
+    `,
+    footer: `Уже в пути? <a class="link" href="/login" data-nav="/login">Войти</a>`
+  });
+}
 
-  async logout() {
-    return await apiCall('/auth/logout', { method: 'POST' });
-  },
+function pageJoin(){
+  if (APP.state.user) { history.replaceState({}, '', '/path'); render(); return ''; }
+  const code = APP.state.route.params.code || '';
+  const defaultRole = 'warrior';
+  const defaultTheme = THEMES.find(t=>t.role===defaultRole)?.id || 'dark_warrior';
 
-  async team() {
-    return await apiCall('/team');
-  },
+  return PageShell({
+    title: 'Присоединиться к пути',
+    subtitle: 'Iunge te itineri',
+    body: `
+      <div class="soft" style="padding: 12px; margin-bottom: 14px" id="joinInfo">Проверяю приглашение…</div>
+      <div class="textMuted" style="margin: -6px 0 12px; font-size: 12px">Логин и пароль ты задаёшь сам(а).</div>
+      <form id="joinForm" class="grid" style="gap: 14px" data-code="${escapeHTML(code)}">
+        <div>
+          <div class="label" style="margin-bottom: 6px">Имя</div>
+          <input class="input" name="name" required disabled />
+        </div>
+        <div>
+          <div class="label" style="margin-bottom: 6px">Логин</div>
+          <input class="input" name="login" required autocomplete="username" disabled />
+        </div>
+        <div>
+          <div class="label" style="margin-bottom: 6px">Пароль</div>
+          <div class="pw-wrap">
+            <input class="input pw-input" name="password" type="password" required autocomplete="new-password" disabled />
+            <button type="button" class="pw-toggle" data-action="toggle-password" aria-label="Показать пароль" title="Показать/скрыть">👁</button>
+          </div>
+        </div>
 
-  async teamUserDelete({ id }) {
-    return await apiCall(`/team/user/${id}`, { method: 'DELETE' });
-  },
+        <div class="divider"></div>
 
-  async invitesList() {
-    return await apiCall('/invites');
-  },
+        <div>
+          <div style="font-size: 14px; font-weight: 900; margin-bottom: 10px">Роль</div>
+          <input type="hidden" name="role" value="${escapeHTML(defaultRole)}" />
+          ${RolePicker({ value: defaultRole, onPickAction: 'pick-role-join' })}
+        </div>
 
-  async inviteCreate() {
-    return await apiCall('/invite', { method: 'POST' });
-  },
+        <div class="divider"></div>
 
-  async inviteDelete({ id }) {
-    return await apiCall(`/invite/${id}`, { method: 'DELETE' });
-  },
+        <div>
+          <input type="hidden" name="theme" value="${escapeHTML(defaultTheme)}" />
+          <div id="themeBlock">${ThemeGrid({ role: defaultRole, value: defaultTheme, onPickAction: 'pick-theme-join', idsPrefix:'join-' })}</div>
+        </div>
 
-  async pushVapidKey() {
-    return await apiCall('/push/vapid-key');
-  },
+        <button class="btn" type="submit" disabled>Присоединиться</button>
+      </form>
+    `,
+    footer: `Уже в пути? <a class="link" href="/login" data-nav="/login">Войти</a>`
+  });
+}
 
-  async pushSubscribe(data) {
-    return await apiCall('/push/subscribe', { method: 'POST', body: data });
-  },
+function pagePath(){
+  if (!requireAuth()) return '';
+  const me = APP.state.user;
+  const today = todayYMD();
 
-  async pushUnsubscribe(data) {
-    return await apiCall('/push/unsubscribe', { method: 'POST', body: data });
+  return `
+    ${AppHeader()}
+    ${Sidebar()}
+    <main class="container" style="padding: 18px 0 28px">
+      <div class="card" style="padding: 18px">
+        <div class="rowBetween" style="align-items: flex-start">
+          <div>
+            <div class="textMuted" style="font-size: 12px; font-weight: 900; letter-spacing: .18em">✦ Путь героя ✦</div>
+            <div style="margin-top: 6px; font-size: 22px; font-weight: 900">${escapeHTML(ruDateLabel(today))}</div>
+            <div class="textMuted" style="margin-top: 8px; font-size: 12px" id="pathStats">Загрузка статистики…</div>
+          </div>
+          <div class="pill textMuted" style="font-size: 12px">${ROLE_META[me.role]?.emoji || '✦'} <span style="color: var(--text); font-weight: 900">${escapeHTML(me.name)}</span></div>
+        </div>
+
+        <form id="todayForm" class="grid" style="margin-top: 14px">
+          <div class="soft" style="padding: 12px; background: var(--victory)">
+            <div style="font-size: 12px; font-weight: 900; letter-spacing:.16em">⚔️ VICTORIA</div>
+            <div class="ai-wrap" style="margin-top: 10px;">
+              <textarea id="todayVictory" class="textarea ai-textarea" name="victory" placeholder="Что ты ${me.role === 'amazon' ? 'сделала' : 'сделал'} сейчас, несмотря на страх?"></textarea>
+              <button type="button" class="ai-btn" data-action="ai-rewrite" data-target="todayVictory" data-field="victory" title="Переписать с ИИ" aria-label="Переписать с ИИ">✦</button>
+            </div>
+          </div>
+
+          <div class="soft" style="padding: 12px; background: var(--lesson)">
+            <div style="font-size: 12px; font-weight: 900; letter-spacing:.16em">🦉 LECTIO</div>
+            <div class="ai-wrap" style="margin-top: 10px;">
+              <textarea id="todayLesson" class="textarea ai-textarea" name="lesson" placeholder="Какой урок ты забираешь прямо сейчас?"></textarea>
+              <button type="button" class="ai-btn" data-action="ai-rewrite" data-target="todayLesson" data-field="lesson" title="Переписать с ИИ" aria-label="Переписать с ИИ">✦</button>
+            </div>
+          </div>
+
+          <div class="rowBetween">
+            <div class="textMuted" style="font-size: 12px" id="todayHint"></div>
+            <button class="btn" type="submit">✓ Зафиксировать шаг</button>
+          </div>
+        </form>
+      </div>
+
+      <div style="margin-top: 18px;">
+        <div id="liveBar" class="hidden" style="position: sticky; top: 62px; z-index: 30; margin-bottom: 10px;">
+          <div class="soft" style="padding: 10px 12px; display:flex; align-items:center; justify-content: space-between; gap: 10px; background: color-mix(in srgb, var(--accent) 10%, transparent); border-color: color-mix(in srgb, var(--accent) 40%, var(--border));">
+            <div style="font-weight: 800">Новые шаги <span id="liveCount" class="textMuted" style="font-weight:700"></span></div>
+            <div class="row" style="gap: 8px">
+              <button type="button" class="btn-ghost" style="padding: 10px 12px" data-action="live-dismiss">Скрыть</button>
+              <button type="button" class="btn" style="padding: 10px 14px" data-action="live-refresh">Обновить</button>
+            </div>
+          </div>
+        </div>
+
+        <div id="feed" class="grid" style="margin-top: 10px"></div>
+        <div id="feedSentinel" style="height: 10px"></div>
+        <div id="feedStatus" class="textMuted" style="text-align:center; font-size: 12px; padding: 12px 0"></div>
+        <div style="display:flex; justify-content:center; padding-bottom: 8px;">
+          <button type="button" id="feedMore" class="btn-ghost hidden" data-action="feed-more" style="padding: 10px 14px;">Загрузить ещё</button>
+        </div>
+      </div>
+    </main>
+  `;
+}
+
+function pageInvite(){
+  if (!requireAuth()) return '';
+  return `
+    ${AppHeader()}
+    ${Sidebar()}
+    <main class="container" style="padding: 18px 0 28px">
+      <div class="card" style="padding: 18px">
+        <div>
+          <div style="font-size: 26px; font-weight: 900">Спутники</div>
+          <div class="textMuted" style="margin-top: 4px">Comitēs</div>
+        </div>
+
+        <div class="grid" style="margin-top: 16px; gap: 14px">
+          <section class="soft" style="padding: 14px">
+            <div style="font-weight: 900">Твоя команда</div>
+            <div id="teamList" class="grid" style="margin-top: 10px"></div>
+          </section>
+
+          <section class="soft" style="padding: 14px">
+            <div style="font-weight: 900">Пригласить <span class="textMuted" style="font-weight: 700">/ Invitā comitem</span></div>
+            <div class="grid" style="margin-top: 10px; gap: 10px">
+              <div>
+                <div class="label">Ссылка (действует 7 дней)</div>
+                <div class="row" style="margin-top: 6px">
+                  <input id="inviteLink" class="input" readonly placeholder="Создай ссылку ниже" />
+                  <button type="button" class="btn-ghost" style="padding: 10px 12px" data-action="copy-invite" title="Скопировать">📋</button>
+                </div>
+              </div>
+              <div class="row">
+                <button type="button" class="btn" data-action="new-invite">+ Новая ссылка</button>
+                <button type="button" class="btn-ghost" data-action="clear-invite">Очистить</button>
+              </div>
+            </div>
+          </section>
+
+          <section class="soft" style="padding: 14px">
+            <div style="font-weight: 900">Приглашения</div>
+            <div id="inviteList" class="grid" style="margin-top: 10px"></div>
+          </section>
+        </div>
+      </div>
+    </main>
+  `;
+}
+
+function pageSettings(){
+  if (!requireAuth()) return '';
+  const me = APP.state.user;
+  const t = themeById(me.theme);
+
+  return `
+    ${AppHeader()}
+    ${Sidebar()}
+    <main class="container" style="padding: 18px 0 28px">
+      <div class="card" style="padding: 18px">
+        <div>
+          <div style="font-size: 26px; font-weight: 900">Настройки</div>
+          <div class="textMuted" style="margin-top: 4px">Optiōnēs</div>
+        </div>
+
+        <div class="soft" style="padding: 14px; margin-top: 14px">
+          <div style="font-weight: 900">Установить как приложение</div>
+          <div class="textMuted" style="margin-top: 6px; font-size: 12px; line-height: 1.45">
+            На Android/desktop появится кнопка установки. На iPhone/iPad: Safari → «Поделиться» → «На экран Домой».
+          </div>
+          <div class="row" style="margin-top: 10px; flex-wrap: wrap">
+            <button type="button" class="btn" data-action="pwa-install" id="pwaInstallBtn" disabled>Установить</button>
+            <span class="pill textMuted" id="pwaStatus" style="font-size: 12px">проверяю…</span>
+          </div>
+        </div>
+
+        <div class="soft" style="padding: 14px; margin-top: 14px">
+          <div style="font-weight: 900">Уведомления</div>
+
+          <div class="row" style="margin-top: 10px; flex-wrap: wrap">
+            <button type="button" class="btn" data-action="notif-enable" id="notifBtn">Разрешить уведомления</button>
+            <span class="pill textMuted" id="notifStatus" style="font-size: 12px">проверяю…</span>
+          </div>
+
+          <div class="row" style="margin-top: 10px; flex-wrap: wrap">
+            <button type="button" class="btn" data-action="push-enable" id="pushBtn">Включить push</button>
+            <button type="button" class="btn-ghost hidden" data-action="push-disable" id="pushOffBtn">Выключить</button>
+            <span class="pill textMuted" id="pushStatus" style="font-size: 12px">проверяю…</span>
+          </div>
+
+          <div class="row" style="margin-top: 10px; flex-wrap: wrap">
+            <button type="button" class="btn-ghost" data-action="sound-toggle" id="soundBtn">Звук</button>
+            <span class="pill textMuted" id="soundStatus" style="font-size: 12px">проверяю…</span>
+          </div>
+        </div>
+
+        <form id="settingsForm" class="grid" style="margin-top: 16px; gap: 14px">
+          <div>
+            <div class="label" style="margin-bottom: 6px">Имя</div>
+            <input class="input" name="name" value="${escapeHTML(me.name)}" required />
+          </div>
+          <div>
+            <div class="label" style="margin-bottom: 6px">Новый пароль (необязательно)</div>
+            <input class="input" name="password" type="password" autocomplete="new-password" placeholder="••••••" />
+          </div>
+
+          <div class="divider"></div>
+
+          <div>
+            <div style="font-size: 14px; font-weight: 900; margin-bottom: 10px">Выбери свой путь</div>
+            <input type="hidden" name="role" value="${escapeHTML(me.role)}" />
+            <div id="settingsRoleBlock">${RolePicker({ value: me.role, onPickAction: 'pick-role-settings' })}</div>
+          </div>
+
+          <div class="divider"></div>
+
+          <div>
+            <input type="hidden" name="theme" value="${escapeHTML(me.theme)}" />
+            <div id="settingsThemeBlock">${ThemeGrid({ role: me.role, value: me.theme, onPickAction: 'pick-theme-settings', idsPrefix:'set-' })}</div>
+            <div class="textMuted" style="margin-top: 10px; font-size: 12px">
+              Выбрано: <span id="settingsThemeLabel" style="color: var(--text); font-weight: 900">${t.emoji} ${escapeHTML(t.ru)}</span>
+              <span aria-hidden="true"> · </span>
+              можно менять в любой момент
+            </div>
+          </div>
+
+          <div class="row" style="flex-wrap: wrap">
+            <button class="btn" type="submit">Сохранить</button>
+            <button class="btn-ghost" type="button" data-action="go-path">Назад</button>
+            <button class="btn-ghost" type="button" data-action="export-json">Экспорт</button>
+            <button class="btn-ghost" type="button" data-action="import-json">Импорт</button>
+            <input id="importFile" type="file" accept="application/json" style="display:none" />
+          </div>
+          <div class="textMuted" style="font-size: 12px; line-height: 1.5">
+            Импорт доступен администратору. Данные будут добавлены/обновлены внутри текущей команды.
+          </div>
+          <div class="divider" style="margin: 10px 0"></div>
+          <button type="button" class="btn-danger" data-action="account-delete" style="padding: 10px 14px; border-radius: 12px">Удалить аккаунт</button>
+        </form>
+      </div>
+    </main>
+  `;
+}
+
+function pageNotFound(){
+  return PageShell({
+    title: 'Страница не найдена',
+    subtitle: 'Errōr',
+    body: `
+      <div class="textMuted">Такого пути нет.</div>
+      <div class="row" style="margin-top: 12px">
+        <button class="btn" data-nav="/">На главную</button>
+        <button class="btn-ghost" data-nav="/path">В путь</button>
+      </div>
+    `
+  });
+}
+
+async function render(){
+  if (APP._rendering) { APP._rerenderRequested = true; return; }
+  APP._rendering = true;
+
+  // SSR bootstrap (one-shot)
+  if (!render._bootstrapConsumed) {
+    render._bootstrapConsumed = true;
+    try {
+      const b = window.__PARITER_BOOTSTRAP__;
+      if (b && typeof b === 'object') {
+        APP.state.user = b.user || null;
+        APP.state.team = b.team || null;
+        if (Array.isArray(b.teamUsers)) {
+          APP.state.teamUsers = b.teamUsers;
+          APP.state.teamUsersFetchedAt = Date.now();
+        }
+      }
+    } catch {}
+    // free memory; next updates happen via API
+    try { delete window.__PARITER_BOOTSTRAP__; } catch {}
   }
-};
 
-async function hydrateAuth(){
+  // auth
   try {
-    const me = await api.authMe();
-    APP.state.user = me;
-    if (me) {
-      document.body.classList.add('logged-in');
-      document.body.classList.remove('logged-out');
-    } else {
-      document.body.classList.add('logged-out');
-      document.body.classList.remove('logged-in');
+    const needsMe = (APP.state.user == null);
+    if (needsMe) {
+      const { user, team } = await api.me();
+      APP.state.user = user;
+      APP.state.team = team;
     }
-  } catch (err) {
+  } catch {
     APP.state.user = null;
-    document.body.classList.add('logged-out');
-    document.body.classList.remove('logged-in');
+    APP.state.team = null;
+  }
+
+  // theme
+  if (APP.state.user?.theme) setTheme(APP.state.user.theme);
+  else setTheme('dark_warrior');
+
+  // team users cache (TTL)
+  if (APP.state.user) {
+    const ttlMs = 30_000;
+    const fresh = (Date.now() - (APP.state.teamUsersFetchedAt || 0)) < ttlMs;
+    if (!fresh || !APP.state.teamUsers?.length) {
+      try {
+        const { users } = await api.team();
+        APP.state.teamUsers = users;
+        APP.state.teamUsersFetchedAt = Date.now();
+      } catch {
+        APP.state.teamUsers = [];
+        APP.state.teamUsersFetchedAt = 0;
+      }
+    }
+  } else {
+    APP.state.teamUsers = [];
+    APP.state.teamUsersFetchedAt = 0;
+  }
+
+  APP.state.route = parseRoute();
+  const route = APP.state.route.path;
+
+  // Update document title on every SPA navigation (no full reload needed).
+  setDocumentTitle(route);
+
+  // Cleanup path-only observers when leaving /path.
+  // Prevents observing a removed sentinel node and reduces background work.
+  if (route !== '/path' && hydrateFeed._io) {
+    try { hydrateFeed._io.disconnect(); } catch {}
+    hydrateFeed._io = null;
+  }
+
+  // Background animations: only run when on-screen and in focus.
+  try { ensureStarsLayer(); } catch {}
+
+  // Live updates: run while authed. Feed auto-refresh happens only on /path.
+  if (APP.state.user) liveStart();
+  else liveStop();
+
+  let html = '';
+  if (route === '/') html = pageLanding();
+  else if (route === '/login') html = pageLogin();
+  else if (route === '/register') html = pageRegister();
+  else if (route === '/join') html = pageJoin();
+  else if (route === '/path') html = pagePath();
+  else if (route === '/invite') html = pageInvite();
+  else if (route === '/settings') html = pageSettings();
+  else html = pageNotFound();
+
+  $('#app').innerHTML = html;
+  bindHandlers();
+
+  if (route === '/settings' && APP.state.user) {
+    // ensure installability/notifications UI reflects current browser state
+    setTimeout(()=>{ try { updatePwaUI(); } catch {} }, 0);
+    setTimeout(()=>{ try { updateNotifUI(); } catch {} }, 0);
+    setTimeout(()=>{ try { updatePushUI(); } catch {} }, 0);
+    setTimeout(()=>{ try { updateSoundUI(); } catch {} }, 0);
+    // best-effort: keep push alive without manual toggling
+    setTimeout(()=>{ try { pushAutoMaintain(); } catch {} }, 0);
+  }
+
+  if ((route === '/' || route === '/login' || route === '/register' || route === '/join') && !APP.state.user) {
+    // fire and forget
+    hydrateHealth();
+  }
+
+  if (route === '/join' && !APP.state.user) await hydrateJoin();
+  if (route === '/path' && APP.state.user) {
+    // Do NOT clear unread just because we navigated to /path.
+    // Clear happens when the user is actually viewing the feed (near top) or when the tab becomes visible.
+
+    await hydratePathStats();
+    await hydrateTodayForm();
+    await hydrateFeed(true);
+  }
+  if (route === '/invite' && APP.state.user) await hydrateInvite();
+
+  APP._rendering = false;
+  if (APP._rerenderRequested) {
+    APP._rerenderRequested = false;
+    // fire and forget
+    render();
+  }
+}
+
+function bindHandlers(){
+  // one-time keyboard handler
+  if (!bindHandlers._kbdBound) {
+    bindHandlers._kbdBound = true;
+    document.addEventListener('keydown', (e)=>{
+      if (e.key === 'Escape') {
+        const modal = $('#entryModal');
+        if (modal && !modal.classList.contains('hidden')) {
+          closeEntryModal();
+          return;
+        }
+        if (APP.state.sidebarOpen) {
+          APP.state.sidebarOpen = false;
+          render();
+        }
+      }
+    });
+  }
+
+  // One delegated click handler for all dynamic buttons/links.
+  // Prevents duplicate listeners when feed/invite blocks are re-rendered.
+  if (!bindHandlers._delegated) {
+    bindHandlers._delegated = true;
+
+    // Keep app badge/title in sync when user returns to the tab.
+    document.addEventListener('visibilitychange', ()=>{
+      try {
+        // When the app becomes visible, clear old system notifications (messenger-like).
+        if (!document.hidden && APP.state.user) {
+          try {
+            navigator.serviceWorker?.controller?.postMessage?.({ type: 'clear-notifications' });
+            navigator.serviceWorker?.getRegistration?.().then((reg)=>{
+              try { reg?.active?.postMessage?.({ type: 'clear-notifications' }); } catch {}
+            }).catch(()=>{});
+          } catch {}
+
+          // Only mark as read when user is on /path AND near the top (they are actually looking at the feed).
+          if (APP.state.route?.path === '/path') {
+            const nearTop = (window.scrollY || document.documentElement.scrollTop || 0) < 220;
+            if (nearTop) {
+              APP.state.live.unread = 0;
+              updateAttentionIndicators();
+              liveBarHide();
+            }
+          }
+        }
+      } catch {}
+    });
+
+    // Auto-apply new steps when user scrolls back to the top AND the app is in focus.
+    window.addEventListener('scroll', ()=>{
+      try {
+        if (!APP.state.user) return;
+        if (APP.state.route?.path !== '/path') return;
+        if (!APP.state.live.unread) return;
+        const nearTop = (window.scrollY || document.documentElement.scrollTop || 0) < 220;
+        if (!nearTop) return;
+
+        const inFocus = (!document.hidden) && (typeof document.hasFocus !== 'function' || document.hasFocus());
+        if (!inFocus) return;
+
+        clearTimeout(bindHandlers._scrollT);
+        bindHandlers._scrollT = setTimeout(()=>{
+          liveApplyIfNeeded({ force: true });
+        }, 120);
+      } catch {}
+    }, { passive: true });
+
+    document.addEventListener('click', async (e)=>{
+      // Best-effort: if VAPID rotated, resubscribe on the next user gesture (no manual steps).
+      try {
+        if (APP.state.user && readPushDesired() && Notification?.permission === 'granted') {
+          const need = readPushNeedsResub();
+          if (need) {
+            // Use a soft guard to avoid looping.
+            if (!pushResubscribeIfNeeded._busy) {
+              pushResubscribeIfNeeded._busy = true;
+              setTimeout(()=>{ pushResubscribeIfNeeded._busy = false; }, 5000);
+              pushResubscribeIfNeeded().catch(()=>{});
+            }
+          }
+        }
+      } catch {}
+
+      // Let modal handle its own buttons.
+      if (e.target?.closest?.('#entryModal')) return;
+
+      // data-nav
+      const navEl = e.target?.closest?.('[data-nav]');
+      if (navEl) {
+        e.preventDefault();
+        e.stopPropagation();
+        APP.state.sidebarOpen = false;
+        nav(navEl.getAttribute('data-nav'));
+        return;
+      }
+
+      // data-action
+      const actionEl = e.target?.closest?.('[data-action]');
+      const action = actionEl?.getAttribute?.('data-action');
+      if (!action) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+
+      // Sidebar
+      if (action === 'sidebar-open') {
+        APP.state.sidebarOpen = true;
+        render();
+        setTimeout(()=>{ try { $('[data-action="sidebar-close"]')?.focus?.(); } catch {} }, 0);
+        return;
+      }
+      if (action === 'sidebar-close') {
+        APP.state.sidebarOpen = false;
+        render();
+        return;
+      }
+      if (action === 'go-settings') {
+        APP.state.sidebarOpen = false;
+        nav('/settings');
+        return;
+      }
+      if (action === 'go-path') {
+        APP.state.sidebarOpen = false;
+        nav('/path');
+        return;
+      }
+      if (action === 'logout') {
+        try { await api.logout(); } catch {}
+        APP.state.sidebarOpen = false;
+        toast('До встречи на пути.');
+        history.replaceState({}, '', '/');
+        render();
+        return;
+      }
+
+      // PWA install
+      if (action === 'pwa-install') {
+        try {
+          const dp = APP.pwa.deferredPrompt;
+          if (!dp) {
+            toast('Установка недоступна. Открой в Chrome/Edge или используй "На экран Домой" в Safari.');
+            updatePwaUI();
+            return;
+          }
+          dp.prompt();
+          const choice = await dp.userChoice.catch(()=> null);
+          APP.pwa.deferredPrompt = null;
+          updatePwaUI();
+          if (choice && choice.outcome === 'accepted') toast('Установка началась.');
+          else toast('Отменено.');
+        } catch {
+          toast('Не удалось запустить установку.');
+        }
+        return;
+      }
+
+      // Notifications permission
+      if (action === 'notif-enable') {
+        try {
+          if (typeof Notification === 'undefined') {
+            toast('Уведомления не поддерживаются в этом браузере.');
+            updateNotifUI();
+            return;
+          }
+          const p = await Notification.requestPermission();
+          updateNotifUI();
+          if (p === 'granted') {
+            toast('Уведомления включены.');
+            // small confirmation (best-effort)
+            try {
+              await notifyNewEntry({ id: 0, date: todayYMD(), user_id: APP.state.user?.id || 0, victory: null, lesson: null, created_at: nowISO() });
+            } catch {}
+          } else if (p === 'denied') {
+            toast('Уведомления запрещены в браузере.');
+          } else {
+            toast('Уведомления не включены.');
+          }
+        } catch {
+          toast('Не удалось запросить разрешение на уведомления.');
+        }
+        return;
+      }
+
+      // Push (Android/desktop messenger-like notifications)
+      if (action === 'push-enable') {
+        // Prevent double-click storms (Android can be slow)
+        if (APP._pushBusy) return;
+        APP._pushBusy = true;
+        try {
+          toast('Включаю push…');
+          await enablePush();
+          toast('Push включен.');
+        } catch (err) {
+          toast(err.message || 'Не удалось включить push.');
+        } finally {
+          APP._pushBusy = false;
+          try { updateNotifUI(); } catch {}
+          try { updatePushUI(); } catch {}
+        }
+        return;
+      }
+
+      if (action === 'push-disable') {
+        if (APP._pushBusy) return;
+        APP._pushBusy = true;
+        try {
+          await disablePush();
+          toast('Push выключен.');
+        } catch {
+          toast('Не удалось выключить push.');
+        } finally {
+          APP._pushBusy = false;
+          try { updatePushUI(); } catch {}
+        }
+        return;
+      }
+
+
+      // Sound toggle
+      if (action === 'sound-toggle') {
+        const next = !readSoundEnabled();
+        writeSoundEnabled(next);
+        APP.state.sound.enabled = next;
+        updateSoundUI();
+        toast(next ? 'Звук включен.' : 'Звук выключен.');
+        // Try to unlock audio on a user gesture
+        if (next) {
+          try { playCosmicChime({ quiet: true }); } catch {}
+        }
+        return;
+      }
+
+      // Account delete (self)
+      if (action === 'account-delete') {
+        if (!confirm('Удалить аккаунт? Это действие необратимо.')) return;
+        try {
+          await api.profileDelete();
+        } catch (err) {
+          toast(err.message || 'Не удалось удалить аккаунт.');
+          return;
+        }
+        try { await api.logout(); } catch {}
+        APP.state.user = null;
+        APP.state.team = null;
+        APP.state.teamUsers = [];
+        toast('Аккаунт удален.');
+        history.replaceState({}, '', '/');
+        render();
+        return;
+      }
+
+      // Team: delete teammate (admin)
+      if (action === 'team-user-delete') {
+        const id = Number(actionEl.getAttribute('data-id') || '0');
+        if (!id) return;
+        if (!confirm('Удалить спутника? Его записи тоже будут удалены.')) return;
+        try {
+          await api.teamDelete(id);
+          toast('Удалено.');
+          APP.state.teamUsersFetchedAt = 0;
+          await hydrateInvite();
+        } catch (err) {
+          toast(err.message || 'Не удалось удалить спутника.');
+        }
+        return;
+      }
+
+      // Settings: export/import
+      if (action === 'export-json') {
+        try {
+          const data = await api.export();
+          const ymd = todayYMD();
+          const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json; charset=utf-8' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `pariter-export-${ymd}.json`;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          URL.revokeObjectURL(url);
+          toast('Экспорт готов.');
+        } catch (err) {
+          toast(err.message || 'Ошибка экспорта.');
+        }
+        return;
+      }
+
+      if (action === 'import-json') {
+        const input = $('#importFile');
+        if (!input) return toast('Не найден элемент выбора файла.');
+
+        input.value = '';
+        input.onchange = async ()=>{
+          try {
+            const file = input.files?.[0];
+            if (!file) return;
+            const text = await file.text();
+            const data = JSON.parse(text);
+
+            const defaultPassword = prompt(
+              'Импорт.\n\n' +
+              'Если в текущей команде нет пользователя с таким login, он будет создан.\n' +
+              'Укажи пароль по умолчанию для НОВЫХ пользователей (минимум 6 символов).\n' +
+              'Оставь пустым — Pariter сгенерирует пароли и отдаст их списком.',
+              ''
+            );
+
+            const pass = (defaultPassword == null) ? null : String(defaultPassword).trim();
+            if (pass === null) return; // cancelled
+
+            const r = await api.import({ data, defaultPassword: pass || '' });
+
+            const msg = [
+              `Импорт: пользователи +${Number(r.usersCreated||0)} (сопоставлено ${Number(r.usersMapped||0)}),`,
+              `инвайты +${Number(r.invitesCreated||0)} (пропущено ${Number(r.invitesSkipped||0)}),`,
+              `записи +${Number(r.entriesCreated||0)} / обновлено ${Number(r.entriesUpdated||0)} (пропущено ${Number(r.entriesSkipped||0)}).`
+            ].join(' ');
+            toast('Импорт выполнен.');
+
+            if (Array.isArray(r.createdCreds) && r.createdCreds.length) {
+              const ymd = todayYMD();
+              const lines = [
+                'PARITER — созданные пользователи (сгенерированные пароли)',
+                `Дата: ${ymd}`,
+                '',
+                ...r.createdCreds.map(x => `${x.login}: ${x.password}`),
+                '',
+                msg
+              ].join('\n');
+              const blob = new Blob([lines], { type: 'text/plain; charset=utf-8' });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = `pariter-import-creds-${ymd}.txt`;
+              document.body.appendChild(a);
+              a.click();
+              a.remove();
+              URL.revokeObjectURL(url);
+            }
+
+            APP.state.teamUsersFetchedAt = 0;
+            await render();
+          } catch (err) {
+            toast(err.message || 'Ошибка импорта.');
+          } finally {
+            input.value = '';
+            input.onchange = null;
+          }
+        };
+
+        input.click();
+        return;
+      }
+
+      // Register/join role selection
+      if (action === 'pick-role-register' || action === 'pick-role-join') {
+        const role = actionEl.getAttribute('data-role');
+        const form = action === 'pick-role-register' ? $('#registerForm') : $('#joinForm');
+        if (!form || !role) return;
+
+        form.querySelector('input[name="role"]').value = role;
+        const theme = (THEMES.find(t=>t.role===role)?.id) || 'dark_warrior';
+        form.querySelector('input[name="theme"]').value = theme;
+        setTheme(theme);
+
+        const themeBlock = $('#themeBlock');
+        if (themeBlock) themeBlock.innerHTML = ThemeGrid({
+          role,
+          value: theme,
+          onPickAction: action === 'pick-role-register' ? 'pick-theme-register' : 'pick-theme-join',
+          idsPrefix: action === 'pick-role-register' ? 'reg-' : 'join-'
+        });
+        return;
+      }
+
+      // Theme selection
+      if (action === 'pick-theme-register' || action === 'pick-theme-join') {
+        const theme = actionEl.getAttribute('data-theme');
+        const form = action === 'pick-theme-register' ? $('#registerForm') : $('#joinForm');
+        if (!form || !theme) return;
+
+        form.querySelector('input[name="theme"]').value = theme;
+        setTheme(theme);
+        $('#themeBlock').innerHTML = ThemeGrid({
+          role: form.querySelector('input[name="role"]').value,
+          value: theme,
+          onPickAction: action,
+          idsPrefix: action === 'pick-theme-register' ? 'reg-' : 'join-'
+        });
+        return;
+      }
+
+      if (action === 'pick-role-settings') {
+        const role = actionEl.getAttribute('data-role');
+        const f = $('#settingsForm');
+        if (!f || !role) return;
+
+        const nextTheme = defaultThemeForRole(role);
+        f.querySelector('input[name="role"]').value = role;
+        f.querySelector('input[name="theme"]').value = nextTheme;
+
+        setTheme(nextTheme);
+
+        const rb = $('#settingsRoleBlock');
+        if (rb) rb.innerHTML = RolePicker({ value: role, onPickAction: 'pick-role-settings' });
+
+        const tb = $('#settingsThemeBlock');
+        if (tb) tb.innerHTML = ThemeGrid({ role, value: nextTheme, onPickAction: 'pick-theme-settings', idsPrefix:'set-' });
+
+        const lbl = $('#settingsThemeLabel');
+        if (lbl) {
+          const t = themeById(nextTheme);
+          lbl.textContent = `${t.emoji} ${t.ru}`;
+        }
+        return;
+      }
+
+      if (action === 'pick-theme-settings') {
+        const theme = actionEl.getAttribute('data-theme');
+        const f = $('#settingsForm');
+        if (!f || !theme) return;
+
+        const role = f.querySelector('input[name="role"]')?.value || APP.state.user?.role || 'warrior';
+        f.querySelector('input[name="theme"]').value = theme;
+
+        setTheme(theme);
+
+        const tb = $('#settingsThemeBlock');
+        if (tb) tb.innerHTML = ThemeGrid({ role, value: theme, onPickAction: 'pick-theme-settings', idsPrefix:'set-' });
+
+        const lbl = $('#settingsThemeLabel');
+        if (lbl) {
+          const t = themeById(theme);
+          lbl.textContent = `${t.emoji} ${t.ru}`;
+        }
+        return;
+      }
+
+      // Invite page actions
+      if (action === 'new-invite') {
+        try {
+          const { invite } = await api.invitesCreate();
+          const link = `${location.origin}/join/${invite.code}`;
+          const el = $('#inviteLink');
+          if (el) el.value = link;
+          toast('Ссылка создана.');
+          await hydrateInvite();
+        } catch (err) {
+          toast(err.message || 'Ошибка создания ссылки.');
+        }
+        return;
+      }
+
+      if (action === 'clear-invite') {
+        const el = $('#inviteLink');
+        if (el) el.value = '';
+        return;
+      }
+
+      if (action === 'copy-invite') {
+        const el = $('#inviteLink');
+        const text = el?.value || '';
+        if (!text) return toast('Сначала создай ссылку.');
+        try {
+          await navigator.clipboard.writeText(text);
+          toast('Скопировано.');
+        } catch {
+          el.select();
+          document.execCommand('copy');
+          toast('Скопировано.');
+        }
+        return;
+      }
+
+      if (action === 'invite-use') {
+        const code = actionEl.getAttribute('data-code');
+        const link = `${location.origin}/join/${code}`;
+        const el = $('#inviteLink');
+        if (el) el.value = link;
+        toast('Ссылка подготовлена.');
+        return;
+      }
+
+      if (action === 'invite-copy') {
+        const code = actionEl.getAttribute('data-code');
+        const link = `${location.origin}/join/${code}`;
+        try {
+          await navigator.clipboard.writeText(link);
+          toast('Скопировано.');
+        } catch {
+          const el = $('#inviteLink');
+          if (el) {
+            el.value = link;
+            el.focus();
+            el.select();
+            document.execCommand('copy');
+            toast('Скопировано.');
+          } else {
+            toast('Не удалось скопировать.');
+          }
+        }
+        return;
+      }
+
+      if (action === 'invite-delete') {
+        const id = Number(actionEl.getAttribute('data-id'));
+        if (!confirm('Удалить приглашение?')) return;
+        try {
+          await api.invitesDelete(id);
+          toast('Удалено.');
+          await hydrateInvite();
+        } catch (err) {
+          toast(err.message || 'Ошибка удаления.');
+        }
+        return;
+      }
+
+      // Join/register: toggle password visibility
+      if (action === 'toggle-password') {
+        const wrap = actionEl.closest('.pw-wrap') || document;
+        const input = wrap.querySelector('input[name="password"]');
+        if (!input) return;
+        const next = (input.getAttribute('type') === 'password') ? 'text' : 'password';
+        input.setAttribute('type', next);
+        const btn = actionEl;
+        if (btn) {
+          const shown = next === 'text';
+          btn.setAttribute('aria-label', shown ? 'Скрыть пароль' : 'Показать пароль');
+          btn.textContent = shown ? '🙈' : '👁';
+        }
+        return;
+      }
+
+      // AI rewrite for textareas
+      if (action === 'ai-rewrite') {
+        const field = actionEl.getAttribute('data-field');
+        const targetId = actionEl.getAttribute('data-target');
+        const target = targetId ? document.getElementById(targetId) : null;
+        if (!target || !('value' in target)) return;
+
+        const text = String(target.value || '').trim();
+        if (!text) return toast('Сначала напиши текст.');
+
+        // Find (or create) a small accept/undo bar under the textarea
+        const host = target.closest('.ai-wrap') || target.parentElement || target;
+        const barId = `${targetId || 'ai'}-aiBar`;
+        let bar = host.querySelector(`#${CSS.escape(barId)}`);
+        if (!bar) {
+          bar = document.createElement('div');
+          bar.id = barId;
+          bar.className = 'ai-bar hidden';
+          bar.innerHTML = `
+            <button type="button" class="btn-ghost" style="padding:10px 12px" data-action="ai-undo" data-target="${escapeHTML(targetId || '')}">Вернуть</button>
+            <button type="button" class="btn" style="padding:10px 14px" data-action="ai-accept" data-target="${escapeHTML(targetId || '')}">Принять</button>
+          `;
+          host.appendChild(bar);
+        }
+
+        // store original text for undo
+        target.dataset.aiOriginal = target.value;
+
+        // lock button
+        const btn = actionEl;
+        const prev = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = '…';
+
+        try {
+          const r = await api.aiRewrite({ field, text });
+          const out = String(r?.text || '').trim();
+          if (!out) throw new Error('Пустой ответ ИИ.');
+
+          target.value = out;
+          // trigger draft autosave if present
+          try { target.dispatchEvent(new Event('input', { bubbles: true })); } catch {}
+
+          bar.classList.remove('hidden');
+          toast('ИИ предложил вариант.');
+        } catch (err) {
+          toast(err.message || 'Ошибка ИИ.');
+          // restore original on error
+          if (target.dataset.aiOriginal != null) target.value = target.dataset.aiOriginal;
+        } finally {
+          btn.disabled = false;
+          btn.textContent = prev || '✦';
+        }
+        return;
+      }
+
+      // AI accept/undo
+      if (action === 'ai-undo' || action === 'ai-accept') {
+        const targetId = actionEl.getAttribute('data-target');
+        const target = targetId ? document.getElementById(targetId) : null;
+        if (!target || !('value' in target)) return;
+        const host = target.closest('.ai-wrap') || target.parentElement || target;
+        const bar = targetId ? host.querySelector(`#${CSS.escape(targetId + '-aiBar')}`) : null;
+
+        if (action === 'ai-undo') {
+          if (target.dataset.aiOriginal != null) {
+            target.value = target.dataset.aiOriginal;
+            try { target.dispatchEvent(new Event('input', { bubbles: true })); } catch {}
+          }
+          toast('Возвращено.');
+        } else {
+          toast('Принято.');
+        }
+
+        // cleanup
+        delete target.dataset.aiOriginal;
+        if (bar) bar.classList.add('hidden');
+        return;
+      }
+
+      // Live updates bar
+      if (action === 'live-refresh') {
+        await liveApplyIfNeeded({ force: true });
+        return;
+      }
+      if (action === 'live-dismiss') {
+        liveBarHide();
+        return;
+      }
+
+      // Feed (fallback for browsers without IntersectionObserver)
+      if (action === 'feed-more') {
+        await loadMoreFeed();
+        return;
+      }
+
+      // Entry actions
+      if (action === 'entry-delete') {
+        const id = Number(actionEl.getAttribute('data-id'));
+        if (!confirm('Удалить запись?')) return;
+        try {
+          await api.entryDelete(id);
+          toast('Удалено.');
+          await hydratePathStats();
+          await hydrateFeed(true);
+        } catch (err) {
+          toast(err.message || 'Ошибка удаления.');
+        }
+        return;
+      }
+
+      if (action === 'entry-edit') {
+        const id = Number(actionEl.getAttribute('data-id'));
+        const cached = APP.state.cache.entryText.get(id);
+        if (!cached) return toast('Запись ещё загружается. Попробуй через секунду.');
+        openEntryModal(id);
+        return;
+      }
+    });
+  }
+
+  // Forms are re-rendered, but each form is new in DOM, so we bind once via a flag.
+  const loginForm = $('#loginForm');
+  if (loginForm && !loginForm._bound) {
+    loginForm._bound = true;
+    loginForm.addEventListener('submit', async (e)=>{
+      e.preventDefault();
+      const fd = new FormData(loginForm);
+      try {
+        const r = await api.login({ login: fd.get('login'), password: fd.get('password') });
+        if (r?.user) {
+          // optimistic UI
+          APP.state.user = r.user;
+          APP.state.teamUsersFetchedAt = 0;
+          if (APP.state.user?.theme) setTheme(APP.state.user.theme);
+
+          // hard sync (prevents rare mismatches in role/theme/team after auth transitions)
+          try {
+            const m = await api.me();
+            APP.state.user = m.user;
+            APP.state.team = m.team;
+            if (APP.state.user?.theme) setTheme(APP.state.user.theme);
+
+            const t = await api.team();
+            if (Array.isArray(t?.users)) {
+              APP.state.teamUsers = t.users;
+              APP.state.teamUsersFetchedAt = Date.now();
+            }
+          } catch {}
+        }
+        toast('Вход выполнен.');
+        history.replaceState({}, '', '/path');
+        render();
+        // best-effort: keep push alive if user enabled it before
+        try { pushAutoMaintain(); } catch {}
+      } catch (err) {
+        toast(err.message || 'Ошибка входа.');
+      }
+    });
+  }
+
+  const registerForm = $('#registerForm');
+  if (registerForm && !registerForm._bound) {
+    registerForm._bound = true;
+    registerForm.addEventListener('submit', async (e)=>{
+      e.preventDefault();
+      const fd = new FormData(registerForm);
+      try {
+        const r = await api.register({
+          email: fd.get('email'),
+          name: fd.get('name'),
+          login: fd.get('login'),
+          password: fd.get('password'),
+          role: fd.get('role'),
+          theme: fd.get('theme'),
+        });
+        if (r?.user) {
+          // optimistic UI
+          APP.state.user = r.user;
+          APP.state.teamUsersFetchedAt = 0;
+          if (APP.state.user?.theme) setTheme(APP.state.user.theme);
+
+          // hard sync
+          try {
+            const m = await api.me();
+            APP.state.user = m.user;
+            APP.state.team = m.team;
+            if (APP.state.user?.theme) setTheme(APP.state.user.theme);
+
+            const t = await api.team();
+            if (Array.isArray(t?.users)) {
+              APP.state.teamUsers = t.users;
+              APP.state.teamUsersFetchedAt = Date.now();
+            }
+          } catch {}
+        }
+        toast('Команда создана. Путь начался.');
+        history.replaceState({}, '', '/path');
+        render();
+        try { pushAutoMaintain(); } catch {}
+      } catch (err) {
+        toast(err.message || 'Ошибка регистрации.');
+      }
+    });
+  }
+
+  const joinForm = $('#joinForm');
+  if (joinForm && !joinForm._bound) {
+    joinForm._bound = true;
+    joinForm.addEventListener('submit', async (e)=>{
+      e.preventDefault();
+      const fd = new FormData(joinForm);
+      const code = joinForm.getAttribute('data-code') || '';
+      try {
+        const r = await api.join(code, {
+          name: fd.get('name'),
+          login: fd.get('login'),
+          password: fd.get('password'),
+          role: fd.get('role'),
+          theme: fd.get('theme'),
+        });
+        if (r?.user) {
+          // optimistic UI
+          APP.state.user = r.user;
+          APP.state.teamUsersFetchedAt = 0;
+          if (APP.state.user?.theme) setTheme(APP.state.user.theme);
+
+          // hard sync
+          try {
+            const m = await api.me();
+            APP.state.user = m.user;
+            APP.state.team = m.team;
+            if (APP.state.user?.theme) setTheme(APP.state.user.theme);
+
+            const t = await api.team();
+            if (Array.isArray(t?.users)) {
+              APP.state.teamUsers = t.users;
+              APP.state.teamUsersFetchedAt = Date.now();
+            }
+          } catch {}
+        }
+        toast('Добро пожаловать на путь.');
+        history.replaceState({}, '', '/path');
+        render();
+        try { pushAutoMaintain(); } catch {}
+      } catch (err) {
+        const reason = err?.reason;
+        if (reason === 'invalid') toast('Приглашение недействительно.');
+        else if (reason === 'expired') toast('Срок действия приглашения истёк.');
+        else if (reason === 'used') toast('Приглашение уже использовано.');
+        else toast(err.message || 'Ошибка присоединения.');
+        try { await hydrateJoin(); } catch {}
+      }
+    });
+  }
+
+  const settingsForm = $('#settingsForm');
+  if (settingsForm && !settingsForm._bound) {
+    settingsForm._bound = true;
+    settingsForm.addEventListener('submit', async (e)=>{
+      e.preventDefault();
+      const fd = new FormData(settingsForm);
+      try {
+        const pass = String(fd.get('password') || '').trim() || null;
+        const r = await api.settingsUpdate({
+          name: fd.get('name'),
+          role: fd.get('role'),
+          theme: fd.get('theme'),
+          password: pass,
+        });
+
+        if (r?.user) {
+          APP.state.user = r.user;
+          if (APP.state.user?.theme) setTheme(APP.state.user.theme);
+        }
+
+        // hard sync (prevents edge cases where role/theme UI gets out of sync)
+        try {
+          const m = await api.me();
+          APP.state.user = m.user;
+          APP.state.team = m.team;
+          if (APP.state.user?.theme) setTheme(APP.state.user.theme);
+
+          const t = await api.team();
+          if (Array.isArray(t?.users)) {
+            APP.state.teamUsers = t.users;
+            APP.state.teamUsersFetchedAt = Date.now();
+          }
+        } catch {}
+
+        // refresh team cache (role/theme icon may change)
+        APP.state.teamUsersFetchedAt = 0;
+        toast('Сохранено.');
+        await render();
+      } catch (err) {
+        toast(err.message || 'Ошибка сохранения.');
+      }
+    });
+  }
+}
+
+async function hydrateHealth(){
+  const el = $('#healthBadge');
+  if (!el) return;
+  try {
+    const r = await api.health();
+    if (r && r.ok) {
+      el.innerHTML = `связь: <span style="color: var(--text); font-weight: 900">ok</span>`;
+      return;
+    }
+    el.innerHTML = `связь: <span style="color: var(--danger); font-weight: 900">offline</span>`;
+  } catch {
+    el.innerHTML = `связь: <span style="color: var(--danger); font-weight: 900">offline</span>`;
+  }
+}
+
+async function hydrateJoin(){
+  const form = $('#joinForm');
+  const info = $('#joinInfo');
+  if (!form || !info) return;
+  const code = form.getAttribute('data-code') || '';
+
+  const setEnabled = (enabled)=>{
+    $$('input, button', form).forEach(el=>{
+      if (el.type === 'hidden') return;
+      el.disabled = !enabled;
+    });
+  };
+
+  try {
+    const r = await api.inviteResolve(code);
+
+    if (r && r.ok === true) {
+      info.innerHTML = `Тебя пригласил: <span style="font-weight: 900">${escapeHTML(r.inviter?.name || 'Спутник')}</span>`;
+      setEnabled(true);
+      setTimeout(()=>{ try { form.querySelector('input[name="name"]')?.focus?.(); } catch {} }, 0);
+      return;
+    }
+
+    const reason = r?.reason;
+    let msg = 'Код недействителен или истёк';
+    if (reason === 'invalid') msg = 'Приглашение недействительно';
+    else if (reason === 'expired') msg = 'Срок действия приглашения истёк';
+    else if (reason === 'used') msg = 'Приглашение уже использовано';
+
+    info.innerHTML = `<span style="font-weight: 900; color: var(--danger)">${escapeHTML(msg)}</span>`;
+    setEnabled(false);
+  } catch (e) {
+    info.innerHTML = `<span style="font-weight: 900; color: var(--danger)">Не удалось проверить приглашение</span>`;
+    setEnabled(false);
   }
 }
 
 async function hydratePathStats(){
-  if (!APP.state.user) return;
-  const stats = $('#pathStats');
-  if (!stats) return;
-
+  const el = $('#pathStats');
+  if (!el) return;
   try {
-    const { stats: data } = await apiCall('/stats');
-    stats.innerHTML = `
-      <div class="stats-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:16px;margin-top:16px;">
-        <div class="stat-card soft" style="padding:16px;text-align:center;">
-          <div style="font-size:24px;font-weight:800;color:var(--accent);">${data.totalEntries || 0}</div>
-          <div class="textMuted" style="font-size:12px;margin-top:4px;">записей</div>
-        </div>
-        <div class="stat-card soft" style="padding:16px;text-align:center;">
-          <div style="font-size:24px;font-weight:800;color:var(--victory);">${data.totalVictories || 0}</div>
-          <div class="textMuted" style="font-size:12px;margin-top:4px;">побед</div>
-        </div>
-        <div class="stat-card soft" style="padding:16px;text-align:center;">
-          <div style="font-size:24px;font-weight:800;color:var(--lesson);">${data.totalLessons || 0}</div>
-          <div class="textMuted" style="font-size:12px;margin-top:4px;">уроков</div>
-        </div>
-        <div class="stat-card soft" style="padding:16px;text-align:center;">
-          <div style="font-size:24px;font-weight:800;color:var(--text);">${data.teamSize || 0}</div>
-          <div class="textMuted" style="font-size:12px;margin-top:4px;">в команде</div>
-        </div>
-      </div>
-    `;
-  } catch (err) {
-    stats.innerHTML = '<div class="textMuted" style="text-align:center;padding:20px;">Не удалось загрузить статистику</div>';
+    const s = await api.stats();
+    const bits = [];
+    bits.push(`Серия: <span style="color: var(--text); font-weight: 900">${Number(s.streak || 0)}</span>`);
+    bits.push(`Шагов сегодня: <span style="color: var(--text); font-weight: 900">${Number(s.userTodaySteps || 0)}</span>`);
+    bits.push(`Спутников сегодня: <span style="color: var(--text); font-weight: 900">${Number(s.teamToday || 0)}</span>`);
+    bits.push(`Шагов в команде сегодня: <span style="color: var(--text); font-weight: 900">${Number(s.teamTodaySteps || 0)}</span>`);
+    bits.push(`Всего шагов в команде: <span style="color: var(--text); font-weight: 900">${Number(s.teamTotal || 0)}</span>`);
+    el.innerHTML = bits.join(' · ');
+  } catch {
+    el.textContent = '';
   }
 }
 
-async function ensureEntryModal(){
-  if (document.getElementById('entryModal')) return;
-  
-  const modal = document.createElement('div');
-  modal.id = 'entryModal';
-  modal.className = 'modal';
-  modal.innerHTML = `
-    <div class="modal-overlay" data-action="modal-close" style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:9998;display:flex;align-items:center;justify-content:center;"></div>
-    <div class="modal-content soft" style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:90%;max-width:600px;max-height:80vh;overflow:auto;background:var(--bg);border-radius:12px;z-index:9999;">
-      <div style="padding:24px;">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
-          <h3 style="margin:0;font-size:18px;font-weight:800;">Новый шаг</h3>
-          <button type="button" data-action="modal-close" class="btn-ghost" style="padding:8px;">×</button>
-        </div>
-        <form data-action="entry-create" style="display:flex;flex-direction:column;gap:16px;">
-          <div>
-            <label style="display:block;margin-bottom:8px;font-size:14px;font-weight:600;color:var(--accent);">Победа</label>
-            <textarea name="victory" rows="3" style="width:100%;padding:12px;background:var(--bg-secondary);border:1px solid var(--border);border-radius:8px;color:var(--text);resize:vertical;"></textarea>
-          </div>
-          <div>
-            <label style="display:block;margin-bottom:8px;font-size:14px;font-weight:600;color:var(--lesson);">Урок</label>
-            <textarea name="lesson" rows="3" style="width:100%;padding:12px;background:var(--bg-secondary);border:1px solid var(--border);border-radius:8px;color:var(--text);resize:vertical;"></textarea>
-          </div>
-          <div style="display:flex;gap:12px;margin-top:8px;">
-            <button type="submit" class="btn-primary" style="flex:1;padding:14px;font-weight:800;">Сохранить</button>
-            <button type="button" data-action="modal-close" class="btn-secondary" style="padding:14px;font-weight:800;">Отмена</button>
-          </div>
-        </form>
-      </div>
-    </div>
-  `;
-  document.body.appendChild(modal);
-}
+async function hydrateTodayForm(){
+  const form = $('#todayForm');
+  if (!form) return;
+  const hint = $('#todayHint');
 
-function openModal(id){
-  const modal = document.getElementById(id);
-  if (modal) {
-    modal.style.display = 'block';
-    document.body.style.overflow = 'hidden';
-  }
-}
-
-function closeModal(){
-  const modals = document.querySelectorAll('.modal');
-  modals.forEach(m => m.style.display = 'none');
-  document.body.style.overflow = '';
-}
-
-async function gunzipB64(input) {
-  if (!input) return '';
-  try {
-    const str = atob(input);
-    const bytes = new Uint8Array(str.length);
-    for (let i = 0; i < str.length; i++) {
-      bytes[i] = str.charCodeAt(i);
-    }
-    const stream = new DecompressionStream('gzip');
-    const writer = stream.writable.getWriter();
-    const reader = stream.readable.getReader();
-    writer.write(bytes);
-    writer.close();
-    const decompressed = await reader.read();
-    const decoder = new TextDecoder();
-    return decoder.decode(decompressed.value);
-  } catch (e) {
-    return '';
-  }
-}
-
-async function compressAndEncode(text) {
-  if (!text) return '';
-  try {
-    const encoder = new TextEncoder();
-    const stream = new CompressionStream('gzip');
-    const writer = stream.writable.getWriter();
-    const reader = stream.readable.getReader();
-    writer.write(encoder.encode(text));
-    writer.close();
-    const compressed = await reader.read();
-    const bytes = compressed.value;
-    let binary = '';
-    for (let i = 0; i < bytes.length; i++) {
-      binary += String.fromCharCode(bytes[i]);
-    }
-    return btoa(binary);
-  } catch (e) {
-    return '';
-  }
-}
-
-function draftKey(){
-  if (!APP.state.user) return null;
-  return `draft_${APP.state.user.id}`;
-}
-
-function setupEntryForm(form, hint = null) {
-  if (form._setupDone) return;
-  form._setupDone = true;
-
+  // Infinite path: draft is per-user (not per-day), because you can write many times a day.
+  const draftKey = ()=>{
+    const uid = APP.state.user?.id;
+    if (!uid) return null;
+    return `pariter_draft_${uid}`;
+  };
   const readDraft = ()=>{
     const k = draftKey();
     if (!k) return null;
     try {
       const raw = localStorage.getItem(k);
       if (!raw) return null;
-      const parsed = JSON.parse(raw);
-      if (typeof parsed !== 'object' || !parsed) return null;
-      return parsed;
+      const obj = JSON.parse(raw);
+      return {
+        victory: typeof obj?.victory === 'string' ? obj.victory : '',
+        lesson: typeof obj?.lesson === 'string' ? obj.lesson : '',
+      };
     } catch { return null; }
   };
-
+  const clearDraft = ()=>{
+    const k = draftKey();
+    if (!k) return;
+    try { localStorage.removeItem(k); } catch {}
+  };
   const saveDraft = (victory, lesson)=>{
     const k = draftKey();
     if (!k) return;
@@ -1629,12 +3123,7 @@ function setupEntryForm(form, hint = null) {
     } catch {}
   };
 
-  const clearDraft = ()=>{
-    const k = draftKey();
-    if (!k) return;
-    try { localStorage.removeItem(k); } catch {}
-  };
-
+  // restore draft into empty form
   const d = readDraft();
   const vEl = form.querySelector('textarea[name="victory"]');
   const lEl = form.querySelector('textarea[name="lesson"]');
@@ -1642,6 +3131,7 @@ function setupEntryForm(form, hint = null) {
   if (lEl && !lEl.value) lEl.value = d?.lesson || '';
   if (hint) hint.textContent = d ? 'Черновик восстановлен.' : '';
 
+  // draft autosave (debounced)
   if (!form._draftBound) {
     form._draftBound = true;
     const schedule = ()=>{
@@ -1662,11 +3152,13 @@ function setupEntryForm(form, hint = null) {
       try {
         const victory = String(fd.get('victory') || '').trim();
         const lesson = String(fd.get('lesson') || '').trim();
-        if (!victory && !lesson) return toast('Заполните хотя бы одну часть: победу или урок.');
+        if (!victory && !lesson) return toast('Заполни хотя бы одну часть: победу или урок.');
 
+        // creates a new entry every time
         await api.entryCreate({ victory, lesson });
         clearDraft();
 
+        // reset form for the next step
         try { vEl.value = ''; lEl.value = ''; } catch {}
 
         toast('Зафиксировано.');
@@ -1711,12 +3203,16 @@ function liveBarHide(){
 
 function updateAttentionIndicators(){
   const n = Math.max(0, Number(APP.state.live.unread || 0));
+  // Taskbar/app badge (Chrome/Edge, Android, some desktop PWAs)
   try {
     if (typeof navigator !== 'undefined' && 'setAppBadge' in navigator) {
+      // @ts-ignore
       if (n > 0) navigator.setAppBadge(Math.min(n, 99));
+      // @ts-ignore
       else navigator.clearAppBadge();
     }
   } catch {}
+  // Title prefix
   try { setDocumentTitle(APP.state.route?.path || parseRoute().path); } catch {}
 }
 
@@ -1731,6 +3227,7 @@ async function notifyNewEntry(entry){
       return;
     }
 
+    // Do not spam when user is actively reading the app.
     const shouldNotify = document.hidden || (typeof document.hasFocus === 'function' && !document.hasFocus());
     if (!shouldNotify) return;
 
@@ -1746,6 +3243,7 @@ async function notifyNewEntry(entry){
       body = pick ? pick.split(/\r?\n/)[0].slice(0, 140) : '';
     } catch {}
 
+    // Aggregation hint: if we got a batch, show “and more”.
     const extra = Math.max(0, Number(entry._extraCount || 0));
     if (extra > 0) {
       body = body
@@ -1753,6 +3251,7 @@ async function notifyNewEntry(entry){
         : `Новых шагов: ${extra + 1}`;
     }
 
+    // If server push is enabled, do not duplicate OS notifications from the in-page code.
     try {
       if (readPushDesired && readPushDesired()) return;
     } catch {}
@@ -1766,6 +3265,7 @@ async function notifyNewEntry(entry){
       data: { url: '/path' },
     };
 
+    // Prefer showing notification through Service Worker for better OS integration.
     try {
       const reg = await navigator.serviceWorker?.getRegistration?.();
       if (reg && reg.showNotification) {
@@ -1775,12 +3275,14 @@ async function notifyNewEntry(entry){
     } catch {}
 
     try {
+      // Fallback: in-page notification
+      // @ts-ignore
       new Notification(title, opts);
     } catch {}
   } catch {}
 }
 
-async function liveApplyIfNeeded({ force=false }={}){  
+async function liveApplyIfNeeded({ force=false }={}){
   if (!APP.state.user) return;
   if (APP.state.feed.loading) return;
   if (APP.state.live.pending) return;
@@ -1793,10 +3295,12 @@ async function liveApplyIfNeeded({ force=false }={}){
 
   APP.state.live.pending = true;
   try {
+    // User is effectively "caught up".
     APP.state.live.unread = 0;
     updateAttentionIndicators();
 
     liveBarHide();
+    // Full refresh to keep things simple and consistent.
     await hydratePathStats();
     await hydrateFeed(true);
   } finally {
@@ -1809,6 +3313,7 @@ async function liveTick(){
   if (APP.state.sidebarOpen) return;
 
   try {
+    // Prime baseline if missing: latest entry in team feed.
     if (!APP.state.live.topKey) {
       const r0 = await api.entriesGet({ limit: 1, before: null });
       const top0 = (r0?.entries && r0.entries[0]) ? r0.entries[0] : null;
@@ -1834,29 +3339,39 @@ async function liveTick(){
     const newKey = liveKeyOf(newest);
     if (!newKey) return;
 
+    // Advance our baseline to the newest known entry (so next tick is incremental).
     APP.state.live.topKey = newKey;
 
     const route = APP.state.route?.path;
     const nearTop = (window.scrollY || document.documentElement.scrollTop || 0) < 220;
 
+    // Auto-apply only when the app is actually in focus.
+    // If the tab/PWA is in background (document.hidden), we must NOT silently refresh,
+    // otherwise the user will miss notifications while the app sits open on /path.
     const inFocus = (!document.hidden) && (typeof document.hasFocus !== 'function' || document.hasFocus());
 
     if (route === '/path' && nearTop && inFocus) {
+      // user is looking at the top and is actively using the app - auto-refresh
       APP.state.live.unread = 0;
       updateAttentionIndicators();
       await liveApplyIfNeeded({ force: true });
       return;
     }
 
+    // user is not at the top (or not on /path): accumulate unread precisely
     APP.state.live.unread = Math.min(99, Number(APP.state.live.unread || 0) + Math.min(99, count));
     updateAttentionIndicators();
     if (route === '/path') liveBarShow();
 
+    // Notifications: one per newKey (aggregated)
     if (APP.state.live.lastNotifiedKey !== newKey) {
       APP.state.live.lastNotifiedKey = newKey;
+      // If push is enabled, OS notification will be shown by Service Worker.
+      // In-page notifications would duplicate it.
       if (!(readPushDesired && readPushDesired())) {
         await notifyNewEntry({ ...newest, _extraCount: Math.max(0, count - 1) });
       }
+      // Soft cosmic sound (messenger-like: only when app is NOT in focus)
       try { playCosmicChime(); } catch {}
     }
 
@@ -1867,6 +3382,7 @@ async function liveTick(){
 
 function liveStart(){
   if (liveStart._timer) return;
+  // prime baseline in background
   liveTick();
   liveStart._timer = setInterval(liveTick, 7000);
 }
@@ -1900,10 +3416,12 @@ async function hydrateFeed(reset=false){
     feed.innerHTML = '';
     status.textContent = '';
     if (moreBtn) moreBtn.classList.add('hidden');
+    // re-prime live top key on next load
     APP.state.live.topKey = null;
     liveBarHide();
   }
 
+  // Infinite scroll when IntersectionObserver is available.
   if (typeof IntersectionObserver !== 'undefined') {
     if (!hydrateFeed._io) {
       hydrateFeed._io = new IntersectionObserver(async (entries)=>{
@@ -1914,6 +3432,7 @@ async function hydrateFeed(reset=false){
     hydrateFeed._io.observe(sentinel);
     if (moreBtn) moreBtn.classList.add('hidden');
   } else {
+    // Fallback: manual "Load more" button.
     if (moreBtn) moreBtn.classList.remove('hidden');
   }
 
@@ -1941,6 +3460,7 @@ async function loadMoreFeed(){
       return;
     }
 
+    // prime live baseline (latest entry in team feed)
     if (!APP.state.live.topKey) {
       APP.state.live.topKey = liveKeyOf(entries[0]);
     }
@@ -1948,6 +3468,7 @@ async function loadMoreFeed(){
     const map = teamUserMap();
 
     for (const e of entries) {
+      console.log('Processing entry in loadMoreFeed:', e);
       if (APP.state.feed.lastRenderedDate !== e.date) {
         feed.insertAdjacentHTML('beforeend', DateDivider(ruDateLabel(e.date)));
         APP.state.feed.lastRenderedDate = e.date;
@@ -1955,10 +3476,12 @@ async function loadMoreFeed(){
 
       const author = map.get(e.user_id) || null;
       const meIsAdmin = Number(APP.state.user?.is_admin || 0) === 1;
+      console.log('Calling EntryCard with:', { entry: e, author, meId: APP.state.user.id, meIsAdmin });
       feed.insertAdjacentHTML('beforeend', EntryCard({ entry: e, author, meId: APP.state.user.id, meIsAdmin }));
       APP.state.feed.renderedCount++;
     }
 
+    // fill texts for freshly appended cards (decode in parallel)
     const entryById = new Map(entries.map(x => [Number(x.id), x]));
     const fresh = Array.from(feed.querySelectorAll('[data-entry-text][data-id]')).slice(-entries.length*2);
     await Promise.all(fresh.map(async (el) => {
@@ -1979,6 +3502,7 @@ async function loadMoreFeed(){
     APP.state.feed.cursor = nextCursor || (nextBefore ? { date: nextBefore, id: 0 } : null);
     status.textContent = '';
 
+    // update fallback button visibility
     const moreBtn = $('#feedMore');
     if (moreBtn) {
       const io = (typeof IntersectionObserver !== 'undefined');
@@ -2018,7 +3542,7 @@ async function hydrateInvite(){
     return `
       <div class="soft" style="padding: 10px 12px; display:flex; align-items:center; justify-content: space-between; gap: 10px">
         <div class="row" style="min-width:0; gap:10px">
-          <div style="width:36px;height:36px;border-radius:999px;border:1px solid var(--border);display:grid;place-items:center;background:rgba(255,255,255,.03)">${ROLE_META[u.role]?.emoji || '⚔️'}</div>
+          <div style="width:36px;height:36px;border-radius:999px;border:1px solid var(--border);display:grid;place-items:center;background:rgba(255,255,255,.03)">${ROLE_META[u.role]?.emoji || '✦'}</div>
           <div style="min-width:0">
             <div style="font-weight: 800; white-space: nowrap; overflow:hidden; text-overflow: ellipsis;">${escapeHTML(u.name)}</div>
             <div class="textMuted" style="font-size: 12px">присоединился: ${escapeHTML(joined)}</div>
@@ -2086,11 +3610,13 @@ async function hydrateInvite(){
 
   inviteList.innerHTML = html;
 
+  // Clicks are handled via delegated handler in bindHandlers()
   bindHandlers();
 }
 
 window.addEventListener('popstate', render);
 
+// PWA install hooks (best-effort)
 window.addEventListener('beforeinstallprompt', (e)=>{
   try {
     e.preventDefault();
@@ -2147,6 +3673,7 @@ function updateNotifUI(){
   }
   btn.disabled = false;
   st.textContent = 'не разрешено';
+  // Push UI depends on notification permission too.
   try { updatePushUI(); } catch {}
 }
 
@@ -2168,12 +3695,17 @@ function withTimeout(promise, ms, msg){
   return Promise.race([promise, timeout]).finally(()=>{ try { clearTimeout(t); } catch {} });
 }
 
+// --- Push helpers (Android/desktop messenger-like notifications)
+// Important: do NOT rely on navigator.serviceWorker.ready for Push.
+// On Android it may not resolve until the SW controls the page.
+// PushManager works with the registration returned by register().
 async function ensureServiceWorkerForPush(){
   if (ensureServiceWorkerForPush._p) return ensureServiceWorkerForPush._p;
 
   ensureServiceWorkerForPush._p = (async ()=>{
     if (!('serviceWorker' in navigator)) throw new Error('Service Worker не поддерживается.');
 
+    // Auto-clean old/incorrect registrations (no manual "unregister" needed).
     try {
       const regs = await navigator.serviceWorker.getRegistrations();
       await Promise.all(regs.map(async (r)=>{
@@ -2184,9 +3716,12 @@ async function ensureServiceWorkerForPush(){
           const waitingUrl = r.waiting?.scriptURL ? new URL(r.waiting.scriptURL).pathname : '';
           const anyUrl = activeUrl || waitingUrl || installingUrl;
 
+          // We want only /sw.js with scope '/'. Remove /static/sw.js and other stray scopes.
+          // Keep only a root-scope service worker (/sw.js). Remove any legacy /static scope or wrong script.
           const badScope = scopePath !== '/';
           const badScript = anyUrl && anyUrl !== '/sw.js';
           if (badScope || badScript) {
+            // Best-effort: unsubscribe old push subscription to stop duplicate notifications.
             try {
               const sub = await r.pushManager?.getSubscription?.();
               if (sub) await sub.unsubscribe().catch(()=>{});
@@ -2198,6 +3733,7 @@ async function ensureServiceWorkerForPush(){
       }));
     } catch {}
 
+    // Register root-scope SW.
     let reg = null;
     try {
       reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
@@ -2206,6 +3742,8 @@ async function ensureServiceWorkerForPush(){
       throw new Error('Service worker не зарегистрирован');
     }
 
+    // Important on Android: ensure the registration is activated. ready can hang until SW controls the page.
+    // We avoid hanging by waiting for statechange with a timeout.
     try {
       const active = reg.active || reg.waiting || reg.installing;
       if (active && active.state !== 'activated') {
@@ -2226,6 +3764,7 @@ async function ensureServiceWorkerForPush(){
 
     return reg;
   })().catch((e)=>{
+    // allow re-try if we failed
     ensureServiceWorkerForPush._p = null;
     throw e;
   });
@@ -2262,6 +3801,7 @@ async function updatePushUI(){
     const sub = await reg.pushManager.getSubscription();
 
     if (sub) {
+      // If a subscription already exists, treat push as enabled (helps after SW migrations/updates).
       try { writePushDesired(true); } catch {}
       btn.disabled = true;
       if (off) off.classList.remove('hidden');
@@ -2320,8 +3860,10 @@ async function sendPushTokenToSW(token){
     const tok = String(token || '').trim();
     if (!tok) return;
 
+    // Prefer controller
     try { navigator.serviceWorker?.controller?.postMessage?.({ type: 'push-token', token: tok }); } catch {}
 
+    // Also try active reg
     try {
       const reg = await navigator.serviceWorker?.getRegistration?.();
       reg?.active?.postMessage?.({ type: 'push-token', token: tok });
@@ -2346,13 +3888,16 @@ async function enablePush(){
   const { publicKey } = await api.pushVapidKey();
   if (!publicKey) throw new Error('Push ключ не получен.');
 
+  // Detect VAPID key rotation and schedule resubscribe if needed.
   const prev = readVapidPublicKey();
   if (prev && prev !== publicKey) {
     writePushNeedsResub(publicKey);
   }
 
+  // Subscribe (idempotent-ish)
   let sub = await reg.pushManager.getSubscription();
 
+  // If server VAPID key changed, rotate subscription on a user gesture (this function is called from a click).
   const need = readPushNeedsResub();
   if (sub && need && need === publicKey) {
     try { await sub.unsubscribe(); } catch {}
@@ -2370,6 +3915,7 @@ async function enablePush(){
   const token = readPushToken() || null;
   const r = await api.pushSubscribe({ endpoint: json.endpoint, keys: json.keys, token });
 
+  // Persist token for background resubscribe (pushsubscriptionchange)
   if (r?.token) {
     writePushToken(String(r.token));
     sendPushTokenToSW(String(r.token));
@@ -2397,11 +3943,13 @@ async function disablePush(){
   writePushNeedsResub('');
   writePushToken('');
   try {
+    // also clear token from SW storage
     sendPushTokenToSW('');
   } catch {}
   try { await updatePushUI(); } catch {}
 }
 
+// Resubscribe when VAPID key rotates (runs on user gesture, so no manual "unregister" needed).
 async function pushResubscribeIfNeeded(){
   const need = readPushNeedsResub();
   if (!need) return false;
@@ -2438,6 +3986,9 @@ async function pushResubscribeIfNeeded(){
   return true;
 }
 
+// Best-effort: keep push alive without manual re-enable.
+// - If user once enabled push (pushDesired=1), we try to (re)subscribe automatically when possible.
+// - Also "ping" server with existing subscription to refresh last_seen_at.
 async function pushAutoMaintain(){
   try {
     if (!APP.state.user) return;
@@ -2447,6 +3998,7 @@ async function pushAutoMaintain(){
     if (typeof PushManager === 'undefined') return;
     if (!(window.isSecureContext || location.hostname === 'localhost')) return;
 
+    // throttle
     const now = Date.now();
     if (pushAutoMaintain._last && (now - pushAutoMaintain._last < 30_000)) return;
     pushAutoMaintain._last = now;
@@ -2457,12 +4009,18 @@ async function pushAutoMaintain(){
     const { publicKey } = await api.pushVapidKey().catch(()=> ({ publicKey: '' }));
     if (!publicKey) return;
 
+    // If server VAPID key rotated, mark that we need resubscribe.
     const prev = readVapidPublicKey();
     if (prev && prev !== publicKey) {
       writePushNeedsResub(publicKey);
     }
 
+    // We do NOT unsubscribe/resubscribe automatically here to avoid breaking push in browsers
+    // that require a user gesture for subscribe(). The actual rotation happens on the next
+    // user gesture (any click) via pushResubscribeIfNeeded().
+
     if (!sub) {
+      // Auto re-subscribe (permission already granted) - usually allowed without gesture.
       try {
         sub = await reg.pushManager.subscribe({
           userVisibleOnly: true,
@@ -2471,11 +4029,13 @@ async function pushAutoMaintain(){
         writeVapidPublicKey(publicKey);
         writePushNeedsResub('');
       } catch {
+        // Can't subscribe silently. Wait for a user gesture.
         writePushNeedsResub(publicKey);
         return;
       }
     }
 
+    // Refresh server record (upsert). Pass a persistent token so endpoint rotation can be bound to the same device.
     const j = sub.toJSON();
     if (j?.endpoint && j?.keys?.p256dh && j?.keys?.auth) {
       const token = readPushToken() || null;
@@ -2490,6 +4050,7 @@ async function pushAutoMaintain(){
   }
 }
 
+// --- Sound (gentle cosmic chime)
 const SOUND_KEY = 'pariter_sound_enabled';
 
 function readSoundEnabled(){
@@ -2516,7 +4077,7 @@ function updateSoundUI(){
   st.textContent = enabled ? 'включено' : 'выключено';
 }
 
-function playCosmicChime({ quiet=false }={}){  
+function playCosmicChime({ quiet=false }={}){
   const enabled = readSoundEnabled();
   if (!enabled) return;
 
@@ -2525,6 +4086,9 @@ function playCosmicChime({ quiet=false }={}){
   if (!quiet && (now - (APP.state.sound.lastAt || 0) < minGap)) return;
   APP.state.sound.lastAt = now;
 
+  // Messenger-like behavior: play only when the app is NOT in focus.
+  // When the app is focused, we stay silent.
+  // Note: some browsers may restrict audio in background tabs.
   if (!quiet) {
     try {
       const inFocus = !document.hidden && (typeof document.hasFocus !== 'function' || document.hasFocus());
@@ -2532,11 +4096,14 @@ function playCosmicChime({ quiet=false }={}){
     } catch {}
   }
 
+  // WebAudio synth: short "cosmic" bell (two detuned sines + soft noise)
   const Ctx = window.AudioContext || window.webkitAudioContext;
   if (!Ctx) return;
   const ctx = playCosmicChime._ctx || (playCosmicChime._ctx = new Ctx());
 
+  // Some browsers require resume on user gesture.
   if (ctx.state === 'suspended') {
+    // best-effort
     ctx.resume().catch(()=>{});
   }
 
@@ -2547,6 +4114,7 @@ function playCosmicChime({ quiet=false }={}){
   out.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.9);
   out.connect(ctx.destination);
 
+  // Main tone
   const o1 = ctx.createOscillator();
   o1.type = 'sine';
   o1.frequency.setValueAtTime(660, t0);
@@ -2557,6 +4125,7 @@ function playCosmicChime({ quiet=false }={}){
   o2.frequency.setValueAtTime(660 * 1.008, t0);
   o2.frequency.exponentialRampToValueAtTime(520 * 1.01, t0 + 0.35);
 
+  // Gentle filter
   const lp = ctx.createBiquadFilter();
   lp.type = 'lowpass';
   lp.frequency.setValueAtTime(1400, t0);
@@ -2577,6 +4146,7 @@ function playCosmicChime({ quiet=false }={}){
   g1.connect(lp);
   g2.connect(lp);
 
+  // Tiny noise shimmer
   const noiseBuf = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 0.12), ctx.sampleRate);
   const ch = noiseBuf.getChannelData(0);
   for (let i=0;i<ch.length;i++) ch[i] = (Math.random() * 2 - 1) * 0.25;
@@ -2596,6 +4166,7 @@ function playCosmicChime({ quiet=false }={}){
   hp.connect(ng);
   ng.connect(lp);
 
+  // Slight reverb-ish feel via short delay
   const delay = ctx.createDelay(1.0);
   delay.delayTime.setValueAtTime(0.14, t0);
   const fb = ctx.createGain();
@@ -2620,11 +4191,15 @@ function playCosmicChime({ quiet=false }={}){
   noise.stop(t0 + 0.22);
 }
 
+// restore sound setting early
 try { APP.state.sound.enabled = readSoundEnabled(); } catch {}
 
+
 document.addEventListener('click', (e)=>{
+  // intercept plain <a href="/..."></a>
   const a = e.target?.closest?.('a');
   if (!a) return;
+  // If a link already uses SPA data-nav, the delegated handler will process it.
   if (a.hasAttribute('data-nav')) return;
   const href = a.getAttribute('href');
   if (!href) return;
@@ -2637,31 +4212,40 @@ document.addEventListener('click', (e)=>{
 (async function init(){
   setTheme('dark_warrior');
   ensureEntryModal();
+  // Restore sound state early
   try { APP.state.sound.enabled = readSoundEnabled(); } catch {}
 
+  // Stars + landing canvas: start only when visible to save battery.
   try { ensureStarsLayer(); } catch {}
 
+  // Best-effort: ensure root-scope Service Worker is registered early (needed for Push on Android).
   try {
     const reg = await ensureServiceWorkerForPush();
 
+    // If a PushSubscription already exists, treat push as enabled.
+    // This prevents duplicate OS notifications (SW + in-page) if localStorage flag was lost.
     try {
       const sub = await reg.pushManager.getSubscription();
       if (sub) writePushDesired(true);
     } catch {}
 
+    // Send stored token to SW so pushsubscriptionchange can resubscribe without cookies.
     try {
       const tok = readPushToken();
       if (tok) sendPushTokenToSW(tok);
     } catch {}
   } catch {}
 
+  // If a push arrives while the app is open, the SW can postMessage to update UI faster.
   try {
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.addEventListener('message', (ev)=>{
         try {
           if (!ev?.data || typeof ev.data !== 'object') return;
           if (ev.data.type !== 'push') return;
+          // Nudge live refresh quickly (do not block)
           if (APP.state.user && APP.state.route?.path === '/path') {
+            // mark unread and refresh attention indicators
             APP.state.live.unread = Math.min(99, Number(APP.state.live.unread || 0) + 1);
             updateAttentionIndicators();
             liveBarShow();
@@ -2673,9 +4257,13 @@ document.addEventListener('click', (e)=>{
 
   await render();
 
+  // After initial render, try to keep push subscription alive (if user enabled it before)
   try { pushAutoMaintain(); } catch {}
 
+  // Keep-alive while the app is open (best-effort). Helps recover after short inactivity.
   setInterval(()=>{ try { pushAutoMaintain(); } catch {} }, 90_000);
 
+  // Also keep live polling going for badge updates even if user stays off /path.
+  // (push should work in background; this is just an extra safety net while the app is open)
   setInterval(()=>{ try { liveTick(); } catch {} }, 30_000);
 })();

@@ -96,6 +96,7 @@ body{
 .textarea{ min-height: 110px; resize: vertical; }
 .input:focus, .textarea:focus{ box-shadow: var(--focus); border-color: color-mix(in srgb, var(--accent) 70%, var(--border)); background: rgba(255,255,255,.08); }
 
+/* Password input with toggle */
 .pw-wrap{ position: relative; }
 .pw-input{ padding-right: 46px; }
 .pw-toggle{
@@ -116,6 +117,7 @@ body{
 }
 .pw-toggle:hover{ background: rgba(255,255,255,.1); border-color: color-mix(in srgb, var(--border) 40%, var(--accent) 60%); }
 
+/* AI rewrite button for textareas */
 .ai-wrap{ position: relative; }
 .ai-textarea{ padding-right: 46px; }
 .ai-btn{
@@ -136,6 +138,7 @@ body{
 .ai-btn:hover{ background: rgba(255,255,255,.1); border-color: color-mix(in srgb, var(--border) 40%, var(--accent) 60%); }
 .ai-btn:disabled{ opacity: .55; cursor: not-allowed; }
 
+/* AI accept/undo mini bar */
 .ai-bar{
   margin-top: 8px;
   display: flex;
@@ -167,6 +170,7 @@ body{
 
 .kbd{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; font-size: 12px; border: 1px solid var(--border); padding: 2px 6px; border-radius: 8px; background: rgba(255,255,255,.05); backdrop-filter: blur(8px); }
 
+/* Sidebar */
 .sidebar-scrim{ background: rgba(0,0,0,.4); }
 .sidebar{ 
   background: var(--glassBg); 
@@ -174,6 +178,7 @@ body{
   backdrop-filter: blur(16px);
 }
 
+/* Theme chips */
 .theme-dot{
   width: 44px;
   height: 44px;
@@ -211,6 +216,7 @@ body{
 }
 .hidden{ display:none !important; }
 
+/* Layout helpers (minimal, no Tailwind reliance) */
 .container{ width: min(920px, calc(100vw - 32px)); margin: 0 auto; }
 .centerShell{ min-height: 100vh; padding: 40px 16px; }
 .centerMax{ width: min(720px, calc(100vw - 32px)); margin: 0 auto; }
@@ -234,6 +240,7 @@ body{
 
 .textMuted{ color: var(--textMuted); }
 
+/* Modal */
 .modalWrap{ position:fixed; inset:0; z-index: 80; display:grid; place-items:center; padding: 16px; overscroll-behavior: contain; }
 .modalScrim{ position:absolute; inset:0; background: rgba(0,0,0,.4); }
 .modalPanel{ 
@@ -248,10 +255,12 @@ body{
   backdrop-filter: blur(16px);
 }
 
+/* Reduced motion */
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; scroll-behavior: auto !important; }
 }
 
+/* --- Telegram-like UI layer (overrides) --- */
 :root{
   --radius: 22px;
   --radiusSm: 16px;
@@ -260,11 +269,13 @@ body{
   --ring: 0 0 0 3px color-mix(in srgb, var(--accent) 26%, transparent);
 }
 
+/* Header like Telegram */
 .header{
   border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
 }
 .headerRow{ padding: 10px 0; }
 
+/* Cards and surfaces */
 .card{
   background: var(--glassBg);
   border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
@@ -275,6 +286,7 @@ body{
   border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
 }
 
+/* Buttons */
 .btn, .btn-ghost, .btn-danger{
   letter-spacing: .01em;
 }
@@ -284,6 +296,7 @@ body{
 }
 .btn:hover{ filter: brightness(1.1); }
 
+/* Inputs like Telegram */
 .input, .textarea{
   background: rgba(255,255,255,.05);
   border-color: color-mix(in srgb, var(--border) 85%, transparent);
@@ -292,8 +305,10 @@ body{
   box-shadow: var(--ring);
 }
 
+/* Date divider like chat day pill */
 .divider{ background: color-mix(in srgb, var(--border) 80%, transparent); }
 
+/* Feed as chat timeline */
 #feed{ gap: 14px !important; }
 #feed article.card{
   background: transparent;
@@ -303,6 +318,7 @@ body{
   padding: 0 !important;
 }
 
+/* Bubble feel for victory/lesson blocks inside feed */
 #feed article.card .soft{
   border-radius: 22px;
   padding: 12px 14px !important;
@@ -313,6 +329,7 @@ body{
   background: var(--glassBg);
 }
 
+/* Tap-to-edit affordance */
 #feed article.card .soft[data-action="entry-edit"]{
   cursor: pointer;
 }
@@ -329,6 +346,7 @@ body{
 }
 #feed article.card .soft > *{ position: relative; }
 
+/* Align chat bubbles like Telegram */
 #feed article.card[data-mine="1"] .entryHead{ justify-content: flex-end; }
 #feed article.card[data-mine="1"] .entryBubbles{ justify-items: end; }
 #feed article.card[data-mine="0"] .entryBubbles{ justify-items: start; }
@@ -344,6 +362,7 @@ body{
   border-top-left-radius: 8px;
 }
 
+/* Small tail */
 #feed article.card .entryBubbles .soft::after{
   content:"";
   position:absolute;
@@ -360,6 +379,7 @@ body{
 #feed article.card[data-mine="1"] .entryBubbles .soft::after{ right: -6px; }
 #feed article.card[data-mine="0"] .entryBubbles .soft::after{ left: -6px; transform: rotate(225deg); }
 
+/* Slightly different tints */
 #feed article.card .soft[style*="var(--victory)"]{
   background: rgba(124, 92, 255, 0.15) !important;
 }
@@ -367,6 +387,7 @@ body{
   background: rgba(46, 212, 167, 0.15) !important;
 }
 
+/* Make the date line look like Telegram chip */
 #feed > .row{
   margin: 2px 0 4px;
 }
@@ -379,6 +400,7 @@ body{
   backdrop-filter: blur(8px);
 }
 
+/* Composer: make the input area feel like a chat composer */
 #todayForm{
   background: var(--glassBg);
   border-radius: 26px;
@@ -396,11 +418,14 @@ body{
 }
 #todayForm .textarea{ min-height: 90px; }
 
+/* Sidebar: smooth */
 .sidebar{ backdrop-filter: blur(20px); }
 .sidebar-scrim{ background: rgba(0,0,0,.4); }
 
+/* Modal polish */
 .modalPanel{ box-shadow: var(--shadow); }
 
+/* AI button: sleek */
 .ai-btn{
   background: rgba(255,255,255,.08);
   border-color: color-mix(in srgb, var(--border) 70%, transparent);
@@ -410,12 +435,14 @@ body{
   border-color: color-mix(in srgb, var(--accent) 52%, var(--border));
 }
 
+/* Scrollbar (webkit) */
 @supports selector(::-webkit-scrollbar){
   ::-webkit-scrollbar{ height: 10px; width: 10px; }
   ::-webkit-scrollbar-thumb{ background: rgba(255,255,255,.10); border-radius: 999px; border: 2px solid rgba(0,0,0,0); background-clip: padding-box; }
   ::-webkit-scrollbar-thumb:hover{ background: rgba(255,255,255,.16); border: 2px solid rgba(0,0,0,0); background-clip: padding-box; }
 }
 
+/* --- Synchronization / Lunar stars layer --- */
 :root{
   --lunar-bg-deep: #0a0a0f;
   --lunar-bg: #0d0d14;
@@ -432,6 +459,7 @@ body{
   --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 }
 
+/* When stars canvas is active - let canvas draw the night */
 html.l00m-stars-on,
 html.l00m-stars-on body{
   background: transparent !important;
@@ -440,6 +468,7 @@ html.l00m-stars-on body::before{
   opacity: 0 !important;
 }
 
+/* Ensure stars appear behind all elements */
 .stars-bg {
   z-index: -1 !important;
 }
@@ -463,6 +492,7 @@ html.l00m-stars-on body::before{
   background: var(--bg);
 }
 
+/* Landing-only subtle crystal canvas overlay */
 #cosmosRoot{ position: relative; overflow: visible; }
 #crystalCanvas{
   position: absolute;
@@ -480,6 +510,7 @@ html.l00m-stars-on body::before{
   #starsCanvas, #crystalCanvas{ display:none !important; }
 }
 
+/* Safe-area support (iOS/Android gesture bars) */
 :root{
   --safeTop: env(safe-area-inset-top, 0px);
   --safeBottom: env(safe-area-inset-bottom, 0px);
@@ -492,10 +523,12 @@ body{
   padding-right: var(--safeRight);
 }
 
+/* Disabled the dotted pattern to show stars better */
 body::before{
   display: none;
 }
 
+/* Header: more Telegram-ish proportions */
 .header{
   padding-top: var(--safeTop);
 }
@@ -503,11 +536,13 @@ body::before{
   min-height: 52px;
 }
 
+/* Icon-like ghost buttons */
 .btn-ghost{
   border-radius: 14px;
   padding: 10px 12px;
 }
 
+/* Feed bubbles typography */
 #feed article.card .soft{
   line-height: 1.45;
   font-size: 14px;
@@ -516,14 +551,17 @@ body::before{
   opacity: .92;
 }
 
+/* More "chat bubble" maximum width on large screens */
 #feed article.card .entryBubbles .soft{
   width: min(560px, 100%);
 }
 
+/* Make my bubbles slightly more "telegram-blue" tinted by accent */
 #feed article.card[data-mine="1"] .entryBubbles .soft{
   box-shadow: 0 14px 30px rgba(124, 92, 255, 0.1);
 }
 
+/* Composer as real bottom bar on mobile */
 @media (max-width: 820px){
   #todayForm{
     bottom: calc(10px + var(--safeBottom));
@@ -533,24 +571,29 @@ body::before{
   #feedStatus{ padding-bottom: calc(22px + var(--safeBottom)); }
 }
 
+/* Textareas: make them feel like Telegram compose fields */
 #todayForm .textarea{
   border-radius: 18px;
   padding-top: 12px;
 }
 
+/* AI button looks like an in-field action */
 .ai-btn{
   backdrop-filter: blur(12px);
 }
 
+/* Toast: slightly higher on mobile to avoid gesture bar */
 .toast{
   bottom: calc(22px + var(--safeBottom));
 }
 
+/* === Make all UI surfaces ~10% opaque so stars are visible === */
 :root {
   --ui-bg-mix: 10%;
   --ui-blur: 0px;
 }
 
+/* main surfaces */
 .card,
 .soft,
 .header,
@@ -569,6 +612,7 @@ body::before{
   backdrop-filter: blur(var(--ui-blur));
 }
 
+/* primary / danger buttons (тоже делаем “стеклянными”) */
 .btn {
   background: color-mix(in srgb, var(--accent) var(--ui-bg-mix), transparent) !important;
   border-color: color-mix(in srgb, var(--accent) 40%, transparent) !important;
@@ -579,20 +623,24 @@ body::before{
   border-color: color-mix(in srgb, var(--danger) 40%, transparent) !important;
 }
 
+/* chat bubble special-case (my bubble tint) */
 #feed article.card[data-mine="1"] .entryBubbles .soft {
   background: color-mix(in srgb, var(--accent) var(--ui-bg-mix), transparent) !important;
 }
 
 
 
+/* === Force background for OTHER users bubbles === */
 :root {
   --ui-bg-mix: 10%;
 }
 
+/* обычные пузыри других */
 #feed article.card[data-mine="0"] .entryBubbles .soft {
   background: color-mix(in srgb, var(--bgSecondary) var(--ui-bg-mix), transparent) !important;
 }
 
+/* если у чужих пузырей фон задаётся как victory/lesson (перебивает общий .soft) */
 #feed article.card[data-mine="0"] .entryBubbles .soft[style*="var(--victory)"] {
   background: color-mix(in srgb, var(--victory) var(--ui-bg-mix), transparent) !important;
 }

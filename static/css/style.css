@@ -348,7 +348,6 @@ body{
 
 /* Align chat bubbles like Telegram */
 #feed article.card[data-mine="1"] .entryHead{ justify-content: flex-end; }
-#feed article.card[data-mine="1"] .entryHead > .row{ display:none; }
 #feed article.card[data-mine="1"] .entryBubbles{ justify-items: end; }
 #feed article.card[data-mine="0"] .entryBubbles{ justify-items: start; }
 

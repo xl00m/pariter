@@ -1578,68 +1578,41 @@ function EntryCard({entry, author, meId, meIsAdmin}){
   const authorName = author?.name || 'Неизвестный';
   const dateLabel = ruDateLabel(entry.date);
   
-  // Обрабатываем created_at: если значение некорректно или отсутствует, используем фиктивное время '00:00'
-  let timeLabel = '';
+  // Process created_at to always show time label, regardless of ownership
+  // Normalize and trim the created_at value to handle various formats
+  const cleanCreatedAt = (entry.created_at || '').trim();
+  let timeLabel = '00:00'; // Default fallback
   
-  // Normalize the created_at value to handle various formats
-  let createdAtValue = entry?.created_at;
-  if (createdAtValue && typeof createdAtValue === 'string') {
-    createdAtValue = createdAtValue.trim();
-  }
-  
-  if (createdAtValue && createdAtValue !== 'null' && createdAtValue !== 'undefined' && createdAtValue !== 'Invalid Date') {
-    // Handle ISO string formats
-    let dateObj = new Date(createdAtValue);
+  if (cleanCreatedAt && cleanCreatedAt !== 'null' && cleanCreatedAt !== 'undefined' && cleanCreatedAt !== 'Invalid Date') {
+    const dateObj = new Date(cleanCreatedAt);
     
-    // If the date object is valid, use it
+    // If the date object is valid, extract the time
     if (!isNaN(dateObj.getTime())) {
-      timeLabel = ruTimeLabel(createdAtValue);
+      timeLabel = ruTimeLabel(cleanCreatedAt);
     } else {
       // Try alternative parsing methods
-      // Handle timestamp number
-      const timestamp = Number(createdAtValue);
+      const timestamp = Number(cleanCreatedAt);
       if (!isNaN(timestamp) && timestamp > 0) {
-        timeLabel = ruTimeLabel(new Date(timestamp).toISOString());
-      } else {
-        // Try to parse as milliseconds timestamp string
-        const msTimestamp = Number(createdAtValue) * 1000;
-        if (!isNaN(msTimestamp) && msTimestamp > 0) {
-          dateObj = new Date(msTimestamp);
-          if (!isNaN(dateObj.getTime())) {
-            timeLabel = ruTimeLabel(dateObj.toISOString());
-          } else {
-            timeLabel = '00:00'; // фиктивное время для некорректных значений
-          }
-        } else {
-          timeLabel = '00:00'; // фиктивное время для некорректных значений
+        const dateFromTimestamp = new Date(timestamp);
+        if (!isNaN(dateFromTimestamp.getTime())) {
+          timeLabel = ruTimeLabel(dateFromTimestamp.toISOString());
         }
       }
     }
-  } else {
-    // If created_at is missing, try to use the date field as a fallback with current time approximation
-    if (entry?.date) {
-      try {
-        // Create a date object using the date field
-        const dateParts = entry.date.split('-');
-        if (dateParts.length === 3) {
-          const [year, month, day] = dateParts.map(Number);
-          // Use current time for hours/minutes if possible, otherwise default to noon
-          const now = new Date();
-          const currentHours = now.getHours();
-          const currentMinutes = now.getMinutes();
-          const fallbackDate = new Date(year, month - 1, day, currentHours, currentMinutes, 0);
-          timeLabel = ruTimeLabel(fallbackDate.toISOString());
-        } else {
-          timeLabel = '00:00'; // фиктивное время для некорректных или отсутствующих значений
-        }
-      } catch {
-        timeLabel = '00:00'; // фиктивное время для некорректных или отсутствующих значений
-      }
-    } else {
-      timeLabel = '00:00'; // фиктивное время для некорректных или отсутствующих значений
+  }
+  
+  // Ensure we always have a proper time label - if still '00:00' and we have a valid date,
+  // we can use a default time or try to extract from the datetime string
+  if (timeLabel === '00:00' && cleanCreatedAt && cleanCreatedAt.length > 0) {
+    // Try to extract time from the raw string if it contains time information
+    const timeMatch = cleanCreatedAt.match(/(\d{1,2}):(\d{2})/);
+    if (timeMatch) {
+      const [, hours, minutes] = timeMatch;
+      timeLabel = `${hours.padStart(2, '0')}:${minutes.padStart(2, '0')}`;
     }
   }
 
+  // Log for debugging purposes
   console.log('EntryCard data:', {
     entryId: entry.id,
     entryDate: entry.date,

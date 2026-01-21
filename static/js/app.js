@@ -1580,16 +1580,74 @@ function EntryCard({entry, author, meId, meIsAdmin}){
   
   // Обрабатываем created_at: если значение некорректно или отсутствует, используем фиктивное время '00:00'
   let timeLabel = '';
-  if (entry?.created_at && String(entry.created_at).trim() !== '' && new Date(entry.created_at).getTime() > 0) {
-    timeLabel = ruTimeLabel(entry.created_at);
+  
+  // Normalize the created_at value to handle various formats
+  let createdAtValue = entry?.created_at;
+  if (createdAtValue && typeof createdAtValue === 'string') {
+    createdAtValue = createdAtValue.trim();
+  }
+  
+  if (createdAtValue && createdAtValue !== 'null' && createdAtValue !== 'undefined' && createdAtValue !== 'Invalid Date') {
+    // Handle ISO string formats
+    let dateObj = new Date(createdAtValue);
+    
+    // If the date object is valid, use it
+    if (!isNaN(dateObj.getTime())) {
+      timeLabel = ruTimeLabel(createdAtValue);
+    } else {
+      // Try alternative parsing methods
+      // Handle timestamp number
+      const timestamp = Number(createdAtValue);
+      if (!isNaN(timestamp) && timestamp > 0) {
+        timeLabel = ruTimeLabel(new Date(timestamp).toISOString());
+      } else {
+        // Try to parse as milliseconds timestamp string
+        const msTimestamp = Number(createdAtValue) * 1000;
+        if (!isNaN(msTimestamp) && msTimestamp > 0) {
+          dateObj = new Date(msTimestamp);
+          if (!isNaN(dateObj.getTime())) {
+            timeLabel = ruTimeLabel(dateObj.toISOString());
+          } else {
+            timeLabel = '00:00'; // фиктивное время для некорректных значений
+          }
+        } else {
+          timeLabel = '00:00'; // фиктивное время для некорректных значений
+        }
+      }
+    }
   } else {
-    timeLabel = '00:00'; // фиктивное время для некорректных или отсутствующих значений
+    // If created_at is missing, try to use the date field as a fallback with current time approximation
+    if (entry?.date) {
+      try {
+        // Create a date object using the date field
+        const dateParts = entry.date.split('-');
+        if (dateParts.length === 3) {
+          const [year, month, day] = dateParts.map(Number);
+          // Use current time for hours/minutes if possible, otherwise default to noon
+          const now = new Date();
+          const currentHours = now.getHours();
+          const currentMinutes = now.getMinutes();
+          const fallbackDate = new Date(year, month - 1, day, currentHours, currentMinutes, 0);
+          timeLabel = ruTimeLabel(fallbackDate.toISOString());
+        } else {
+          timeLabel = '00:00'; // фиктивное время для некорректных или отсутствующих значений
+        }
+      } catch {
+        timeLabel = '00:00'; // фиктивное время для некорректных или отсутствующих значений
+      }
+    } else {
+      timeLabel = '00:00'; // фиктивное время для некорректных или отсутствующих значений
+    }
   }
 
   console.log('EntryCard data:', {
     entryId: entry.id,
     entryDate: entry.date,
     entryCreatedAt: entry.created_at,
+    entryCreatedAtType: typeof entry.created_at,
+    entryUserId: entry.user_id,
+    meId: meId,
+    isMine: Number(entry.user_id) === Number(meId),
     dateLabel,
     timeLabel,
     rawEntry: entry

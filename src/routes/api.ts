@@ -74,9 +74,9 @@ async function callPariterAI({ apiKey, messages, temperature=1, model='qwen3-cod
   const data = await res.json().catch(()=> ({}));
   if (!res.ok) {
     const msg = (data && typeof data === 'object' && 'error' in data)
-      ? String((data as any).error || 'AI error')
+      ? (typeof (data as any).error === 'string' ? (data as any).error : (typeof (data as any).error === 'object' ? JSON.stringify((data as any).error) : 'AI error'))
       : (data && typeof data === 'object' && 'message' in data)
-        ? String((data as any).message || 'AI error')
+        ? (typeof (data as any).message === 'string' ? (data as any).message : (typeof (data as any).message === 'object' ? JSON.stringify((data as any).message) : 'AI error'))
         : 'AI error';
     throw new Error(msg);
   }

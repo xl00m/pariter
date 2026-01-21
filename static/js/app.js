@@ -1123,7 +1123,7 @@ function ensureEntryModal(){
         await hydratePathStats();
         await hydrateFeed(true);
       } catch (err) {
-        const errorMessage = err?.message || (typeof err === 'string' ? err : 'Ошибка обновления.');
+        const errorMessage = typeof err?.message === 'string' ? err.message : (typeof err === 'string' ? err : 'Ошибка обновления.');
         toast(errorMessage);
       }
       return;
@@ -2371,7 +2371,7 @@ function bindHandlers(){
           await enablePush();
           toast('Push включен.');
         } catch (err) {
-          const errorMessage = err?.message || (typeof err === 'string' ? err : 'Не удалось включить push.');
+          const errorMessage = typeof err?.message === 'string' ? err.message : (typeof err === 'string' ? err : 'Не удалось включить push.');
           toast(errorMessage);
         } finally {
           APP._pushBusy = false;
@@ -2417,7 +2417,7 @@ function bindHandlers(){
         try {
           await api.profileDelete();
         } catch (err) {
-          const errorMessage = err?.message || (typeof err === 'string' ? err : 'Не удалось удалить аккаунт.');
+          const errorMessage = typeof err?.message === 'string' ? err.message : (typeof err === 'string' ? err : 'Не удалось удалить аккаунт.');
           toast(errorMessage);
           return;
         }
@@ -2442,7 +2442,8 @@ function bindHandlers(){
           APP.state.teamUsersFetchedAt = 0;
           await hydrateInvite();
         } catch (err) {
-          toast(err.message || 'Не удалось удалить спутника.');
+          const errorMessage = typeof err?.message === 'string' ? err.message : (typeof err === 'string' ? err : 'Не удалось удалить спутника.');
+          toast(errorMessage);
         }
         return;
       }
@@ -2463,7 +2464,8 @@ function bindHandlers(){
           URL.revokeObjectURL(url);
           toast('Экспорт готов.');
         } catch (err) {
-          toast(err.message || 'Ошибка экспорта.');
+          const errorMessage = typeof err?.message === 'string' ? err.message : (typeof err === 'string' ? err : 'Ошибка экспорта.');
+          toast(errorMessage);
         }
         return;
       }
@@ -2524,7 +2526,8 @@ function bindHandlers(){
             APP.state.teamUsersFetchedAt = 0;
             await render();
           } catch (err) {
-            toast(err.message || 'Ошибка импорта.');
+            const errorMessage = typeof err?.message === 'string' ? err.message : (typeof err === 'string' ? err : 'Ошибка импорта.');
+            toast(errorMessage);
           } finally {
             input.value = '';
             input.onchange = null;
@@ -2629,7 +2632,8 @@ function bindHandlers(){
           toast('Ссылка создана.');
           await hydrateInvite();
         } catch (err) {
-          toast(err.message || 'Ошибка создания ссылки.');
+          const errorMessage = typeof err?.message === 'string' ? err.message : (typeof err === 'string' ? err : 'Ошибка создания ссылки.');
+          toast(errorMessage);
         }
         return;
       }
@@ -2693,7 +2697,7 @@ function bindHandlers(){
           toast('Удалено.');
           await hydrateInvite();
         } catch (err) {
-          const errorMessage = err?.message || (typeof err === 'string' ? err : 'Ошибка удаления.');
+          const errorMessage = typeof err?.message === 'string' ? err.message : (typeof err === 'string' ? err : 'Ошибка удаления.');
           toast(errorMessage);
         }
         return;
@@ -2751,6 +2755,13 @@ function bindHandlers(){
 
         try {
           const r = await api.aiRewrite({ field, text });
+          
+          // Check if r contains error information
+          if (r && typeof r === 'object' && (r.error || r.err || r.message)) {
+            const errorMsg = r.error?.message || r.error || r.err?.message || r.err || r.message || 'Пустой ответ ИИ.';
+            throw new Error(typeof errorMsg === 'string' ? errorMsg : 'Пустой ответ ИИ.');
+          }
+          
           const out = String(r?.text || '').trim();
           if (!out) throw new Error('Пустой ответ ИИ.');
 
@@ -2761,7 +2772,7 @@ function bindHandlers(){
           bar.classList.remove('hidden');
           toast('ИИ предложил вариант.');
         } catch (err) {
-          const errorMessage = err?.message || (typeof err === 'string' ? err : 'Ошибка ИИ.');
+          const errorMessage = typeof err?.message === 'string' ? err.message : (typeof err === 'string' ? err : 'Ошибка ИИ.');
           toast(errorMessage);
           // restore original on error
           if (target.dataset.aiOriginal != null) target.value = target.dataset.aiOriginal;
@@ -2822,7 +2833,8 @@ function bindHandlers(){
           await hydratePathStats();
           await hydrateFeed(true);
         } catch (err) {
-          toast(err.message || 'Ошибка удаления.');
+          const errorMessage = typeof err?.message === 'string' ? err.message : (typeof err === 'string' ? err : 'Ошибка удаления.');
+          toast(errorMessage);
         }
         return;
       }
@@ -2872,7 +2884,8 @@ function bindHandlers(){
         // best-effort: keep push alive if user enabled it before
         try { pushAutoMaintain(); } catch {}
       } catch (err) {
-        toast(err.message || 'Ошибка входа.');
+        const errorMessage = typeof err?.message === 'string' ? err.message : (typeof err === 'string' ? err : 'Ошибка входа.');
+        toast(errorMessage);
       }
     });
   }
@@ -2917,7 +2930,8 @@ function bindHandlers(){
         render();
         try { pushAutoMaintain(); } catch {}
       } catch (err) {
-        toast(err.message || 'Ошибка регистрации.');
+        const errorMessage = typeof err?.message === 'string' ? err.message : (typeof err === 'string' ? err : 'Ошибка регистрации.');
+        toast(errorMessage);
       }
     });
   }
@@ -2966,7 +2980,10 @@ function bindHandlers(){
         if (reason === 'invalid') toast('Приглашение недействительно.');
         else if (reason === 'expired') toast('Срок действия приглашения истёк.');
         else if (reason === 'used') toast('Приглашение уже использовано.');
-        else toast(err.message || 'Ошибка присоединения.');
+        else {
+          const errorMessage = typeof err?.message === 'string' ? err.message : (typeof err === 'string' ? err : 'Ошибка присоединения.');
+          toast(errorMessage);
+        }
         try { await hydrateJoin(); } catch {}
       }
     });
@@ -3011,7 +3028,7 @@ function bindHandlers(){
         toast('Сохранено.');
         await render();
       } catch (err) {
-        const errorMessage = err?.message || (typeof err === 'string' ? err : 'Ошибка сохранения.');
+        const errorMessage = typeof err?.message === 'string' ? err.message : (typeof err === 'string' ? err : 'Ошибка сохранения.');
         toast(errorMessage);
       }
     });
@@ -3172,7 +3189,8 @@ async function hydrateTodayForm(){
         await hydratePathStats();
         await hydrateFeed(true);
       } catch (err) {
-        toast(err.message || 'Ошибка сохранения.');
+        const errorMessage = typeof err?.message === 'string' ? err.message : (typeof err === 'string' ? err : 'Ошибка сохранения.');
+        toast(errorMessage);
       }
     });
   }
@@ -3522,7 +3540,8 @@ async function loadMoreFeed(){
 
   } catch (err) {
     status.textContent = '';
-    toast(err.message || 'Ошибка загрузки ленты.');
+    const errorMessage = typeof err?.message === 'string' ? err.message : (typeof err === 'string' ? err : 'Ошибка загрузки ленты.');
+    toast(errorMessage);
   } finally {
     APP.state.feed.loading = false;
     const moreBtn = $('#feedMore');

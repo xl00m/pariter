@@ -124,8 +124,19 @@ function isPushPath(pathname: string){
 const server = Bun.serve({
   port: Number(process.env.PORT || cfg.port || 8080),
   async fetch(req){
-    const url = new URL(req.url);
-    const path = url.pathname;
+    let path = req.url;
+    try {
+      const url = new URL(req.url);
+      path = url.pathname;
+    } catch {
+      // If URL parsing fails, assume it's just a path
+      if (req.url.startsWith('/')) {
+        path = req.url;
+      } else {
+        // If it doesn't start with '/', it might be a malformed request
+        return withSecurityHeaders(new Response('Bad Request', { status: 400 }));
+      }
+    }
 
     if (isStatic(path)) {
       if (path === '/favicon.ico') {
